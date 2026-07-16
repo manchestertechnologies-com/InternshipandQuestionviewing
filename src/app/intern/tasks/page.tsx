@@ -548,7 +548,7 @@ export default function DailyTasksPage() {
               {/* Subject & Topic metadata (required) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Subject *</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Subject (NCERT) *</label>
                   <input
                     type="text"
                     required
@@ -559,7 +559,7 @@ export default function DailyTasksPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Topic *</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Chapter Name (Topic) *</label>
                   <input
                     type="text"
                     required
@@ -573,7 +573,7 @@ export default function DailyTasksPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub Topic</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Topic</label>
                   <input
                     type="text"
                     value={subTopic}
@@ -583,7 +583,7 @@ export default function DailyTasksPage() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Concept *</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Concept (NCERT) *</label>
                   <input
                     type="text"
                     required
@@ -597,7 +597,7 @@ export default function DailyTasksPage() {
 
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub Concept</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Concept</label>
                   <input
                     type="text"
                     value={subConcept}

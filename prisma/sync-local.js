@@ -12,6 +12,42 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
+function normalizeDomain(rawDomain) {
+  if (!rawDomain) return 'Web Development';
+  const clean = rawDomain.trim().toLowerCase();
+
+  if (clean.includes('machine learning') || clean === 'aiml') {
+    return 'Machine Learning';
+  }
+  if (
+    clean.includes('data analytics') ||
+    clean.includes('data analyst') ||
+    clean.includes('data analysis') ||
+    clean.includes('da') ||
+    clean.includes('analyst') ||
+    clean.includes('ai') ||
+    clean.includes('artificial')
+  ) {
+    return 'Artificial Intelligence';
+  }
+  if (clean.includes('information science') || clean === 'ise') {
+    return 'Database Development';
+  }
+  if (clean === 'cse' || clean.includes('computer science') || clean.includes('engineering')) {
+    return 'Full Stack Development';
+  }
+  if (clean.includes('computer application')) {
+    return 'Web Development';
+  }
+  if (clean.includes('cloud')) {
+    return 'Testing & QA';
+  }
+  if (clean.includes('data science') || clean.includes('ds')) {
+    return 'Machine Learning';
+  }
+  return 'Web Development';
+}
+
 async function main() {
   console.log("Starting local Excel matching and database sync...");
 
@@ -47,7 +83,8 @@ async function main() {
       const rawSNo = row['S.No']?.toString().trim();
       const name = row['Student Name']?.toString().trim();
       const group = row['Group']?.toString().trim() || 'Group 1';
-      const domain = row['Branch/Specialization']?.toString().trim() || 'General';
+      const rawDomain = row['Branch/Specialization']?.toString().trim();
+      const domain = normalizeDomain(rawDomain);
       const course = row['Course']?.toString().trim() || '';
       const phoneNumber = row['Phone Number']?.toString().trim() || '';
       const applicationID = row['Application ID']?.toString().trim() || '';

@@ -164,44 +164,69 @@ export default function StudentsManagement() {
             <RefreshCw className="w-8 h-8 animate-spin text-brand-gold" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-brand-border text-brand-muted font-medium">
-                  <th className="pb-3">Roll No</th>
-                  <th className="pb-3">Student Name</th>
-                  <th className="pb-3">Domain</th>
-                  <th className="pb-3">Group</th>
-                  <th className="pb-3">College Name</th>
-                  <th className="pb-3">Course</th>
-                  <th className="pb-3">Application ID</th>
-                  <th className="pb-3 text-right">Points</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-border">
-                {filteredStudents.map((student) => (
-                  <tr key={student.id} className="hover:bg-white/5 transition-colors text-zinc-300">
-                    <td className="py-3.5 font-semibold text-white">#{student.rollNo}</td>
-                    <td className="py-3.5 text-white font-medium">{student.name}</td>
-                    <td className="py-3.5 text-xs font-mono">{student.domain || 'N/A'}</td>
-                    <td className="py-3.5 text-xs">{student.group}</td>
-                    <td className="py-3.5 text-xs truncate max-w-xs">{student.collegeName || 'N/A'}</td>
-                    <td className="py-3.5 text-xs">{student.course || 'N/A'}</td>
-                    <td className="py-3.5 text-xs font-mono">{student.applicationID || 'N/A'}</td>
-                    <td className="py-3.5 text-right font-semibold text-brand-gold">
-                      {student.totalPoints} pts
-                    </td>
-                  </tr>
-                ))}
-                {filteredStudents.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="py-8 text-center text-brand-muted italic">
-                      No interns found matching the criteria
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="space-y-8">
+            {(() => {
+              // Group students by group name
+              const studentsByGroup: { [key: string]: Intern[] } = {};
+              filteredStudents.forEach((student) => {
+                const grp = student.group || 'Unassigned Group';
+                if (!studentsByGroup[grp]) {
+                  studentsByGroup[grp] = [];
+                }
+                studentsByGroup[grp].push(student);
+              });
+
+              const activeGroups = Object.keys(studentsByGroup).sort();
+
+              if (activeGroups.length === 0) {
+                return (
+                  <div className="py-8 text-center text-brand-muted italic">
+                    No interns found matching the criteria
+                  </div>
+                );
+              }
+
+              return activeGroups.map((groupName) => (
+                <div key={groupName} className="space-y-3 bg-black/20 p-4 rounded-xl border border-brand-border">
+                  <h3 className="text-lg font-bold text-brand-gold border-b border-brand-border/40 pb-2 flex items-center justify-between">
+                    <span>{groupName}</span>
+                    <span className="text-xs bg-white/5 text-brand-muted px-2.5 py-0.5 rounded-full font-medium">
+                      {studentsByGroup[groupName].length} Interns
+                    </span>
+                  </h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="border-b border-brand-border text-brand-muted font-medium">
+                          <th className="pb-3">Roll No</th>
+                          <th className="pb-3">Student Name</th>
+                          <th className="pb-3">Domain</th>
+                          <th className="pb-3">College Name</th>
+                          <th className="pb-3">Course</th>
+                          <th className="pb-3">Application ID</th>
+                          <th className="pb-3 text-right">Points</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-brand-border">
+                        {studentsByGroup[groupName].map((student) => (
+                          <tr key={student.id} className="hover:bg-white/5 transition-colors text-zinc-300">
+                            <td className="py-3.5 font-semibold text-white">#{student.rollNo}</td>
+                            <td className="py-3.5 text-white font-medium">{student.name}</td>
+                            <td className="py-3.5 text-xs font-mono">{student.domain || 'N/A'}</td>
+                            <td className="py-3.5 text-xs truncate max-w-xs">{student.collegeName || 'N/A'}</td>
+                            <td className="py-3.5 text-xs">{student.course || 'N/A'}</td>
+                            <td className="py-3.5 text-xs font-mono">{student.applicationID || 'N/A'}</td>
+                            <td className="py-3.5 text-right font-semibold text-brand-gold">
+                              {student.totalPoints} pts
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>

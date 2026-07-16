@@ -12,6 +12,40 @@ export interface SyncResult {
   errors: string[];
 }
 
+function normalizeDomain(rawDomain: string | null | undefined): string {
+  if (!rawDomain) return 'General';
+  const clean = rawDomain.trim().toLowerCase();
+
+  if (clean.includes('machine learning') || clean === 'aiml') {
+    return 'Artificial Intelligence and Machine Learning';
+  }
+  if (
+    clean.includes('data analytics') ||
+    clean.includes('data analyst') ||
+    clean.includes('data analysis') ||
+    clean.includes('da') ||
+    clean.includes('analyst')
+  ) {
+    return 'Artificial Intelligence and Data Analytics';
+  }
+  if (clean.includes('information science') || clean === 'ise') {
+    return 'Information Science and Engineering';
+  }
+  if (clean === 'cse' || clean.includes('computer science') || clean.includes('engineering')) {
+    return 'Computer Science and Engineering';
+  }
+  if (clean.includes('computer application')) {
+    return 'Computer Application';
+  }
+  if (clean.includes('cloud')) {
+    return 'Cloud Computing';
+  }
+  if (clean.includes('data science') || clean.includes('ds')) {
+    return 'Data Science';
+  }
+  return 'General';
+}
+
 export async function syncExcelData(): Promise<SyncResult> {
   const result: SyncResult = {
     total: 0,
@@ -22,6 +56,7 @@ export async function syncExcelData(): Promise<SyncResult> {
   };
 
   try {
+    // Check public folder first (which Vercel guarantees is packaged and readable at runtime)
     const filename = process.env.EXCEL_FILE_PATH || 'Manchester_Technologies_Consolidated_Groupwise_Final_Updated.xlsx';
     
     // Check public folder first (which Vercel guarantees is packaged and readable at runtime)
@@ -60,7 +95,8 @@ export async function syncExcelData(): Promise<SyncResult> {
         const rawSNo = row['S.No']?.toString().trim();
         const name = row['Student Name']?.toString().trim();
         const group = row['Group']?.toString().trim() || 'Group 1';
-        const domain = row['Branch/Specialization']?.toString().trim() || 'General';
+        const rawDomain = row['Branch/Specialization']?.toString().trim();
+        const domain = normalizeDomain(rawDomain);
         const course = row['Course']?.toString().trim() || '';
         const phoneNumber = row['Phone Number']?.toString().trim() || '';
         const applicationID = row['Application ID']?.toString().trim() || '';

@@ -192,9 +192,14 @@ export default function MentorAnnouncementsPage() {
                   className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
                 >
                   <option value="All">All Domains (Entire Group)</option>
-                  <option value="AIML">AIML Only</option>
-                  <option value="Data Science">Data Science Only</option>
-                  <option value="Full Stack">Full Stack Only</option>
+                  <option value="Web Development">Web Development</option>
+                  <option value="Mobile App Development">Mobile App Development</option>
+                  <option value="Artificial Intelligence">Artificial Intelligence</option>
+                  <option value="Machine Learning">Machine Learning</option>
+                  <option value="UI/UX Design">UI/UX Design</option>
+                  <option value="Database Development">Database Development</option>
+                  <option value="Testing & QA">Testing & QA</option>
+                  <option value="Full Stack Development">Full Stack Development</option>
                 </select>
               </div>
 

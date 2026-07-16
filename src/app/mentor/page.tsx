@@ -146,78 +146,105 @@ export default function MentorInterns() {
           <RefreshCw className="w-8 h-8 animate-spin text-brand-gold" />
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredInterns.map((intern) => (
-            <div key={intern.id} className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/30 transition duration-300 relative overflow-hidden group">
-              <div className="space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-bold text-white text-lg">{intern.name}</h3>
-                    <p className="text-xs text-brand-gold font-semibold uppercase tracking-wider">Roll #{intern.rollNo}</p>
-                  </div>
-                  <span className="text-[10px] bg-white/5 border border-brand-border text-brand-muted px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-                    Rank #{intern.rank || 'N/A'}
+        <div className="space-y-10">
+          {(() => {
+            const internsByDomain: { [key: string]: Intern[] } = {};
+            filteredInterns.forEach((intern) => {
+              const dom = intern.domain || 'Web Development';
+              if (!internsByDomain[dom]) {
+                internsByDomain[dom] = [];
+              }
+              internsByDomain[dom].push(intern);
+            });
+
+            const activeDomains = Object.keys(internsByDomain).sort();
+
+            if (activeDomains.length === 0) {
+              return (
+                <div className="py-12 text-center text-brand-muted italic">
+                  No assigned interns found matching the criteria
+                </div>
+              );
+            }
+
+            return activeDomains.map((domName) => (
+              <div key={domName} className="space-y-4">
+                <h3 className="text-xl font-bold text-brand-gold border-b border-brand-border/40 pb-2 flex items-center justify-between">
+                  <span>{domName}</span>
+                  <span className="text-xs bg-white/5 text-brand-muted px-2.5 py-0.5 rounded-full font-medium">
+                    {internsByDomain[domName].length} Interns
                   </span>
-                </div>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {internsByDomain[domName].map((intern, idx) => (
+                    <div key={intern.id} className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/30 transition duration-300 relative overflow-hidden group">
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs bg-brand-gold/10 text-brand-gold border border-brand-gold/30 px-2 py-0.5 rounded-md font-bold">
+                              #{idx + 1}
+                            </span>
+                            <h3 className="font-bold text-white text-lg">{intern.name}</h3>
+                          </div>
+                          <span className="text-[10px] bg-white/5 border border-brand-border text-brand-muted px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                            Rank #{intern.rank || 'N/A'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-brand-gold font-semibold uppercase tracking-wider">Roll #{intern.rollNo}</p>
 
-                <div className="space-y-2 text-sm text-zinc-300">
-                  <div className="flex items-center gap-2">
-                    <Mail className="w-4 h-4 text-brand-muted" />
-                    <span className="truncate">{intern.user.email}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Award className="w-4 h-4 text-brand-muted" />
-                    <span>Domain: <span className="text-white font-medium">{intern.domain || 'General'}</span></span>
-                  </div>
-                </div>
+                        <div className="space-y-2 text-sm text-zinc-300">
+                          <div className="flex items-center gap-2">
+                            <Mail className="w-4 h-4 text-brand-muted" />
+                            <span className="truncate">{intern.user.email}</span>
+                          </div>
+                        </div>
 
-                {/* Score Stats */}
-                <div className="grid grid-cols-2 gap-4 bg-black/40 border border-brand-border/60 p-3 rounded-lg text-xs text-center mt-2">
-                  <div>
-                    <p className="text-brand-muted uppercase font-bold">Total Points</p>
-                    <p className="text-base font-bold text-white mt-0.5">{intern.totalPoints} pts</p>
-                  </div>
-                  <div>
-                    <p className="text-brand-muted uppercase font-bold">Mentor Score</p>
-                    <p className="text-base font-bold text-brand-gold mt-0.5">{intern.mentorScore || 'N/A'} / 10</p>
-                  </div>
+                        {/* Score Stats */}
+                        <div className="grid grid-cols-2 gap-4 bg-black/40 border border-brand-border/60 p-3 rounded-lg text-xs text-center mt-2">
+                          <div>
+                            <p className="text-brand-muted uppercase font-bold">Total Points</p>
+                            <p className="text-base font-bold text-white mt-0.5">{intern.totalPoints} pts</p>
+                          </div>
+                          <div>
+                            <p className="text-brand-muted uppercase font-bold">Mentor Score</p>
+                            <p className="text-base font-bold text-brand-gold mt-0.5">{intern.mentorScore || 'N/A'} / 10</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="mt-6 pt-4 border-t border-brand-border flex gap-3">
+                        <button
+                          onClick={() => {
+                            setEditIntern(intern);
+                            setName(intern.name);
+                            setEmail(intern.user.email);
+                            setDomain(intern.domain || '');
+                            setGroup(intern.group);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-brand-border rounded-lg text-xs font-semibold text-zinc-300 hover:bg-zinc-900 transition cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4" />
+                          <span>Edit Profile</span>
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            setScoreIntern(intern);
+                            setScore(intern.mentorScore || 5);
+                          }}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-zinc-900 border border-brand-border rounded-lg text-xs font-semibold text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
+                        >
+                          <Star className="w-4 h-4" />
+                          <span>Score Intern</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-
-              {/* Action Buttons */}
-              <div className="mt-6 pt-4 border-t border-brand-border flex gap-3">
-                <button
-                  onClick={() => {
-                    setEditIntern(intern);
-                    setName(intern.name);
-                    setEmail(intern.user.email);
-                    setDomain(intern.domain || '');
-                    setGroup(intern.group);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-brand-border rounded-lg text-xs font-semibold text-zinc-300 hover:bg-zinc-900 transition cursor-pointer"
-                >
-                  <Edit className="w-4 h-4" />
-                  <span>Edit Profile</span>
-                </button>
-                
-                <button
-                  onClick={() => {
-                    setScoreIntern(intern);
-                    setScore(intern.mentorScore || 5);
-                  }}
-                  className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-zinc-900 border border-brand-border rounded-lg text-xs font-semibold text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
-                >
-                  <Star className="w-4 h-4" />
-                  <span>Score Intern</span>
-                </button>
-              </div>
-            </div>
-          ))}
-          {filteredInterns.length === 0 && (
-            <div className="col-span-full py-12 text-center text-brand-muted italic">
-              No assigned interns found matching the criteria
-            </div>
-          )}
+            ));
+          })()}
         </div>
       )}
 
@@ -269,14 +296,21 @@ export default function MentorInterns() {
                 <label className="block text-xs font-semibold text-brand-text uppercase tracking-wider mb-2">
                   Domain / Specialization
                 </label>
-                <input
-                  type="text"
+                <select
                   required
                   value={domain}
                   onChange={(e) => setDomain(e.target.value)}
                   className="w-full px-4 py-2.5 rounded-lg border border-brand-border bg-black/60 text-white focus:outline-none focus:border-brand-gold transition duration-200 text-sm"
-                  placeholder="e.g. AIML, Data Science, Full Stack"
-                />
+                >
+                  <option value="Web Development">Web Development</option>
+                  <option value="Mobile App Development">Mobile App Development</option>
+                  <option value="Artificial Intelligence">Artificial Intelligence</option>
+                  <option value="Machine Learning">Machine Learning</option>
+                  <option value="UI/UX Design">UI/UX Design</option>
+                  <option value="Database Development">Database Development</option>
+                  <option value="Testing & QA">Testing & QA</option>
+                  <option value="Full Stack Development">Full Stack Development</option>
+                </select>
               </div>
 
               <div>
