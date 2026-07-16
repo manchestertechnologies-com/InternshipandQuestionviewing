@@ -2,12 +2,22 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
-async function saveBase64Image(base64Data: string, prefix: string): Promise<string> {
-  return base64Data;
+/**
+ * If the imageUrl is a base64 data URL, upload it to Cloudinary and return the CDN URL.
+ * Otherwise return the URL as-is (already a CDN URL from a previous save).
+ */
+async function persistImage(imageUrl: string, prefix: string): Promise<string> {
+  if (!imageUrl.startsWith('data:image/')) return imageUrl;
+
+  const matches = imageUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+  if (!matches) return imageUrl;
+
+  const ext = matches[1];
+  const buffer = Buffer.from(matches[2], 'base64');
+  const { url } = await uploadToCloudinary(buffer, `${prefix}.${ext}`, 'manchester-tech/question-images');
+  return url;
 }
 
 export async function POST(
@@ -49,20 +59,16 @@ export async function POST(
       images, // Array of { imageUrl: string, type: string }
     } = body;
 
-    // Process and save images
-    const savedImages = [];
+    // Upload any base64 images to Cloudinary
+    const savedImages: { imageUrl: string; type: string }[] = [];
     if (images && images.length > 0) {
       for (let i = 0; i < images.length; i++) {
         const img = images[i];
-        const savedUrl = await saveBase64Image(img.imageUrl, `img_${i}`);
-        savedImages.push({
-          imageUrl: savedUrl,
-          type: img.type,
-        });
+        const cdnUrl = await persistImage(img.imageUrl, `q_${taskAssignmentId}_${i}`);
+        savedImages.push({ imageUrl: cdnUrl, type: img.type });
       }
     }
 
-    // Create question in database
     const question = await prisma.question.create({
       data: {
         questionText,
@@ -83,17 +89,14 @@ export async function POST(
         status: 'PENDING',
         internId: intern.id,
         taskAssignmentId,
-        images: {
-          create: savedImages,
-        },
+        images: { create: savedImages },
       },
-      include: {
-        images: true,
-      },
+      include: { images: true },
     });
 
     return NextResponse.json(question);
   } catch (err: any) {
+    console.error('Question create error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

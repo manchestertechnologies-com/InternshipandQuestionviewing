@@ -97,10 +97,13 @@ export default function TaskAssignmentPage() {
     setSubmitting(true);
 
     try {
+      if (!title.trim()) throw new Error('Title is required');
+      if (!description.trim()) throw new Error('Description is required');
+
       const formData = new FormData();
-      formData.append('title', title);
-      formData.append('description', description);
-      
+      formData.append('title', title.trim());
+      formData.append('description', description.trim());
+
       const deadlineDays = deadlineType === 'custom' ? customDeadline : deadlineType;
       formData.append('deadlineDays', deadlineDays);
 
@@ -120,9 +123,18 @@ export default function TaskAssignmentPage() {
       const res = await fetch('/api/mentor/tasks', {
         method: 'POST',
         body: formData,
+        // Do NOT set Content-Type — browser sets it with boundary for multipart
       });
 
-      const data = await res.json();
+      let data: any = {};
+      const contentType = res.headers.get('content-type') ?? '';
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      } else {
+        const text = await res.text();
+        throw new Error(text || 'Server returned a non-JSON error');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to create task');
 
       setSuccess('Task assigned successfully!');

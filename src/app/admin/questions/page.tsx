@@ -119,9 +119,8 @@ export default function QuestionRepository() {
     }
   };
 
-  // Get unique filters
-  const defaultSubjects = ['Physics', 'Chemistry', 'Biology', 'Mathematics'];
-  const subjects = ['All', ...Array.from(new Set([...defaultSubjects, ...questions.map(q => q.subject.trim())]))];
+  // Hardcoded NCERT subjects — always visible even when no questions exist
+  const NCERT_SUBJECTS = ['Physics', 'Chemistry', 'Biology', 'Mathematics'];
   const exams = ['All', ...Array.from(new Set(questions.map(q => q.examType)))];
 
   const filteredQuestions = questions.filter(q => {
@@ -180,7 +179,7 @@ export default function QuestionRepository() {
               className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
             >
               <option value="All">All Subjects</option>
-              {subjects.filter(s => s !== 'All').map(s => (
+              {NCERT_SUBJECTS.map(s => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>

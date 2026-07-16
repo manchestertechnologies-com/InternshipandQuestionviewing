@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { existsSync } from 'fs';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -57,13 +55,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
 
-    // Save file
+    // Upload to Cloudinary
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const base64 = buffer.toString('base64');
-    const fileUrl = `data:${file.type};base64,${base64}`;
+    const { url: fileUrl } = await uploadToCloudinary(
+      buffer,
+      file.name,
+      'manchester-tech/weekly-submissions'
+    );
 
-    // Create WeeklySubmission
     const submission = await prisma.weeklySubmission.create({
       data: {
         internId: internProfile.id,
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       },
     });
 
-    // Notify Mentor of new submission
+    // Notify mentor
     if (internProfile.mentor) {
       await prisma.notification.create({
         data: {
@@ -87,6 +87,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(submission);
   } catch (err: any) {
+    console.error('Submission upload error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }

@@ -2,12 +2,18 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import { existsSync } from 'fs';
-import path from 'path';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
-async function saveBase64Image(base64Data: string, prefix: string): Promise<string> {
-  return base64Data;
+async function persistImage(imageUrl: string, prefix: string): Promise<string> {
+  if (!imageUrl.startsWith('data:image/')) return imageUrl;
+
+  const matches = imageUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+  if (!matches) return imageUrl;
+
+  const ext = matches[1];
+  const buffer = Buffer.from(matches[2], 'base64');
+  const { url } = await uploadToCloudinary(buffer, `${prefix}.${ext}`, 'manchester-tech/question-images');
+  return url;
 }
 
 export async function PATCH(
@@ -41,7 +47,6 @@ export async function PATCH(
       images,
     } = body;
 
-    // Update base fields and reset status to PENDING
     await prisma.question.update({
       where: { id: qId },
       data: {
@@ -63,27 +68,19 @@ export async function PATCH(
       },
     });
 
-    // Update images if provided
+    // Replace images with freshly persisted versions
     if (images) {
-      await prisma.questionImage.deleteMany({
-        where: { questionId: qId },
-      });
+      await prisma.questionImage.deleteMany({ where: { questionId: qId } });
 
-      const savedImages = [];
+      const savedImages: { questionId: string; imageUrl: string; type: string }[] = [];
       for (let i = 0; i < images.length; i++) {
         const img = images[i];
-        const savedUrl = await saveBase64Image(img.imageUrl, `img_${i}`);
-        savedImages.push({
-          questionId: qId,
-          imageUrl: savedUrl,
-          type: img.type,
-        });
+        const cdnUrl = await persistImage(img.imageUrl, `edit_${qId}_${i}`);
+        savedImages.push({ questionId: qId, imageUrl: cdnUrl, type: img.type });
       }
 
       if (savedImages.length > 0) {
-        await prisma.questionImage.createMany({
-          data: savedImages,
-        });
+        await prisma.questionImage.createMany({ data: savedImages });
       }
     }
 
@@ -94,6 +91,7 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (err: any) {
+    console.error('Question update error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -110,10 +108,7 @@ export async function DELETE(
   }
 
   try {
-    await prisma.question.delete({
-      where: { id: qId },
-    });
-
+    await prisma.question.delete({ where: { id: qId } });
     return NextResponse.json({ success: true, message: 'Question deleted successfully' });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

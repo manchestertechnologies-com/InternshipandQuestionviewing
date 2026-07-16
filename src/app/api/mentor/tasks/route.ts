@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
-import { existsSync } from 'fs';
+import { uploadToCloudinary } from '@/lib/cloudinary';
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -26,9 +24,7 @@ export async function GET() {
       where: { mentorId: mentorProfile.id },
       include: {
         assignments: {
-          include: {
-            intern: true,
-          },
+          include: { intern: true },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -60,11 +56,14 @@ export async function POST(request: Request) {
     const title = formData.get('title') as string;
     const description = formData.get('description') as string;
     const deadlineDaysStr = formData.get('deadlineDays') as string;
-    const assigneeIdsRaw = formData.get('assigneeIds') as string; // Comma-separated or "ALL"
+    const assigneeIdsRaw = formData.get('assigneeIds') as string;
     const file = formData.get('file') as File | null;
 
     if (!title || !description || !deadlineDaysStr || !assigneeIdsRaw) {
-      return NextResponse.json({ error: 'Title, description, deadline, and assignees are required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Title, description, deadline, and assignees are required' },
+        { status: 400 }
+      );
     }
 
     const deadlineDays = parseInt(deadlineDaysStr, 10);
@@ -72,21 +71,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid deadline days' }, { status: 400 });
     }
 
-    // Save file if provided
-    let fileUrl = '';
-    let fileName = '';
+    // Upload file to Cloudinary if provided
+    let fileUrl: string | null = null;
+    let fileName: string | null = null;
+
     if (file && file.size > 0) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
-      const base64 = buffer.toString('base64');
-      fileUrl = `data:${file.type};base64,${base64}`;
+      const { url } = await uploadToCloudinary(buffer, file.name, 'manchester-tech/tasks');
+      fileUrl = url;
       fileName = file.name;
     }
 
     // Resolve assignees
     let assigneeIds: string[] = [];
     if (assigneeIdsRaw === 'ALL') {
-      // Fetch all interns in mentor's group
       const groupInterns = await prisma.internProfile.findMany({
         where: { group: mentorProfile.group },
       });
@@ -99,25 +98,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No interns selected for assignment' }, { status: 400 });
     }
 
-    // Create task and assignments in transaction
+    // Create task and assignments in a transaction
     const result = await prisma.$transaction(async (tx) => {
       const task = await tx.task.create({
         data: {
           title,
           description,
-          fileUrl: fileUrl || null,
-          fileName: file ? file.name : null,
+          fileUrl,
+          fileName,
           deadlineDays,
           mentorId: mentorProfile.id,
         },
       });
 
-      // Create assignments
       const assignments = await Promise.all(
         assigneeIds.map(async (internId) => {
-          const intern = await tx.internProfile.findUnique({
-            where: { id: internId },
-          });
+          const intern = await tx.internProfile.findUnique({ where: { id: internId } });
 
           if (intern) {
             await tx.notification.create({
@@ -130,11 +126,7 @@ export async function POST(request: Request) {
           }
 
           return tx.taskAssignment.create({
-            data: {
-              taskId: task.id,
-              internId,
-              status: 'ASSIGNED',
-            },
+            data: { taskId: task.id, internId, status: 'ASSIGNED' },
           });
         })
       );
@@ -144,6 +136,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(result);
   } catch (err: any) {
+    console.error('Task creation error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
