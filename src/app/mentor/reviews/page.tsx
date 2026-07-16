@@ -92,7 +92,8 @@ export default function MentorReviewsPage() {
     }
   };
 
-  const subjects = ['All', ...Array.from(new Set(questions.map(q => q.subject)))];
+  const defaultSubjects = ['Physics', 'Chemistry', 'Biology', 'Mathematics'];
+  const subjects = ['All', ...Array.from(new Set([...defaultSubjects, ...questions.map(q => q.subject.trim())]))];
 
   const filteredQuestions = questions.filter(q => {
     const term = search.toLowerCase();
@@ -195,10 +196,13 @@ export default function MentorReviewsPage() {
                 </p>
 
                 <div className="grid grid-cols-2 gap-2 text-xs text-brand-muted bg-black/30 p-3 rounded-lg border border-brand-border/40">
-                  <div>Topic: <span className="text-zinc-300 font-medium">{q.topic}</span></div>
+                  <div>Chapter (Topic): <span className="text-zinc-300 font-medium">{q.topic}</span></div>
+                  <div>Sub-Topic: <span className="text-zinc-300 font-medium">{q.subTopic || 'N/A'}</span></div>
+                  <div>Concept: <span className="text-zinc-300 font-medium">{q.concept}</span></div>
+                  <div>Sub-Concept: <span className="text-zinc-300 font-medium">{q.subConcept || 'N/A'}</span></div>
                   <div>Class: <span className="text-zinc-300 font-medium">{q.classVal}</span></div>
                   <div>Exam: <span className="text-zinc-300 font-medium">{q.examType}</span></div>
-                  <div>Author: <span className="text-zinc-300 font-medium">{q.intern.name} (Roll {q.intern.rollNo})</span></div>
+                  <div className="col-span-2">Author: <span className="text-zinc-300 font-medium">{q.intern.name} (Roll {q.intern.rollNo})</span></div>
                 </div>
               </div>
 
