@@ -23,7 +23,12 @@ export async function syncExcelData(): Promise<SyncResult> {
 
   try {
     const filename = process.env.EXCEL_FILE_PATH || 'Manchester_Technologies_Consolidated_Groupwise_Final_Updated.xlsx';
-    const filePath = path.isAbsolute(filename) ? filename : path.join(process.cwd(), filename);
+    let filePath = path.isAbsolute(filename) ? filename : path.join(process.cwd(), filename);
+
+    // Fallback to public folder (especially for Vercel serverless bundles)
+    if (!path.isAbsolute(filename) && !fs.existsSync(filePath)) {
+      filePath = path.join(process.cwd(), 'public', filename);
+    }
 
     if (!fs.existsSync(filePath)) {
       throw new Error(`Excel file not found at path: ${filePath}`);
