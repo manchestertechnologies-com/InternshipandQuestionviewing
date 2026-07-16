@@ -23,11 +23,13 @@ export async function syncExcelData(): Promise<SyncResult> {
 
   try {
     const filename = process.env.EXCEL_FILE_PATH || 'Manchester_Technologies_Consolidated_Groupwise_Final_Updated.xlsx';
-    let filePath = path.isAbsolute(filename) ? filename : path.join(process.cwd(), filename);
+    
+    // Check public folder first (which Vercel guarantees is packaged and readable at runtime)
+    let filePath = path.isAbsolute(filename) ? filename : path.join(process.cwd(), 'public', filename);
 
-    // Fallback to public folder (especially for Vercel serverless bundles)
     if (!path.isAbsolute(filename) && !fs.existsSync(filePath)) {
-      filePath = path.join(process.cwd(), 'public', filename);
+      // Fallback to root folder
+      filePath = path.join(process.cwd(), filename);
     }
 
     if (!fs.existsSync(filePath)) {
