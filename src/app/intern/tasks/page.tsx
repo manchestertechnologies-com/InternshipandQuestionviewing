@@ -412,7 +412,7 @@ export default function DailyTasksPage() {
                 <span>Worksheet Attachment</span>
               </span>
               
-              {selectedAsg.task.fileUrl?.endsWith('.pdf') && (
+              {(selectedAsg.task.fileUrl?.toLowerCase().endsWith('.pdf') || selectedAsg.task.fileUrl?.startsWith('data:application/pdf')) && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
@@ -433,7 +433,7 @@ export default function DailyTasksPage() {
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between bg-zinc-950/40">
               {selectedAsg.task.fileUrl ? (
-                selectedAsg.task.fileUrl.toLowerCase().endsWith('.pdf') ? (
+                (selectedAsg.task.fileUrl.toLowerCase().endsWith('.pdf') || selectedAsg.task.fileUrl.startsWith('data:application/pdf')) ? (
                   <div
                     className="w-full h-full min-h-[450px] transition-transform duration-100 ease-out origin-top-left"
                     style={{ transform: `scale(${pdfZoom / 100})`, width: `${100 / (pdfZoom / 100)}%`, height: `${100 / (pdfZoom / 100)}%` }}

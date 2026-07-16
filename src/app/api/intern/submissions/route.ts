@@ -60,16 +60,8 @@ export async function POST(request: Request) {
     // Save file
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'weekly');
-    if (!existsSync(uploadDir)) {
-      await mkdir(uploadDir, { recursive: true });
-    }
-
-    const fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-    const filePath = path.join(uploadDir, fileName);
-    await writeFile(filePath, buffer);
-    const fileUrl = `/uploads/weekly/${fileName}`;
+    const base64 = buffer.toString('base64');
+    const fileUrl = `data:${file.type};base64,${base64}`;
 
     // Create WeeklySubmission
     const submission = await prisma.weeklySubmission.create({

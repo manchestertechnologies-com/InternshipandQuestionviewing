@@ -78,16 +78,9 @@ export async function POST(request: Request) {
     if (file && file.size > 0) {
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
-      
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-      if (!existsSync(uploadDir)) {
-        await mkdir(uploadDir, { recursive: true });
-      }
-
-      fileName = `${Date.now()}_${file.name.replace(/\s+/g, '_')}`;
-      const filePath = path.join(uploadDir, fileName);
-      await writeFile(filePath, buffer);
-      fileUrl = `/uploads/${fileName}`;
+      const base64 = buffer.toString('base64');
+      fileUrl = `data:${file.type};base64,${base64}`;
+      fileName = file.name;
     }
 
     // Resolve assignees

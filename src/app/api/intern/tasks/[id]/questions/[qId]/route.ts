@@ -7,28 +7,7 @@ import { existsSync } from 'fs';
 import path from 'path';
 
 async function saveBase64Image(base64Data: string, prefix: string): Promise<string> {
-  if (!base64Data.startsWith('data:image/')) {
-    return base64Data;
-  }
-  
-  const matches = base64Data.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
-  if (!matches || matches.length !== 3) {
-    return base64Data;
-  }
-  
-  const ext = matches[1];
-  const data = matches[2];
-  const buffer = Buffer.from(data, 'base64');
-  
-  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'cropped');
-  if (!existsSync(uploadDir)) {
-    await mkdir(uploadDir, { recursive: true });
-  }
-  
-  const fileName = `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-  const filePath = path.join(uploadDir, fileName);
-  await writeFile(filePath, buffer);
-  return `/uploads/cropped/${fileName}`;
+  return base64Data;
 }
 
 export async function PATCH(
