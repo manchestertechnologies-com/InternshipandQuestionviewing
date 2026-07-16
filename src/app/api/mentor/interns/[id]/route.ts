@@ -27,6 +27,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Intern profile not found' }, { status: 404 });
     }
 
+    // Verify mentor is in the same group as the intern
+    const mentorProfile = await prisma.mentorProfile.findUnique({
+      where: { userId: session.user.id },
+    });
+
+    if (!mentorProfile || currentProfile.group !== mentorProfile.group) {
+      return NextResponse.json({ error: 'Unauthorized to modify interns outside your group' }, { status: 403 });
+    }
+
     // Process scoring action
     if (score !== undefined) {
       const numericScore = parseFloat(score);

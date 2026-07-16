@@ -23,6 +23,26 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Retrieve question and check group permissions
+    const question = await prisma.question.findUnique({
+      where: { id },
+      include: { intern: true },
+    });
+
+    if (!question) {
+      return NextResponse.json({ error: 'Question not found' }, { status: 404 });
+    }
+
+    if (session.user.role === 'MENTOR') {
+      const mentorProfile = await prisma.mentorProfile.findUnique({
+        where: { userId: session.user.id },
+      });
+
+      if (!mentorProfile || question.intern.group !== mentorProfile.group) {
+        return NextResponse.json({ error: 'Unauthorized to modify questions outside your group' }, { status: 403 });
+      }
+    }
+
     const updateData: any = {};
     if (difficulty !== undefined) {
       if (session.user.role !== 'ADMIN') {

@@ -31,6 +31,7 @@ interface Question {
   intern: {
     name: string;
     rollNo: number;
+    group: string;
   };
   images: QuestionImage[];
   createdAt: string;
@@ -49,6 +50,7 @@ export default function QuestionRepository() {
   const [examFilter, setExamFilter] = useState('All');
   const [difficultyFilter, setDifficultyFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [groupFilter, setGroupFilter] = useState('All');
 
   // Review states
   const [feedback, setFeedback] = useState('');
@@ -133,8 +135,9 @@ export default function QuestionRepository() {
     const matchesExam = examFilter === 'All' || q.examType === examFilter;
     const matchesDifficulty = difficultyFilter === 'All' || q.difficulty === difficultyFilter;
     const matchesStatus = statusFilter === 'All' || q.status === statusFilter;
+    const matchesGroup = groupFilter === 'All' || (q.intern && q.intern.group === groupFilter);
 
-    return matchesSearch && matchesSubject && matchesClass && matchesExam && matchesDifficulty && matchesStatus;
+    return matchesSearch && matchesSubject && matchesClass && matchesExam && matchesDifficulty && matchesStatus && matchesGroup;
   });
 
   return (
@@ -157,8 +160,8 @@ export default function QuestionRepository() {
           <span>Filters & Search</span>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="flex items-center gap-2 bg-black/40 border border-brand-border px-3 py-2 rounded-lg col-span-1 sm:col-span-2 lg:col-span-1">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+          <div className="flex items-center gap-2 bg-black/40 border border-brand-border px-3 py-2 rounded-lg col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-1">
             <Search className="w-4 h-4 text-brand-muted" />
             <input
               type="text"
@@ -233,6 +236,19 @@ export default function QuestionRepository() {
               <option value="CORRECTION_REQUESTED">Correction Req.</option>
             </select>
           </div>
+
+          <div>
+            <select
+              value={groupFilter}
+              onChange={(e) => setGroupFilter(e.target.value)}
+              className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
+            >
+              <option value="All">All Groups</option>
+              <option value="Group 1">Group 1</option>
+              <option value="Group 2">Group 2</option>
+              <option value="Group 3">Group 3</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -268,7 +284,8 @@ export default function QuestionRepository() {
                   <div>Topic: <span className="text-zinc-300">{q.topic}</span></div>
                   <div>Exam: <span className="text-zinc-300">{q.examType}</span></div>
                   <div>Class: <span className="text-zinc-300">{q.classVal}</span></div>
-                  <div>Author: <span className="text-zinc-300">{q.intern.name} (Roll {q.intern.rollNo})</span></div>
+                  <div>Group: <span className="text-brand-gold">{q.intern?.group || 'N/A'}</span></div>
+                  <div className="col-span-2">Author: <span className="text-zinc-300">{q.intern?.name} (Roll {q.intern?.rollNo})</span></div>
                 </div>
               </div>
 
