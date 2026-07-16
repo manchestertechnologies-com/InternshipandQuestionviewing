@@ -1,0 +1,268 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  MENTOR
+  INTERN
+  VIEWER
+}
+
+model User {
+  id            String          @id @default(uuid())
+  email         String          @unique
+  password      String
+  role          Role
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  // Profiles
+  adminProfile  AdminProfile?
+  mentorProfile MentorProfile?
+  internProfile InternProfile?
+  viewerProfile ViewerProfile?
+
+  // OTP Reset Token
+  otpTokens     OtpToken[]
+
+  // Message Sender / Receiver relations
+  sentMessages     Message[] @relation("SentMessages")
+  receivedMessages Message[] @relation("ReceivedMessages")
+
+  // Notifications
+  notifications Notification[]
+}
+
+model AdminProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MentorProfile {
+  id             String          @id @default(uuid())
+  userId         String          @unique
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  group          String          // e.g. "Group 1", "Group 2", "Group 3"
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  // Relations
+  interns        InternProfile[]
+  tasks          Task[]
+  announcements  Announcement[]
+}
+
+model InternProfile {
+  id            String             @id @default(uuid())
+  userId        String             @unique
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rollNo        Int                // Excel S.No as Roll Number
+  name          String
+  phoneNumber   String?
+  domain        String?            // Excel Branch/Specialization
+  group         String             // Excel Group column
+  collegeName   String?
+  course        String?
+  applicationID String?
+  status        String?            // Excel Status
+  
+  // Performance scoring (Mentor scores 1-10)
+  totalPoints   Float              @default(0)
+  mentorScore   Float              @default(0) // Last score or average score
+  progress      Float              @default(0) // Tasks completed percentage
+  rank          Int                @default(0)
+
+  // Mentor relation
+  mentorId      String?
+  mentor        MentorProfile?     @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+
+  // Submissions
+  taskAssignments TaskAssignment[]
+  weeklySubmissions WeeklySubmission[]
+  questions         Question[]
+  
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+}
+
+model ViewerProfile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model OtpToken {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   // 6-digit OTP
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Task {
+  id            String           @id @default(uuid())
+  title         String
+  description   String
+  fileUrl       String?          // Path to DOCX/PDF task file
+  fileName      String?          // Name of the uploaded file
+  deadlineDays  Int              // 4, 5, 7, or custom days
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Creator
+  mentorId      String
+  mentor        MentorProfile    @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+
+  // Assignments
+  assignments   TaskAssignment[]
+}
+
+enum TaskReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CORRECTION_REQUESTED
+}
+
+model TaskAssignment {
+  id             String           @id @default(uuid())
+  taskId         String
+  task           Task             @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  internId       String
+  intern         InternProfile    @relation(fields: [internId], references: [id], onDelete: Cascade)
+  
+  status         String           @default("ASSIGNED") // "ASSIGNED", "IN_PROGRESS", "COMPLETED"
+  completedAt    DateTime?
+  reviewStatus   TaskReviewStatus @default(PENDING)
+  reviewFeedback String?
+  pointsAwarded  Float            @default(0)
+
+  // Questions entered as part of this task
+  questions      Question[]
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([taskId, internId])
+}
+
+enum QuestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CORRECTION_REQUESTED
+}
+
+model Question {
+  id             String           @id @default(uuid())
+  questionText   String
+  optionA        String
+  optionB        String
+  optionC        String
+  optionD        String
+  correctAnswer  String           // "A", "B", "C", "D"
+  detailedSolution String
+  
+  // Metadata
+  subject        String
+  topic          String
+  subTopic       String?
+  concept        String
+  subConcept     String?
+  classVal       String           // "11th" or "12th"
+  examType       String           // "JEE", "NEET", "KCET", "CET"
+  difficulty     String           @default("Easy") // "Easy", "Medium", "Hard"
+  
+  status         QuestionStatus   @default(PENDING)
+  reviewFeedback String?
+
+  // Relations
+  internId       String
+  intern         InternProfile    @relation(fields: [internId], references: [id], onDelete: Cascade)
+  taskAssignmentId String?
+  taskAssignment TaskAssignment? @relation(fields: [taskAssignmentId], references: [id], onDelete: SetNull)
+
+  // Crop / images
+  images         QuestionImage[]
+
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+}
+
+model QuestionImage {
+  id         String   @id @default(uuid())
+  questionId String
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  imageUrl   String   // File path or Base64 data
+  type       String   // "QUESTION", "OPTION_A", "OPTION_B", "OPTION_C", "OPTION_D", "SOLUTION"
+  createdAt  DateTime @default(now())
+}
+
+model Message {
+  id           String   @id @default(uuid())
+  senderId     String
+  sender       User     @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId   String
+  receiver     User     @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+  content      String
+  readStatus   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+}
+
+model Notification {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content    String
+  readStatus Boolean  @default(false)
+  type       String   // "TASK_ASSIGNED", "TASK_COMPLETED", "REVIEW_REQUEST", "FEEDBACK", "DEADLINE_ALERT", "MESSAGE", "ANNOUNCEMENT", "SUBMISSION"
+  createdAt  DateTime @default(now())
+}
+
+model Announcement {
+  id          String         @id @default(uuid())
+  title       String
+  content     String
+  domain      String?        // Target domain e.g. "AIML", "Data Science", "Full Stack"
+  group       String?        // Target group e.g. "Group 1"
+  isFromAdmin Boolean        @default(false)
+  createdAt   DateTime       @default(now())
+
+  // Creator
+  mentorId    String?
+  mentor      MentorProfile? @relation(fields: [mentorId], references: [id], onDelete: SetNull)
+}
+
+model WeeklySubmission {
+  id             String        @id @default(uuid())
+  internId       String
+  intern         InternProfile @relation(fields: [internId], references: [id], onDelete: Cascade)
+  studentName    String
+  rollNumber     String
+  fileName       String
+  fileUrl        String
+  submissionTime DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+}
+
+model ProblemStatement {
+  id          String   @id @default(uuid())
+  title       String
+  fileUrl     String
+  group       String   // "Group 1", "Group 2", "Group 3"
+  uploadedBy  String   // "Admin" or Mentor Name
+  createdAt   DateTime @default(now())
+}
