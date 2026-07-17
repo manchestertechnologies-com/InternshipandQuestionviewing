@@ -11,7 +11,8 @@ import {
   Megaphone,
   MessageSquare,
   LogOut,
-  FileSpreadsheet
+  FileSpreadsheet,
+  BookOpen
 } from 'lucide-react';
 
 export default function MentorNav() {
@@ -19,7 +20,8 @@ export default function MentorNav() {
 
   const links = [
     { href: '/mentor', label: 'My Interns', icon: Users },
-    { href: '/mentor/tasks', label: 'Assign Tasks', icon: ClipboardList },
+    { href: '/mentor/tasks', label: 'Assign Daily Tasks', icon: ClipboardList },
+    { href: '/mentor/projects', label: 'Domain Projects', icon: BookOpen },
     { href: '/mentor/reviews', label: 'Review Questions', icon: FileCheck },
     { href: '/mentor/submissions', label: 'Weekly Submissions', icon: FileSpreadsheet },
     { href: '/mentor/announcements', label: 'Announcements', icon: Megaphone },

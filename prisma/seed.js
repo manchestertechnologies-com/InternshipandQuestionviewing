@@ -81,32 +81,60 @@ async function main() {
     console.log(`Mentor Seeded: ${m.name} (${m.email}) for ${m.group}`);
   }
 
-  // Seed Mock Problem Statements for groups
+  // Seed Mock Problem Statements for groups (Clear existing ones first to ensure new fields are populated)
+  await prisma.problemStatement.deleteMany({});
+  
   const problemStatements = [
-    { title: "AI/ML Model Fine-Tuning Guidelines", group: "Group 1", uploadedBy: "Pallavi", fileUrl: "/uploads/problem_statement_g1.pdf" },
-    { title: "Advanced Data Visualization Dashboard Project", group: "Group 2", uploadedBy: "Prateeksha", fileUrl: "/uploads/problem_statement_g2.pdf" },
-    { title: "Full Stack Internship & Question Viewing Platform", group: "Group 3", uploadedBy: "Ramya", fileUrl: "/uploads/problem_statement_g3.pdf" }
+    {
+      title: "AI/ML Model Fine-Tuning Guidelines",
+      group: "Group 1",
+      uploadedBy: "Pallavi",
+      fileUrl: "https://res.cloudinary.com/x5gin721/image/upload/v1/manchester-tech/seeds/problem_statement_g1.pdf",
+      description: "Develop a robust pipeline to fine-tune deep learning models for classification tasks, focusing on hyperparameter tuning and model compression.",
+      docUrl: "https://res.cloudinary.com/x5gin721/image/upload/v1/manchester-tech/seeds/documentation_g1.pdf",
+      docName: "ML_Model_Finetuning_Guide.pdf",
+      refUrl: "https://huggingface.co/docs/transformers/training",
+      refName: "Hugging Face Fine-tuning Reference"
+    },
+    {
+      title: "Advanced Data Visualization Dashboard Project",
+      group: "Group 2",
+      uploadedBy: "Prateeksha",
+      fileUrl: "https://res.cloudinary.com/x5gin721/image/upload/v1/manchester-tech/seeds/problem_statement_g2.pdf",
+      description: "Build an interactive, real-time analytics dashboard with React and Recharts to visualize student engagement metrics and leaderboard standings.",
+      docUrl: "https://res.cloudinary.com/x5gin721/image/upload/v1/manchester-tech/seeds/documentation_g2.pdf",
+      docName: "Dashboard_Design_Doc.pdf",
+      refUrl: "https://recharts.org/en-US/guide",
+      refName: "Recharts Library Docs"
+    },
+    {
+      title: "Full Stack Internship & Question Viewing Platform",
+      group: "Group 3",
+      uploadedBy: "Ramya",
+      fileUrl: "https://res.cloudinary.com/x5gin721/image/upload/v1/manchester-tech/seeds/problem_statement_g3.pdf",
+      description: "Establish a complete portal to coordinate daily task worksheet submissions, NCERT question repositories, and student evaluation pipelines.",
+      docUrl: "https://res.cloudinary.com/x5gin721/image/upload/v1/manchester-tech/seeds/documentation_g3.pdf",
+      docName: "Platform_System_Architecture.pdf",
+      refUrl: "https://nextjs.org/docs",
+      refName: "Next.js App Router Documentation"
+    }
   ];
 
   for (const ps of problemStatements) {
-    const existing = await prisma.problemStatement.findFirst({
-      where: {
+    await prisma.problemStatement.create({
+      data: {
         title: ps.title,
-        group: ps.group
+        group: ps.group,
+        uploadedBy: ps.uploadedBy,
+        fileUrl: ps.fileUrl,
+        description: ps.description,
+        docUrl: ps.docUrl,
+        docName: ps.docName,
+        refUrl: ps.refUrl,
+        refName: ps.refName
       }
     });
-
-    if (!existing) {
-      await prisma.problemStatement.create({
-        data: {
-          title: ps.title,
-          group: ps.group,
-          uploadedBy: ps.uploadedBy,
-          fileUrl: ps.fileUrl
-        }
-      });
-      console.log(`Problem Statement Seeded for ${ps.group}: "${ps.title}"`);
-    }
+    console.log(`Problem Statement Seeded for ${ps.group}: "${ps.title}"`);
   }
 
   console.log("Seeding finished successfully!");

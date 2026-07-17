@@ -41,8 +41,7 @@ export default function TaskAssignmentPage() {
   // Form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [deadlineType, setDeadlineType] = useState('4'); // '4', '5', '7', 'custom'
-  const [customDeadline, setCustomDeadline] = useState('10');
+  const [cutoffHour, setCutoffHour] = useState('23'); // '23' (11:59:59 PM), '22', '20', '18', '17'
   const [assignScope, setAssignScope] = useState<'ALL' | 'SPECIFIC'>('ALL');
   const [selectedInterns, setSelectedInterns] = useState<string[]>([]);
   const [file, setFile] = useState<File | null>(null);
@@ -100,47 +99,70 @@ export default function TaskAssignmentPage() {
       if (!title.trim()) throw new Error('Title is required');
       if (!description.trim()) throw new Error('Description is required');
 
-      const formData = new FormData();
-      formData.append('title', title.trim());
-      formData.append('description', description.trim());
+      let fileUrl: string | null = null;
+      let fileName: string | null = null;
 
-      const deadlineDays = deadlineType === 'custom' ? customDeadline : deadlineType;
-      formData.append('deadlineDays', deadlineDays);
+      // 1. Upload file to Cloudinary from client side if selected
+      if (file) {
+        const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/tasks');
+        if (!signRes.ok) throw new Error('Failed to generate upload signature');
+        const signData = await signRes.json();
+        const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
-      if (assignScope === 'ALL') {
-        formData.append('assigneeIds', 'ALL');
-      } else {
-        if (selectedInterns.length === 0) {
-          throw new Error('Please select at least one intern');
+        const ext = file.name.split('.').pop()?.toLowerCase() || '';
+        const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc') ? 'raw' : 'auto';
+
+        const cloudinaryData = new FormData();
+        cloudinaryData.append('file', file);
+        cloudinaryData.append('api_key', apiKey);
+        cloudinaryData.append('timestamp', timestamp.toString());
+        cloudinaryData.append('signature', signature);
+        cloudinaryData.append('folder', folder);
+
+        const cloudinaryRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+          {
+            method: 'POST',
+            body: cloudinaryData,
+          }
+        );
+
+        if (!cloudinaryRes.ok) {
+          const errorData = await cloudinaryRes.json();
+          throw new Error(errorData.error?.message || 'Cloudinary upload failed');
         }
-        formData.append('assigneeIds', selectedInterns.join(','));
+
+        const uploadResult = await cloudinaryRes.json();
+        fileUrl = uploadResult.secure_url;
+        fileName = file.name;
       }
 
-      if (file) {
-        formData.append('file', file);
+      // 2. Submit task payload as JSON
+      const assigneeIds = assignScope === 'ALL' ? 'ALL' : selectedInterns.join(',');
+      if (assignScope === 'SPECIFIC' && selectedInterns.length === 0) {
+        throw new Error('Please select at least one intern');
       }
 
       const res = await fetch('/api/mentor/tasks', {
         method: 'POST',
-        body: formData,
-        // Do NOT set Content-Type — browser sets it with boundary for multipart
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          deadlineDays: parseInt(cutoffHour, 10),
+          assigneeIds,
+          fileUrl,
+          fileName,
+        }),
       });
 
-      let data: any = {};
-      const contentType = res.headers.get('content-type') ?? '';
-      if (contentType.includes('application/json')) {
-        data = await res.json();
-      } else {
-        const text = await res.text();
-        throw new Error(text || 'Server returned a non-JSON error');
-      }
-
+      const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to create task');
 
       setSuccess('Task assigned successfully!');
       setTitle('');
       setDescription('');
-      setDeadlineType('4');
+      setCutoffHour('23');
       setAssignScope('ALL');
       setSelectedInterns([]);
       setFile(null);
@@ -199,7 +221,7 @@ export default function TaskAssignmentPage() {
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-brand-gold font-semibold uppercase tracking-wider bg-brand-gold/10 border border-brand-gold/20 px-3 py-1 rounded-full shrink-0">
                   <Clock className="w-4 h-4" />
-                  <span>{task.deadlineDays} Days Limit</span>
+                  <span>Due Today at {task.deadlineDays === 23 ? '23:59:59' : `${task.deadlineDays}:00:00`}</span>
                 </div>
               </div>
 
@@ -320,39 +342,22 @@ export default function TaskAssignmentPage() {
                 />
               </div>
 
-              {/* Deadline */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-brand-text uppercase tracking-wider mb-2">
-                    Deadline Limit
-                  </label>
-                  <select
-                    value={deadlineType}
-                    onChange={(e) => setDeadlineType(e.target.value)}
-                    className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
-                  >
-                    <option value="4">4 Days</option>
-                    <option value="5">5 Days</option>
-                    <option value="7">7 Days</option>
-                    <option value="custom">Custom Days</option>
-                  </select>
-                </div>
-
-                {deadlineType === 'custom' && (
-                  <div>
-                    <label className="block text-xs font-semibold text-brand-text uppercase tracking-wider mb-2">
-                      Custom Limit (Days)
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min={1}
-                      value={customDeadline}
-                      onChange={(e) => setCustomDeadline(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold transition duration-200 text-sm"
-                    />
-                  </div>
-                )}
+              {/* Same-day Deadline Cutoff Selection */}
+              <div>
+                <label className="block text-xs font-semibold text-brand-text uppercase tracking-wider mb-2">
+                  Deadline Cutoff (Today Only)
+                </label>
+                <select
+                  value={cutoffHour}
+                  onChange={(e) => setCutoffHour(e.target.value)}
+                  className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
+                >
+                  <option value="23">23:59:59 (End of Day - Default)</option>
+                  <option value="22">22:00:00 (10:00 PM)</option>
+                  <option value="20">20:00:00 (8:00 PM)</option>
+                  <option value="18">18:00:00 (6:00 PM)</option>
+                  <option value="17">17:00:00 (5:00 PM)</option>
+                </select>
               </div>
 
               {/* Assignees */}

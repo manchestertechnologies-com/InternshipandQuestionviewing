@@ -261,7 +261,12 @@ model WeeklySubmission {
 model ProblemStatement {
   id          String   @id @default(uuid())
   title       String
-  fileUrl     String
+  description String?  // Detailed problem description
+  fileUrl     String   // Problem statement document URL
+  docUrl      String?  // Documentation guide attachment URL
+  docName     String?  // Documentation guide filename
+  refUrl      String?  // Reference document or web link URL
+  refName     String?  // Reference filename or link name
   group       String   // "Group 1", "Group 2", "Group 3"
   uploadedBy  String   // "Admin" or Mentor Name
   createdAt   DateTime @default(now())

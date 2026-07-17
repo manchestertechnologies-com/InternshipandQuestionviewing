@@ -21,7 +21,7 @@ export default function InternNav() {
   const links = [
     { href: '/intern', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/intern/tasks', label: 'Daily Tasks', icon: ClipboardList },
-    { href: '/intern/problem-statement', label: 'Problem Statement', icon: BookOpen },
+    { href: '/intern/problem-statement', label: 'Domain Project', icon: BookOpen },
     { href: '/intern/messages', label: 'Messages', icon: MessageSquare },
     { href: '/intern/weekly-submission', label: 'Weekly Submission', icon: FileSpreadsheet },
     { href: '/intern/leaderboard', label: 'Leaderboard', icon: Trophy },

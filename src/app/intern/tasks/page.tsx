@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ClipboardList,
   Clock,
@@ -16,10 +16,11 @@ import {
   Edit,
   ZoomIn,
   ZoomOut,
-  Maximize2,
+  Paperclip,
   X
 } from 'lucide-react';
 import ImageCropper from '@/components/ImageCropper';
+import { ACADEMIC_HIERARCHY, getChapters, getConcepts } from '@/lib/academicHierarchy';
 
 interface QuestionImage {
   id?: string;
@@ -92,11 +93,17 @@ export default function DailyTasksPage() {
   const [examType, setExamType] = useState('JEE');
   const [images, setImages] = useState<QuestionImage[]>([]);
 
-  // Cropper states
-  const [showCropper, setShowCropper] = useState(false);
-  const [cropTargetType, setCropTargetType] = useState('QUESTION'); // 'QUESTION', 'OPTION_A', 'SOLUTION', etc.
+  // Image upload indicators
+  const [uploadingField, setUploadingField] = useState<string | null>(null);
 
-  // Zoom for PDF
+  // References for autofocus
+  const questionTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Cropper states (optional helper)
+  const [showCropper, setShowCropper] = useState(false);
+  const [cropTargetType, setCropTargetType] = useState('QUESTION');
+
+  // Zoom for PDF/DOCX
   const [pdfZoom, setPdfZoom] = useState(100);
 
   // Countdown timer state
@@ -110,7 +117,6 @@ export default function DailyTasksPage() {
       const data = await res.json();
       setAssignments(data);
       if (data.length > 0) {
-        // Preserving active selection if possible, otherwise default to first
         const matched = data.find((a: any) => a.id === selectedAsg?.id);
         setSelectedAsg(matched || data[0]);
       }
@@ -125,15 +131,19 @@ export default function DailyTasksPage() {
     fetchAssignments();
   }, []);
 
-  // Update countdown timer when selected assignment changes
+  // Update countdown timer based on same-day hour cutoff
   useEffect(() => {
     if (!selectedAsg) return;
 
     const calculateTime = () => {
       const task = selectedAsg.task;
-      const createdTime = new Date(task.createdAt).getTime();
-      const deadlineTime = createdTime + (task.deadlineDays * 24 * 60 * 60 * 1000);
-      const diff = deadlineTime - Date.now();
+      const createdTime = new Date(task.createdAt);
+      
+      // deadlineDays represents the same-day hour cutoff (e.g. 23 for 11:59:59 PM)
+      const deadlineTime = new Date(createdTime);
+      deadlineTime.setHours(task.deadlineDays, 59, 59, 999);
+      
+      const diff = deadlineTime.getTime() - Date.now();
 
       if (diff <= 0) {
         setTimeLeft({ days: 0, hours: 0, mins: 0, secs: 0 });
@@ -148,15 +158,10 @@ export default function DailyTasksPage() {
 
       setTimeLeft({ days, hours, mins, secs });
 
-      // Determine alert string
-      if (days === 0 && hours < 12) {
-        setDeadlineAlert('TODAY (CRITICAL)');
-      } else if (days === 0) {
-        setDeadlineAlert('TOMORROW');
-      } else if (days < 2) {
-        setDeadlineAlert('APPROACHING DEADLINE');
+      if (days === 0 && hours < 3) {
+        setDeadlineAlert('TODAY (URGENT)');
       } else {
-        setDeadlineAlert('');
+        setDeadlineAlert('TODAY');
       }
     };
 
@@ -183,6 +188,9 @@ export default function DailyTasksPage() {
     setClassVal(q.classVal);
     setExamType(q.examType);
     setImages(q.images);
+
+    // Autofocus
+    setTimeout(() => questionTextareaRef.current?.focus(), 100);
   };
 
   const clearForm = () => {
@@ -194,14 +202,78 @@ export default function DailyTasksPage() {
     setOptionD('');
     setCorrectAnswer('A');
     setDetailedSolution('');
-    setSubject('');
-    setTopic('');
-    setSubTopic('');
-    setConcept('');
-    setSubConcept('');
-    setClassVal('11th');
-    setExamType('JEE');
     setImages([]);
+    // Do NOT clear subject, class, chapter, concept, examType etc. to optimize bulk entry
+    setTimeout(() => questionTextareaRef.current?.focus(), 100);
+  };
+
+  const uploadImageDirect = async (fileBlob: Blob, type: string): Promise<string> => {
+    setUploadingField(type);
+    try {
+      const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/question-images');
+      if (!signRes.ok) throw new Error('Failed to generate upload signature');
+      const signData = await signRes.json();
+      const { signature, timestamp, folder, apiKey, cloudName } = signData;
+
+      const cloudinaryData = new FormData();
+      cloudinaryData.append('file', fileBlob);
+      cloudinaryData.append('api_key', apiKey);
+      cloudinaryData.append('timestamp', timestamp.toString());
+      cloudinaryData.append('signature', signature);
+      cloudinaryData.append('folder', folder);
+
+      const cloudinaryRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+        {
+          method: 'POST',
+          body: cloudinaryData,
+        }
+      );
+
+      if (!cloudinaryRes.ok) {
+        const errorData = await cloudinaryRes.json();
+        throw new Error(errorData.error?.message || 'Image upload failed');
+      }
+
+      const uploadResult = await cloudinaryRes.json();
+      return uploadResult.secure_url;
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
+  const handlePasteImage = async (e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>, type: string) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.indexOf('image') !== -1) {
+        e.preventDefault();
+        const fileBlob = item.getAsFile();
+        if (!fileBlob) return;
+
+        try {
+          const url = await uploadImageDirect(fileBlob, type);
+          setImages((prev) => [...prev, { imageUrl: url, type }]);
+          setSuccess(`Image pasted and attached to ${type} successfully!`);
+        } catch (err: any) {
+          setError(`Paste failed: ${err.message}`);
+        }
+      }
+    }
+  };
+
+  const handleUploadImageFile = async (e: React.ChangeEvent<HTMLInputElement>, type: string) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const fileFile = e.target.files[0];
+    try {
+      const url = await uploadImageDirect(fileFile, type);
+      setImages((prev) => [...prev, { imageUrl: url, type }]);
+      setSuccess(`Image uploaded and attached to ${type} successfully!`);
+    } catch (err: any) {
+      setError(`Upload failed: ${err.message}`);
+    }
   };
 
   const handleSaveQuestion = async () => {
@@ -296,8 +368,27 @@ export default function DailyTasksPage() {
     }
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    // Ctrl+Enter or Cmd+Enter triggers save
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      handleSaveQuestion();
+    }
+  };
+
   const handleCropComplete = (base64Url: string) => {
-    setImages((prev) => [...prev, { imageUrl: base64Url, type: cropTargetType }]);
+    // Optional cropper output goes to Cloudinary signed upload
+    fetch(base64Url)
+      .then((res) => res.blob())
+      .then(async (blob) => {
+        try {
+          const url = await uploadImageDirect(blob, cropTargetType);
+          setImages((prev) => [...prev, { imageUrl: url, type: cropTargetType }]);
+          setSuccess(`Cropped image attached to ${cropTargetType} successfully!`);
+        } catch (err: any) {
+          setError(`Upload failed: ${err.message}`);
+        }
+      });
     setShowCropper(false);
   };
 
@@ -322,8 +413,24 @@ export default function DailyTasksPage() {
     );
   }
 
+  // Set up inline document viewer
+  const fileUrl = selectedAsg?.task.fileUrl;
+  const isPdf = fileUrl?.toLowerCase().endsWith('.pdf') || fileUrl?.startsWith('data:application/pdf');
+  const isDocx = fileUrl?.toLowerCase().endsWith('.docx') || fileUrl?.toLowerCase().endsWith('.doc');
+  const docViewerUrl = isPdf
+    ? fileUrl
+    : isDocx
+      ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl || '')}`
+      : null;
+
+  // Academic hierarchy values based on selection
+  const chapters = subject ? getChapters(subject, classVal) : [];
+  const concepts = (subject && topic) ? getConcepts(subject, classVal, topic) : [];
+  const conceptObj = concepts.find((c) => c.name === concept);
+  const subConcepts = conceptObj ? conceptObj.subConcepts : [];
+
   return (
-    <div className="flex flex-col h-full min-h-[85vh] space-y-6">
+    <div className="flex flex-col h-full min-h-[85vh] space-y-6" onKeyDown={handleKeyDown}>
       {/* Top Header Selector & Deadline */}
       <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 shrink-0 bg-black/40">
         <div className="flex flex-wrap items-center gap-4">
@@ -352,18 +459,11 @@ export default function DailyTasksPage() {
           <div className="flex flex-wrap items-center gap-4">
             {timeLeft && (
               <div className="flex items-center gap-3">
-                {deadlineAlert && (
-                  <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full animate-pulse border ${
-                    deadlineAlert.includes('CRITICAL')
-                      ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                      : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                  }`}>
-                    {deadlineAlert}
-                  </span>
-                )}
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full animate-pulse border bg-amber-500/10 text-brand-gold border-brand-gold/20`}>
+                  {deadlineAlert}
+                </span>
                 
                 <div className="flex gap-2 text-xs bg-black/80 border border-brand-border p-2 rounded-xl text-center">
-                  <div className="px-1"><span className="font-bold text-white block">{timeLeft.days}d</span><span className="text-[9px] text-brand-muted uppercase">Days</span></div>
                   <div className="px-1"><span className="font-bold text-white block">{timeLeft.hours}h</span><span className="text-[9px] text-brand-muted uppercase">Hours</span></div>
                   <div className="px-1"><span className="font-bold text-white block">{timeLeft.mins}m</span><span className="text-[9px] text-brand-muted uppercase">Mins</span></div>
                   <div className="px-1"><span className="font-bold text-brand-gold block">{timeLeft.secs}s</span><span className="text-[9px] text-brand-muted uppercase">Secs</span></div>
@@ -412,7 +512,7 @@ export default function DailyTasksPage() {
                 <span>Worksheet Attachment</span>
               </span>
               
-              {(selectedAsg.task.fileUrl?.toLowerCase().endsWith('.pdf') || selectedAsg.task.fileUrl?.startsWith('data:application/pdf')) && (
+              {docViewerUrl && (
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
@@ -432,44 +532,42 @@ export default function DailyTasksPage() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between bg-zinc-950/40">
-              {selectedAsg.task.fileUrl ? (
-                (selectedAsg.task.fileUrl.toLowerCase().endsWith('.pdf') || selectedAsg.task.fileUrl.startsWith('data:application/pdf')) ? (
-                  <div
-                    className="w-full h-full min-h-[450px] transition-transform duration-100 ease-out origin-top-left"
-                    style={{ transform: `scale(${pdfZoom / 100})`, width: `${100 / (pdfZoom / 100)}%`, height: `${100 / (pdfZoom / 100)}%` }}
+              {docViewerUrl ? (
+                <div
+                  className="w-full h-full min-h-[500px] transition-transform duration-100 ease-out origin-top-left"
+                  style={{ transform: `scale(${pdfZoom / 100})`, width: `${100 / (pdfZoom / 100)}%`, height: `${100 / (pdfZoom / 100)}%` }}
+                >
+                  <iframe
+                    src={docViewerUrl}
+                    className="w-full h-full rounded-lg border border-brand-border bg-white"
+                  />
+                </div>
+              ) : fileUrl ? (
+                <div className="my-auto text-center space-y-4 max-w-sm mx-auto p-6 bg-black/60 border border-brand-border rounded-2xl">
+                  <FileText className="w-12 h-12 text-brand-gold mx-auto" />
+                  <div>
+                    <h4 className="font-bold text-white text-base truncate">{selectedAsg.task.fileName}</h4>
+                    <p className="text-xs text-brand-muted mt-1 leading-relaxed">
+                      Attachment format not previewable. Please download the file to view the worksheet.
+                    </p>
+                  </div>
+                  <a
+                    href={fileUrl}
+                    download
+                    className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-zinc-900 border border-brand-border hover:bg-zinc-850 text-brand-gold text-xs font-semibold rounded-lg transition cursor-pointer"
                   >
-                    <iframe
-                      src={selectedAsg.task.fileUrl}
-                      className="w-full h-full rounded-lg border border-brand-border bg-white"
-                    />
-                  </div>
-                ) : (
-                  <div className="my-auto text-center space-y-4 max-w-sm mx-auto p-6 bg-black/60 border border-brand-border rounded-2xl">
-                    <FileText className="w-12 h-12 text-brand-gold mx-auto" />
-                    <div>
-                      <h4 className="font-bold text-white text-base truncate">{selectedAsg.task.fileName}</h4>
-                      <p className="text-xs text-brand-muted mt-1 leading-relaxed">
-                        DOCX files cannot be previewed natively. Please download the file to view the worksheet on your system.
-                      </p>
-                    </div>
-                    <a
-                      href={selectedAsg.task.fileUrl}
-                      download
-                      className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-zinc-900 border border-brand-border hover:bg-zinc-850 text-brand-gold text-xs font-semibold rounded-lg transition cursor-pointer"
-                    >
-                      <Download className="w-4 h-4" />
-                      <span>Download Worksheet</span>
-                    </a>
-                  </div>
-                )
+                    <Download className="w-4 h-4" />
+                    <span>Download Worksheet</span>
+                  </a>
+                </div>
               ) : (
                 <div className="my-auto text-center text-brand-muted italic py-12">
-                  No worksheets attached for this task. Please read the description.
+                  No worksheets attached for this task. Please read instructions.
                 </div>
               )}
 
               {/* Task Details description card */}
-              <div className="mt-4 p-4 bg-black/60 border border-brand-border rounded-xl">
+              <div className="mt-4 p-4 bg-black/60 border border-brand-border rounded-xl shrink-0">
                 <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold mb-1.5">Task Instructions</h4>
                 <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{selectedAsg.task.description}</p>
               </div>
@@ -503,8 +601,8 @@ export default function DailyTasksPage() {
                       <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[9px] text-brand-muted mt-1 max-w-lg">
                         <div>Chapter (Topic): <span className="text-zinc-300 font-medium">{q.topic}</span></div>
                         <div>Concept: <span className="text-zinc-300 font-medium">{q.concept}</span></div>
-                        <div>Sub-Concept: <span className="text-zinc-300 font-medium">{q.subConcept || 'N/A'}</span></div>
                         <div>Class: <span className="text-zinc-300 font-medium">{q.classVal}</span></div>
+                        <div>Difficulty: <span className="text-brand-gold font-medium">{q.difficulty}</span></div>
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-4">
@@ -533,7 +631,7 @@ export default function DailyTasksPage() {
                 ))}
                 {selectedAsg.questions.length === 0 && (
                   <div className="text-center text-brand-muted text-xs italic py-4 bg-zinc-950/30 border border-brand-border border-dashed rounded-lg">
-                    No questions logged for this task yet
+                    No questions logged for this task yet (Target: 100–110 Questions)
                   </div>
                 )}
               </div>
@@ -541,21 +639,31 @@ export default function DailyTasksPage() {
 
             {/* Question Entry Form */}
             <div className="glass-panel p-6 rounded-2xl border border-brand-border space-y-6">
-              <div className="border-b border-brand-border pb-3">
-                <h3 className="font-bold text-white text-base">
-                  {activeQId ? 'Edit Question Draft' : 'Add New Question'}
-                </h3>
-                <p className="text-[10px] text-brand-muted uppercase font-bold mt-0.5 tracking-widest">Question Entry Form</p>
+              <div className="border-b border-brand-border pb-3 flex justify-between items-center">
+                <div>
+                  <h3 className="font-bold text-white text-base">
+                    {activeQId ? 'Edit Question Draft' : 'Add New Question'}
+                  </h3>
+                  <p className="text-[10px] text-brand-muted uppercase font-bold mt-0.5 tracking-widest">Question Entry Form (Press Ctrl+Enter to Save)</p>
+                </div>
+                <span className="text-[10px] bg-white/5 border border-zinc-800 text-brand-muted px-2 py-0.5 rounded font-mono">
+                  {images.length} images attached
+                </span>
               </div>
 
-              {/* Subject & Topic metadata (required) */}
+              {/* Subject & Class Select (NCERT Trigger Chapters) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Subject (NCERT) *</label>
                   <select
                     required
                     value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
+                    onChange={(e) => {
+                      setSubject(e.target.value);
+                      setTopic('');
+                      setConcept('');
+                      setSubConcept('');
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                   >
                     <option value="">Select Subject</option>
@@ -566,64 +674,100 @@ export default function DailyTasksPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Chapter Name (Topic) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={topic}
-                    onChange={(e) => setTopic(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="e.g. Limits & Continuity"
-                  />
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Class *</label>
+                  <select
+                    value={classVal}
+                    onChange={(e) => {
+                      setClassVal(e.target.value);
+                      setTopic('');
+                      setConcept('');
+                      setSubConcept('');
+                    }}
+                    className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
+                  >
+                    <option value="11th">Class 11</option>
+                    <option value="12th">Class 12</option>
+                  </select>
                 </div>
               </div>
 
+              {/* Dynamic NCERT Chapter (Topic) Loading */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Topic</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">NCERT Chapter (Topic) *</label>
+                  <select
+                    required
+                    value={topic}
+                    onChange={(e) => {
+                      setTopic(e.target.value);
+                      setConcept('');
+                      setSubConcept('');
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    disabled={!subject}
+                  >
+                    <option value="">Select Chapter</option>
+                    {chapters.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {/* Dynamic Concept selection */}
+                <div>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Concept (NCERT) *</label>
+                  <select
+                    required
+                    value={concept}
+                    onChange={(e) => {
+                      setConcept(e.target.value);
+                      setSubConcept('');
+                    }}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    disabled={!topic}
+                  >
+                    <option value="">Select Concept</option>
+                    {concepts.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Subconcept & Exam type */}
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Concept</label>
+                  <select
+                    value={subConcept}
+                    onChange={(e) => setSubConcept(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    disabled={!concept}
+                  >
+                    <option value="">Select Sub-Concept</option>
+                    {subConcepts.map((sc) => (
+                      <option key={sc} value={sc}>
+                        {sc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Topic / Tag</label>
                   <input
                     type="text"
                     value={subTopic}
                     onChange={(e) => setSubTopic(e.target.value)}
                     className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="e.g. L'Hopital's Rule"
+                    placeholder="e.g. Free-body diagram"
                   />
                 </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Concept (NCERT) *</label>
-                  <input
-                    type="text"
-                    required
-                    value={concept}
-                    onChange={(e) => setConcept(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="e.g. Indeterminate forms"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Concept</label>
-                  <input
-                    type="text"
-                    value={subConcept}
-                    onChange={(e) => setSubConcept(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="e.g. 0/0 form"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Class *</label>
-                  <select
-                    value={classVal}
-                    onChange={(e) => setClassVal(e.target.value)}
-                    className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
-                  >
-                    <option value="11th">11th</option>
-                    <option value="12th">12th</option>
-                  </select>
-                </div>
                 <div>
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Exam Type *</label>
                   <select
@@ -639,42 +783,100 @@ export default function DailyTasksPage() {
                 </div>
               </div>
 
-              {/* Question Text */}
-              <div>
-                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Question Text *</label>
+              {/* Question Text with paste and attachment support */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Question Text *</label>
+                  <div className="flex gap-2">
+                    <label className="flex items-center gap-1 text-[9px] font-bold text-brand-gold cursor-pointer bg-zinc-900 border border-brand-border px-2 py-0.5 rounded hover:bg-zinc-800">
+                      <Paperclip className="w-3 h-3" />
+                      <span>Attach Image</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleUploadImageFile(e, 'QUESTION')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+                
                 <textarea
+                  ref={questionTextareaRef}
                   required
                   rows={4}
                   value={questionText}
                   onChange={(e) => setQuestionText(e.target.value)}
+                  onPaste={(e) => handlePasteImage(e, 'QUESTION')}
                   className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
-                  placeholder="Enter the question text. Rich formatting and LaTeX notation supported."
+                  placeholder="Type question text or paste image (Ctrl+V) directly inside here..."
                 />
-              </div>
-
-              {/* Option Blocks */}
-              <div className="space-y-3">
-                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Options *</label>
-                {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                  <div key={opt} className="flex gap-3 items-center">
-                    <span className="w-6 h-6 rounded-full bg-zinc-900 border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
-                      {opt}
-                    </span>
-                    <input
-                      type="text"
-                      required
-                      value={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD}
-                      onChange={(e) => {
-                        if (opt === 'A') setOptionA(e.target.value);
-                        else if (opt === 'B') setOptionB(e.target.value);
-                        else if (opt === 'C') setOptionC(e.target.value);
-                        else setOptionD(e.target.value);
-                      }}
-                      className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                      placeholder={`Enter Option ${opt}`}
-                    />
+                
+                {uploadingField === 'QUESTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading Question image to Cloudinary...</p>}
+                
+                {/* Image previews for Question field */}
+                {images.filter((img) => img.type === 'QUESTION').map((img, i) => (
+                  <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1">
+                    <img src={img.imageUrl} alt="Question Asset" className="max-h-12 object-contain rounded" />
+                    <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
+              </div>
+
+              {/* Options with paste-to-attach support */}
+              <div className="space-y-3">
+                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Options *</label>
+                {(['A', 'B', 'C', 'D'] as const).map((opt) => {
+                  const fieldName = `OPTION_${opt}`;
+                  return (
+                    <div key={opt} className="space-y-1">
+                      <div className="flex gap-3 items-center">
+                        <span className="w-6 h-6 rounded-full bg-zinc-900 border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
+                          {opt}
+                        </span>
+                        
+                        <input
+                          type="text"
+                          required
+                          value={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD}
+                          onChange={(e) => {
+                            if (opt === 'A') setOptionA(e.target.value);
+                            else if (opt === 'B') setOptionB(e.target.value);
+                            else if (opt === 'C') setOptionC(e.target.value);
+                            else setOptionD(e.target.value);
+                          }}
+                          onPaste={(e) => handlePasteImage(e, fieldName)}
+                          className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                          placeholder={`Type Option ${opt} text or paste image (Ctrl+V)...`}
+                        />
+
+                        <label className="p-1.5 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 cursor-pointer">
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleUploadImageFile(e, fieldName)}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+
+                      {uploadingField === fieldName && <p className="text-[10px] text-brand-gold animate-pulse pl-9">Uploading Option {opt} image...</p>}
+
+                      {/* Option image previews */}
+                      {images.filter((img) => img.type === fieldName).map((img, i) => (
+                        <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1 ml-9">
+                          <img src={img.imageUrl} alt={`Option ${opt} Asset`} className="max-h-10 object-contain rounded" />
+                          <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
 
               {/* Correct Answer Dropdown */}
@@ -692,76 +894,76 @@ export default function DailyTasksPage() {
                 </select>
               </div>
 
-              {/* Detailed Solution */}
-              <div>
-                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Detailed Solution *</label>
+              {/* Detailed Solution with paste-to-attach */}
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Detailed Solution *</label>
+                  <label className="flex items-center gap-1 text-[9px] font-bold text-brand-gold cursor-pointer bg-zinc-900 border border-brand-border px-2 py-0.5 rounded hover:bg-zinc-800">
+                    <Paperclip className="w-3 h-3" />
+                    <span>Attach Image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleUploadImageFile(e, 'SOLUTION')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                
                 <textarea
                   required
                   rows={4}
                   value={detailedSolution}
                   onChange={(e) => setDetailedSolution(e.target.value)}
+                  onPaste={(e) => handlePasteImage(e, 'SOLUTION')}
                   className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
-                  placeholder="Provide step-by-step solution derivation details..."
+                  placeholder="Type step-by-step solution or paste image (Ctrl+V) directly inside..."
                 />
+
+                {uploadingField === 'SOLUTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading Solution image...</p>}
+
+                {/* Solution image previews */}
+                {images.filter((img) => img.type === 'SOLUTION').map((img, i) => (
+                  <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1">
+                    <img src={img.imageUrl} alt="Solution Asset" className="max-h-12 object-contain rounded" />
+                    <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
               </div>
 
-              {/* Attached Images & Cropper Toggle */}
-              <div className="space-y-3">
-                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Crop Option Diagrams</label>
-                
-                <div className="flex gap-2">
-                  <select
-                    value={cropTargetType}
-                    onChange={(e) => setCropTargetType(e.target.value)}
-                    className="text-xs bg-black border border-brand-border text-white px-2 py-1.5 rounded-lg focus:outline-none focus:border-brand-gold"
-                  >
-                    <option value="QUESTION">Question diagram</option>
-                    <option value="OPTION_A">Option A diagram</option>
-                    <option value="OPTION_B">Option B diagram</option>
-                    <option value="OPTION_C">Option C diagram</option>
-                    <option value="OPTION_D">Option D diagram</option>
-                    <option value="SOLUTION">Solution diagram</option>
-                  </select>
-
+              {/* Optional Cropper tool button */}
+              <div className="space-y-2 border-t border-brand-border/40 pt-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] text-brand-muted uppercase font-bold">Image Bounding Cropper (Optional)</span>
                   <button
                     type="button"
-                    onClick={() => setShowCropper(true)}
-                    className="flex items-center gap-1.5 py-1.5 px-3 bg-zinc-900 border border-brand-border rounded text-xs font-semibold text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
+                    onClick={() => setShowCropper(!showCropper)}
+                    className="text-[10px] text-brand-gold hover:underline flex items-center gap-1 font-semibold"
                   >
-                    <ImageIcon className="w-4 h-4" />
-                    <span>Launch Cropper</span>
+                    <ImageIcon className="w-3 h-3" />
+                    <span>{showCropper ? 'Close Cropper' : 'Open Cropper'}</span>
                   </button>
                 </div>
 
                 {showCropper && (
-                  <ImageCropper
-                    onCropComplete={handleCropComplete}
-                    onCancel={() => setShowCropper(false)}
-                  />
-                )}
-
-                {/* Render attached cropped images */}
-                {images.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 border border-brand-border p-3 bg-black/60 rounded-xl">
-                    {images.map((img, idx) => (
-                      <div key={idx} className="relative bg-zinc-950 p-2 rounded-lg border border-brand-border flex flex-col items-center">
-                        <img
-                          src={img.imageUrl}
-                          alt="Cropped diagram asset"
-                          className="max-h-20 object-contain rounded"
-                        />
-                        <span className="text-[9px] uppercase tracking-wider font-bold text-brand-muted mt-1.5">
-                          {img.type}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => removeCroppedImage(idx)}
-                          className="absolute -top-1.5 -right-1.5 p-0.5 bg-red-900 border border-red-700/30 rounded-full text-white cursor-pointer"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="space-y-3 bg-black/60 border border-brand-border p-4 rounded-xl">
+                    <div className="flex gap-2">
+                      <select
+                        value={cropTargetType}
+                        onChange={(e) => setCropTargetType(e.target.value)}
+                        className="text-xs bg-black border border-brand-border text-white px-2 py-1.5 rounded-lg focus:outline-none focus:border-brand-gold"
+                      >
+                        <option value="QUESTION">Question diagram</option>
+                        <option value="OPTION_A">Option A diagram</option>
+                        <option value="OPTION_B">Option B diagram</option>
+                        <option value="OPTION_C">Option C diagram</option>
+                        <option value="OPTION_D">Option D diagram</option>
+                        <option value="SOLUTION">Solution diagram</option>
+                      </select>
+                    </div>
+                    <ImageCropper onCropComplete={handleCropComplete} onCancel={() => setShowCropper(false)} />
                   </div>
                 )}
               </div>
@@ -782,7 +984,7 @@ export default function DailyTasksPage() {
                   className="flex-1 py-2 px-4 rounded-lg bg-brand-gold hover:bg-brand-gold-hover text-black text-xs font-bold transition cursor-pointer btn-gold border-0 flex items-center justify-center gap-1"
                 >
                   <Save className="w-4 h-4" />
-                  <span>Save Question Draft</span>
+                  <span>Save Draft (Ctrl+Enter)</span>
                 </button>
               </div>
             </div>

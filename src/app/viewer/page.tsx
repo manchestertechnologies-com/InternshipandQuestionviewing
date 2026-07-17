@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, RefreshCw, Eye, LogOut } from 'lucide-react';
+import { Search, Filter, RefreshCw, Eye, LogOut, ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
 import { useSession, signOut } from 'next-auth/react';
+import { ACADEMIC_HIERARCHY } from '@/lib/academicHierarchy';
 
 interface QuestionImage {
   id: string;
@@ -38,14 +39,21 @@ export default function ViewerDashboard() {
   const [error, setError] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
 
-  // Filters
+  // Search & Filter states
   const [search, setSearch] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('All');
   const [classFilter, setClassFilter] = useState('All');
+  const [topicFilter, setTopicFilter] = useState('All');
+  const [conceptFilter, setConceptFilter] = useState('All');
+  const [subConceptFilter, setSubConceptFilter] = useState('All');
+  const [examFilter, setExamFilter] = useState('All');
   const [difficultyFilter, setDifficultyFilter] = useState('All');
 
+  // Tree expansion state
+  const [expandedNodes, setExpandedNodes] = useState<string[]>(['Physics', 'Chemistry', 'Biology', 'Mathematics']);
+
   useEffect(() => {
-    // 1. Right-click, Copy, Cut, and Selection restrictions
+    // Right-click, Copy, Cut, and Selection restrictions for data protection
     const preventContextMenu = (e: MouseEvent) => e.preventDefault();
     const preventCopy = (e: ClipboardEvent) => e.preventDefault();
     const preventCut = (e: ClipboardEvent) => e.preventDefault();
@@ -79,6 +87,45 @@ export default function ViewerDashboard() {
     fetchQuestions();
   }, []);
 
+  const toggleNode = (nodeId: string) => {
+    setExpandedNodes(prev =>
+      prev.includes(nodeId)
+        ? prev.filter(id => id !== nodeId)
+        : [...prev, nodeId]
+    );
+  };
+
+  // Helper to count questions at any level
+  const getCount = (subj: string, cls?: string, chap?: string, conc?: string, subc?: string) => {
+    return questions.filter(q => {
+      if (q.subject !== subj) return false;
+      if (cls) {
+        const qCls = q.classVal === '11th' ? 'Class 11' : q.classVal === '12th' ? 'Class 12' : q.classVal;
+        if (qCls !== cls) return false;
+      }
+      if (chap && q.topic !== chap) return false;
+      if (conc && q.concept !== conc) return false;
+      if (subc && q.subConcept !== subc) return false;
+      return true;
+    }).length;
+  };
+
+  const clearAcademicFilters = () => {
+    setSubjectFilter('All');
+    setClassFilter('All');
+    setTopicFilter('All');
+    setConceptFilter('All');
+    setSubConceptFilter('All');
+  };
+
+  const setHierarchyFilters = (subj: string, cls?: string, chap?: string, conc?: string, subc?: string) => {
+    setSubjectFilter(subj);
+    setClassFilter(cls ? (cls === 'Class 11' ? '11th' : '12th') : 'All');
+    setTopicFilter(chap || 'All');
+    setConceptFilter(conc || 'All');
+    setSubConceptFilter(subc || 'All');
+  };
+
   const email = session?.user?.email || 'viewer@manchester.com';
   // Repeated SVG background watermark
   const watermarkSvg = `
@@ -90,8 +137,6 @@ export default function ViewerDashboard() {
   `;
   const watermarkUrl = `data:image/svg+xml;utf8,${encodeURIComponent(watermarkSvg)}`;
 
-  const subjects = ['All', ...Array.from(new Set(questions.map((q) => q.subject)))];
-
   const filteredQuestions = questions.filter((q) => {
     const term = search.toLowerCase();
     const matchesSearch =
@@ -101,9 +146,14 @@ export default function ViewerDashboard() {
 
     const matchesSubject = subjectFilter === 'All' || q.subject === subjectFilter;
     const matchesClass = classFilter === 'All' || q.classVal === classFilter;
+    const matchesTopic = topicFilter === 'All' || q.topic === topicFilter;
+    const matchesConcept = conceptFilter === 'All' || q.concept === conceptFilter;
+    const matchesSubConcept = subConceptFilter === 'All' || q.subConcept === subConceptFilter;
+    
+    const matchesExam = examFilter === 'All' || q.examType === examFilter;
     const matchesDifficulty = difficultyFilter === 'All' || q.difficulty === difficultyFilter;
 
-    return matchesSearch && matchesSubject && matchesClass && matchesDifficulty;
+    return matchesSearch && matchesSubject && matchesClass && matchesTopic && matchesConcept && matchesSubConcept && matchesExam && matchesDifficulty;
   });
 
   return (
@@ -137,115 +187,308 @@ export default function ViewerDashboard() {
       )}
 
       {/* Filters */}
-      <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col lg:flex-row gap-4 items-center relative z-10 bg-black/80">
-        <div className="flex items-center gap-2 bg-black/40 border border-brand-border px-3 py-2 rounded-lg w-full lg:max-w-xs">
-          <Search className="w-4 h-4 text-brand-muted" />
-          <input
-            type="text"
-            placeholder="Search catalog..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none w-full"
-          />
+      <div className="glass-panel p-6 rounded-2xl border border-brand-border space-y-4 relative z-10 bg-black/80">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-brand-gold font-semibold">
+            <Filter className="w-5 h-5" />
+            <span>Filters & Search</span>
+          </div>
+          {(subjectFilter !== 'All' || classFilter !== 'All' || topicFilter !== 'All' || conceptFilter !== 'All' || subConceptFilter !== 'All') && (
+            <button
+              onClick={clearAcademicFilters}
+              className="text-xs text-red-400 hover:text-red-300 font-semibold"
+            >
+              Clear Academic Filters
+            </button>
+          )}
         </div>
 
-        <div className="w-full sm:w-48">
-          <select
-            value={subjectFilter}
-            onChange={(e) => setSubjectFilter(e.target.value)}
-            className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
-          >
-            <option value="All">All Subjects</option>
-            {subjects
-              .filter((s) => s !== 'All')
-              .map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-          </select>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="flex items-center gap-2 bg-black/40 border border-brand-border px-3 py-2.5 rounded-lg">
+            <Search className="w-4 h-4 text-brand-muted" />
+            <input
+              type="text"
+              placeholder="Search catalog..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="bg-transparent text-sm text-white placeholder-zinc-500 focus:outline-none w-full"
+            />
+          </div>
+
+          <div>
+            <select
+              value={examFilter}
+              onChange={(e) => setExamFilter(e.target.value)}
+              className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
+            >
+              <option value="All">All Exams</option>
+              <option value="JEE">JEE</option>
+              <option value="NEET">NEET</option>
+              <option value="KCET">KCET</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={difficultyFilter}
+              onChange={(e) => setDifficultyFilter(e.target.value)}
+              className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
+            >
+              <option value="All">All Difficulties</option>
+              <option value="Easy">Easy</option>
+              <option value="Medium">Medium</option>
+              <option value="Hard">Hard</option>
+            </select>
+          </div>
         </div>
 
-        <div className="w-full sm:w-48">
-          <select
-            value={classFilter}
-            onChange={(e) => setClassFilter(e.target.value)}
-            className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
-          >
-            <option value="All">All Classes</option>
-            <option value="11th">11th</option>
-            <option value="12th">12th</option>
-          </select>
-        </div>
-
-        <div className="w-full sm:w-48">
-          <select
-            value={difficultyFilter}
-            onChange={(e) => setDifficultyFilter(e.target.value)}
-            className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
-          >
-            <option value="All">All Difficulties</option>
-            <option value="Easy">Easy</option>
-            <option value="Medium">Medium</option>
-            <option value="Hard">Hard</option>
-          </select>
-        </div>
+        {/* Selected Academic Path display */}
+        {(subjectFilter !== 'All' || classFilter !== 'All' || topicFilter !== 'All') && (
+          <div className="bg-black/30 border border-brand-border/40 p-3 rounded-lg text-xs text-brand-muted flex flex-wrap gap-2 items-center">
+            <span className="font-semibold text-brand-gold">Selected NCERT Path:</span>
+            <span>{subjectFilter}</span>
+            {classFilter !== 'All' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span>Class {classFilter === '11th' ? '11' : '12'}</span>
+              </>
+            )}
+            {topicFilter !== 'All' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span className="text-white font-medium">{topicFilter}</span>
+              </>
+            )}
+            {conceptFilter !== 'All' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span className="text-white font-medium">{conceptFilter}</span>
+              </>
+            )}
+            {subConceptFilter !== 'All' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span className="text-white font-medium">{subConceptFilter}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      {loading ? (
-        <div className="py-12 flex justify-center items-center relative z-10">
-          <RefreshCw className="w-8 h-8 animate-spin text-brand-gold" />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
-          {filteredQuestions.map((q) => (
-            <div
-              key={q.id}
-              className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/30 transition duration-300 bg-black/80"
-            >
-              <div className="space-y-4">
-                <div className="flex justify-between items-start gap-2">
-                  <div>
-                    <span className="text-[10px] bg-white/5 border border-brand-border px-2.5 py-0.5 rounded text-brand-muted uppercase font-bold tracking-wider">
-                      {q.subject}
-                    </span>
-                    <span className="text-[10px] bg-brand-gold/10 border border-brand-gold/25 px-2.5 py-0.5 rounded text-brand-gold font-bold uppercase tracking-wider ml-2">
-                      {q.difficulty}
-                    </span>
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 relative z-10">
+        
+        {/* LEFT PANEL: Academic Hierarchy Tree Sidebar */}
+        <div className="glass-panel p-4 rounded-2xl border border-brand-border h-[70vh] overflow-y-auto bg-black/80 space-y-4">
+          <div className="pb-2 border-b border-brand-border flex items-center gap-2 text-brand-gold font-bold text-sm">
+            <BookOpen className="w-4 h-4" />
+            <span>NCERT Academic Hierarchy</span>
+          </div>
+
+          <div className="space-y-2 text-xs">
+            {Object.keys(ACADEMIC_HIERARCHY).map((subj) => {
+              const subjCount = getCount(subj);
+              const isSubjExpanded = expandedNodes.includes(subj);
+              const isSubjSelected = subjectFilter === subj && classFilter === 'All';
+
+              return (
+                <div key={subj} className="space-y-1">
+                  <div
+                    onClick={() => {
+                      toggleNode(subj);
+                      setHierarchyFilters(subj);
+                    }}
+                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition ${
+                      isSubjSelected ? 'bg-brand-gold/15 text-brand-gold font-bold' : 'text-zinc-300 hover:bg-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 min-w-0">
+                      {isSubjExpanded ? <ChevronDown className="w-3.5 h-3.5 shrink-0" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0" />}
+                      <span className="truncate">{subj}</span>
+                    </div>
+                    <span className="bg-white/5 px-1.5 py-0.5 rounded text-[10px] text-zinc-500 font-mono">({subjCount})</span>
                   </div>
-                  <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
-                    {q.examType}
-                  </span>
+
+                  {isSubjExpanded && (
+                    <div className="pl-4 space-y-1">
+                      {["Class 11", "Class 12"].map((cls) => {
+                        const clsId = `${subj}-${cls}`;
+                        const clsCount = getCount(subj, cls);
+                        const isClsExpanded = expandedNodes.includes(clsId);
+                        const qClsVal = cls === 'Class 11' ? '11th' : '12th';
+                        const isClsSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === 'All';
+
+                        return (
+                          <div key={cls} className="space-y-1">
+                            <div
+                              onClick={() => {
+                                toggleNode(clsId);
+                                setHierarchyFilters(subj, cls);
+                              }}
+                              className={`flex items-center justify-between p-1.5 rounded cursor-pointer transition ${
+                                isClsSelected ? 'bg-brand-gold/10 text-brand-gold font-semibold' : 'text-zinc-400 hover:bg-white/5'
+                              }`}
+                            >
+                              <div className="flex items-center gap-1 min-w-0">
+                                {isClsExpanded ? <ChevronDown className="w-3 h-3 shrink-0" /> : <ChevronRight className="w-3 h-3 shrink-0" />}
+                                <span>{cls}</span>
+                              </div>
+                              <span className="text-[9px] text-zinc-600 font-mono">({clsCount})</span>
+                            </div>
+
+                            {isClsExpanded && (
+                              <div className="pl-4 space-y-1 border-l border-zinc-800">
+                                {ACADEMIC_HIERARCHY[subj][cls].map((chap) => {
+                                  const chapId = `${subj}-${cls}-${chap.name}`;
+                                  const chapCount = getCount(subj, cls, chap.name);
+                                  const isChapExpanded = expandedNodes.includes(chapId);
+                                  const isChapSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === 'All';
+
+                                  return (
+                                    <div key={chap.name} className="space-y-1">
+                                      <div
+                                        onClick={() => {
+                                          toggleNode(chapId);
+                                          setHierarchyFilters(subj, cls, chap.name);
+                                        }}
+                                        className={`flex items-center justify-between p-1 rounded cursor-pointer transition ${
+                                          isChapSelected ? 'bg-zinc-850 text-white font-semibold' : 'text-zinc-500 hover:text-zinc-300'
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-1 min-w-0">
+                                          {isChapExpanded ? <ChevronDown className="w-2.5 h-2.5 shrink-0" /> : <ChevronRight className="w-2.5 h-2.5 shrink-0" />}
+                                          <span className="truncate">{chap.name}</span>
+                                        </div>
+                                        <span className="text-[8px] text-zinc-600 font-mono">({chapCount})</span>
+                                      </div>
+
+                                      {isChapExpanded && (
+                                        <div className="pl-3 space-y-1 border-l border-zinc-900">
+                                          {chap.concepts.map((conc) => {
+                                            const concId = `${subj}-${cls}-${chap.name}-${conc.name}`;
+                                            const concCount = getCount(subj, cls, chap.name, conc.name);
+                                            const isConcExpanded = expandedNodes.includes(concId);
+                                            const isConcSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === conc.name && subConceptFilter === 'All';
+
+                                            return (
+                                              <div key={conc.name} className="space-y-1">
+                                                <div
+                                                  onClick={() => {
+                                                    toggleNode(concId);
+                                                    setHierarchyFilters(subj, cls, chap.name, conc.name);
+                                                  }}
+                                                  className={`flex items-center justify-between p-0.5 rounded cursor-pointer transition text-[10px] ${
+                                                    isConcSelected ? 'text-brand-gold font-medium' : 'text-zinc-600 hover:text-zinc-400'
+                                                  }`}
+                                                >
+                                                  <div className="flex items-center gap-1 min-w-0">
+                                                    {isConcExpanded ? <ChevronDown className="w-2 h-2 shrink-0" /> : <ChevronRight className="w-2 h-2 shrink-0" />}
+                                                    <span className="truncate">{conc.name}</span>
+                                                  </div>
+                                                  <span className="text-[8px] text-zinc-700 font-mono">({concCount})</span>
+                                                </div>
+
+                                                {isConcExpanded && (
+                                                  <div className="pl-3 space-y-0.5 border-l border-zinc-950">
+                                                    {conc.subConcepts.map((subc) => {
+                                                      const subcCount = getCount(subj, cls, chap.name, conc.name, subc);
+                                                      const isSubcSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === conc.name && subConceptFilter === subc;
+
+                                                      return (
+                                                        <div
+                                                          key={subc}
+                                                          onClick={() => setHierarchyFilters(subj, cls, chap.name, conc.name, subc)}
+                                                          className={`flex items-center justify-between py-0.5 px-1 rounded cursor-pointer transition text-[9px] ${
+                                                            isSubcSelected ? 'text-white font-bold bg-white/5' : 'text-zinc-700 hover:text-zinc-500'
+                                                          }`}
+                                                        >
+                                                          <span className="truncate">{subc}</span>
+                                                          <span className="text-[8px] text-zinc-800 font-mono">({subcCount})</span>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+              );
+            })}
+          </div>
+        </div>
 
-                <p className="text-white font-medium text-sm line-clamp-3 leading-relaxed">
-                  {q.questionText}
-                </p>
-
-                <div className="grid grid-cols-2 gap-2 text-xs text-brand-muted bg-black/30 p-3 rounded-lg border border-brand-border/40">
-                  <div>Topic: <span className="text-zinc-300 font-medium">{q.topic}</span></div>
-                  <div>Class: <span className="text-zinc-300 font-medium">{q.classVal}</span></div>
-                </div>
-              </div>
-
-              <div className="mt-6 pt-4 border-t border-brand-border flex justify-end">
-                <button
-                  onClick={() => setSelectedQuestion(q)}
-                  className="flex items-center gap-1.5 py-2 px-4 bg-zinc-900 border border-brand-border hover:bg-zinc-800 rounded-lg text-xs font-semibold text-brand-gold transition cursor-pointer"
-                >
-                  <Eye className="w-4 h-4" />
-                  <span>View Details</span>
-                </button>
-              </div>
+        {/* RIGHT COLUMN: Approved catalog list */}
+        <div className="lg:col-span-3 space-y-6">
+          {loading ? (
+            <div className="py-12 flex justify-center items-center">
+              <RefreshCw className="w-8 h-8 animate-spin text-brand-gold" />
             </div>
-          ))}
-          {filteredQuestions.length === 0 && (
-            <div className="col-span-full py-12 text-center text-brand-muted italic bg-black/80 rounded-2xl border border-brand-border">
-              No approved questions found matching the filters
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {filteredQuestions.map((q) => (
+                <div
+                  key={q.id}
+                  className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/30 transition duration-300 bg-black/80"
+                >
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start gap-2">
+                      <div>
+                        <span className="text-[10px] bg-white/5 border border-brand-border px-2.5 py-0.5 rounded text-brand-muted uppercase font-bold tracking-wider">
+                          {q.subject}
+                        </span>
+                        <span className="text-[10px] bg-brand-gold/10 border border-brand-gold/25 px-2.5 py-0.5 rounded text-brand-gold font-bold uppercase tracking-wider ml-2">
+                          {q.difficulty}
+                        </span>
+                      </div>
+                      <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                        {q.examType}
+                      </span>
+                    </div>
+
+                    <p className="text-white font-medium text-sm line-clamp-3 leading-relaxed">
+                      {q.questionText}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs text-brand-muted bg-black/30 p-3 rounded-lg border border-brand-border/40">
+                      <div>Chapter: <span className="text-zinc-300 font-medium">{q.topic}</span></div>
+                      <div>Concept: <span className="text-zinc-300 font-medium">{q.concept}</span></div>
+                      <div>Class: <span className="text-zinc-300 font-medium">{q.classVal}</span></div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-brand-border flex justify-end">
+                    <button
+                      onClick={() => setSelectedQuestion(q)}
+                      className="flex items-center gap-1.5 py-2 px-4 bg-zinc-900 border border-brand-border hover:bg-zinc-800 rounded-lg text-xs font-semibold text-brand-gold transition cursor-pointer"
+                    >
+                      <Eye className="w-4 h-4" />
+                      <span>View Details</span>
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {filteredQuestions.length === 0 && (
+                <div className="col-span-full py-12 text-center text-brand-muted italic bg-black/80 rounded-2xl border border-brand-border">
+                  No approved questions found matching the selected NCERT criteria
+                </div>
+              )}
             </div>
           )}
         </div>
-      )}
+
+      </div>
 
       {/* Modal for Question Details */}
       {selectedQuestion && (
@@ -286,7 +529,6 @@ export default function ViewerDashboard() {
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs text-brand-muted border-b border-brand-border pb-4">
                 <div>Topic: <span className="text-zinc-300 font-medium">{selectedQuestion.topic}</span></div>
-                <div>Sub Topic: <span className="text-zinc-300 font-medium">{selectedQuestion.subTopic || 'N/A'}</span></div>
                 <div>Concept: <span className="text-zinc-300 font-medium">{selectedQuestion.concept}</span></div>
                 <div>Sub Concept: <span className="text-zinc-300 font-medium">{selectedQuestion.subConcept || 'N/A'}</span></div>
               </div>

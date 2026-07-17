@@ -49,17 +49,53 @@ export default function WeeklySubmissionPage() {
     setSuccess('');
     setSubmitting(true);
 
-    const formData = new FormData();
-    formData.append('file', file);
-
     try {
+      // 1. Get Cloudinary signature from our local API
+      const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/weekly-submissions');
+      if (!signRes.ok) throw new Error('Failed to generate upload signature');
+      const signData = await signRes.json();
+      const { signature, timestamp, folder, apiKey, cloudName } = signData;
+
+      // 2. Determine Cloudinary resource type
+      const ext = file.name.split('.').pop()?.toLowerCase() || '';
+      const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
+
+      // 3. Upload file directly to Cloudinary
+      const cloudinaryData = new FormData();
+      cloudinaryData.append('file', file);
+      cloudinaryData.append('api_key', apiKey);
+      cloudinaryData.append('timestamp', timestamp.toString());
+      cloudinaryData.append('signature', signature);
+      cloudinaryData.append('folder', folder);
+
+      const cloudinaryRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+        {
+          method: 'POST',
+          body: cloudinaryData,
+        }
+      );
+
+      if (!cloudinaryRes.ok) {
+        const errorData = await cloudinaryRes.json();
+        throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+      }
+
+      const uploadResult = await cloudinaryRes.json();
+      const fileUrl = uploadResult.secure_url;
+
+      // 4. Save submission metadata in our database
       const res = await fetch('/api/intern/submissions', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileUrl,
+          fileName: file.name,
+        }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to upload weekly submission');
+      if (!res.ok) throw new Error(data.error || 'Failed to register submission');
 
       setSuccess('Weekly submission uploaded successfully! Your mentor has been notified.');
       setFile(null);

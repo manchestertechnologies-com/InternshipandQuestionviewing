@@ -48,28 +48,44 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Intern profile not found' }, { status: 404 });
     }
 
-    const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    let fileUrl = '';
+    let fileName = '';
 
-    if (!file || file.size === 0) {
-      return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      fileUrl = body.fileUrl;
+      fileName = body.fileName;
+    } else {
+      const formData = await request.formData();
+      const file = formData.get('file') as File | null;
+
+      if (!file || file.size === 0) {
+        return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
+      }
+
+      // Upload to Cloudinary
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const { url } = await uploadToCloudinary(
+        buffer,
+        file.name,
+        'manchester-tech/weekly-submissions'
+      );
+      fileUrl = url;
+      fileName = file.name;
     }
 
-    // Upload to Cloudinary
-    const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
-    const { url: fileUrl } = await uploadToCloudinary(
-      buffer,
-      file.name,
-      'manchester-tech/weekly-submissions'
-    );
+    if (!fileUrl) {
+      return NextResponse.json({ error: 'File upload failed or URL missing' }, { status: 400 });
+    }
 
     const submission = await prisma.weeklySubmission.create({
       data: {
         internId: internProfile.id,
         studentName: internProfile.name,
         rollNumber: internProfile.rollNo.toString(),
-        fileName: file.name,
+        fileName,
         fileUrl,
       },
     });

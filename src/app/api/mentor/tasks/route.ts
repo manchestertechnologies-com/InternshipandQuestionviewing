@@ -52,35 +52,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Mentor profile not found' }, { status: 404 });
     }
 
-    const formData = await request.formData();
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string;
-    const deadlineDaysStr = formData.get('deadlineDays') as string;
-    const assigneeIdsRaw = formData.get('assigneeIds') as string;
-    const file = formData.get('file') as File | null;
-
-    if (!title || !description || !deadlineDaysStr || !assigneeIdsRaw) {
-      return NextResponse.json(
-        { error: 'Title, description, deadline, and assignees are required' },
-        { status: 400 }
-      );
-    }
-
-    const deadlineDays = parseInt(deadlineDaysStr, 10);
-    if (isNaN(deadlineDays) || deadlineDays <= 0) {
-      return NextResponse.json({ error: 'Invalid deadline days' }, { status: 400 });
-    }
-
-    // Upload file to Cloudinary if provided
+    let title = '';
+    let description = '';
+    let deadlineDays = 23;
+    let assigneeIdsRaw = '';
     let fileUrl: string | null = null;
     let fileName: string | null = null;
 
-    if (file && file.size > 0) {
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const { url } = await uploadToCloudinary(buffer, file.name, 'manchester-tech/tasks');
-      fileUrl = url;
-      fileName = file.name;
+    const contentType = request.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      title = body.title;
+      description = body.description;
+      deadlineDays = parseInt(body.deadlineDays, 10);
+      assigneeIdsRaw = body.assigneeIds;
+      fileUrl = body.fileUrl || null;
+      fileName = body.fileName || null;
+    } else {
+      const formData = await request.formData();
+      title = formData.get('title') as string;
+      description = formData.get('description') as string;
+      const deadlineDaysStr = formData.get('deadlineDays') as string;
+      assigneeIdsRaw = formData.get('assigneeIds') as string;
+      const file = formData.get('file') as File | null;
+
+      if (!title || !description || !deadlineDaysStr || !assigneeIdsRaw) {
+        return NextResponse.json(
+          { error: 'Title, description, deadline, and assignees are required' },
+          { status: 400 }
+        );
+      }
+
+      deadlineDays = parseInt(deadlineDaysStr, 10);
+
+      // Upload file to Cloudinary if provided
+      if (file && file.size > 0) {
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        const { url } = await uploadToCloudinary(buffer, file.name, 'manchester-tech/tasks');
+        fileUrl = url;
+        fileName = file.name;
+      }
+    }
+
+    if (!title || !description || isNaN(deadlineDays)) {
+      return NextResponse.json(
+        { error: 'Invalid title, description or deadline cutoff' },
+        { status: 400 }
+      );
     }
 
     // Resolve assignees
@@ -116,10 +135,11 @@ export async function POST(request: Request) {
           const intern = await tx.internProfile.findUnique({ where: { id: internId } });
 
           if (intern) {
+            const timeStr = deadlineDays === 23 ? '23:59:59' : `${deadlineDays}:00:00`;
             await tx.notification.create({
               data: {
                 userId: intern.userId,
-                content: `New daily task assigned: "${title}". Deadline: ${deadlineDays} days.`,
+                content: `New daily task assigned: "${title}". Deadline: TODAY at ${timeStr}.`,
                 type: 'TASK_ASSIGNED',
               },
             });
