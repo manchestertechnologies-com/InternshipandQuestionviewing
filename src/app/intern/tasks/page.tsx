@@ -93,6 +93,30 @@ export default function DailyTasksPage() {
   const [examType, setExamType] = useState('JEE');
   const [images, setImages] = useState<QuestionImage[]>([]);
 
+  // Extended classification system state
+  const [questionType, setQuestionType] = useState('MCQ');
+  const [selectedExams, setSelectedExams] = useState<string[]>(['JEE']);
+  
+  // Assertion & Reason
+  const [assertionText, setAssertionText] = useState('');
+  const [reasonText, setReasonText] = useState('');
+
+  // Statement based
+  const [statement1, setStatement1] = useState('');
+  const [statement2, setStatement2] = useState('');
+  const [statement3, setStatement3] = useState('');
+  const [statement4, setStatement4] = useState('');
+
+  // Match the following
+  const [colA1, setColA1] = useState('');
+  const [colA2, setColA2] = useState('');
+  const [colA3, setColA3] = useState('');
+  const [colA4, setColA4] = useState('');
+  const [colBP, setColBP] = useState('');
+  const [colBQ, setColBQ] = useState('');
+  const [colBR, setColBR] = useState('');
+  const [colBS, setColBS] = useState('');
+
   // Image upload indicators
   const [uploadingField, setUploadingField] = useState<string | null>(null);
 
@@ -174,10 +198,10 @@ export default function DailyTasksPage() {
   const loadQuestionForEdit = (q: Question) => {
     setActiveQId(q.id);
     setQuestionText(q.questionText);
-    setOptionA(q.optionA);
-    setOptionB(q.optionB);
-    setOptionC(q.optionC);
-    setOptionD(q.optionD);
+    setOptionA(q.optionA || '');
+    setOptionB(q.optionB || '');
+    setOptionC(q.optionC || '');
+    setOptionD(q.optionD || '');
     setCorrectAnswer(q.correctAnswer);
     setDetailedSolution(q.detailedSolution);
     setSubject(q.subject);
@@ -186,7 +210,52 @@ export default function DailyTasksPage() {
     setConcept(q.concept);
     setSubConcept(q.subConcept || '');
     setClassVal(q.classVal);
-    setExamType(q.examType);
+    
+    // Parse exams
+    const exams = q.examType ? q.examType.split(',').map(s => s.trim()) : [];
+    setSelectedExams(exams.length > 0 ? exams : ['JEE']);
+
+    const qType = (q as any).questionType || 'MCQ';
+    setQuestionType(qType);
+
+    const extra = (q as any).extraData || {};
+    if (qType === 'ASSERTION_REASON') {
+      setAssertionText(extra.assertionText || '');
+      setReasonText(extra.reasonText || '');
+    } else if (qType === 'STATEMENT_BASED') {
+      const st = extra.statements || [];
+      setStatement1(st[0] || '');
+      setStatement2(st[1] || '');
+      setStatement3(st[2] || '');
+      setStatement4(st[3] || '');
+    } else if (qType === 'MATCH_THE_FOLLOWING') {
+      const colA = extra.matchColumnA || [];
+      const colB = extra.matchColumnB || [];
+      setColA1(colA[0] || '');
+      setColA2(colA[1] || '');
+      setColA3(colA[2] || '');
+      setColA4(colA[3] || '');
+      setColBP(colB[0] || '');
+      setColBQ(colB[1] || '');
+      setColBR(colB[2] || '');
+      setColBS(colB[3] || '');
+    } else {
+      setAssertionText('');
+      setReasonText('');
+      setStatement1('');
+      setStatement2('');
+      setStatement3('');
+      setStatement4('');
+      setColA1('');
+      setColA2('');
+      setColA3('');
+      setColA4('');
+      setColBP('');
+      setColBQ('');
+      setColBR('');
+      setColBS('');
+    }
+
     setImages(q.images);
 
     // Autofocus
@@ -203,7 +272,24 @@ export default function DailyTasksPage() {
     setCorrectAnswer('A');
     setDetailedSolution('');
     setImages([]);
-    // Do NOT clear subject, class, chapter, concept, examType etc. to optimize bulk entry
+    
+    // Clear custom type fields
+    setAssertionText('');
+    setReasonText('');
+    setStatement1('');
+    setStatement2('');
+    setStatement3('');
+    setStatement4('');
+    setColA1('');
+    setColA2('');
+    setColA3('');
+    setColA4('');
+    setColBP('');
+    setColBQ('');
+    setColBR('');
+    setColBS('');
+
+    // Do NOT clear subject, class, chapter, concept, selectedExams etc. to optimize bulk entry
     setTimeout(() => questionTextareaRef.current?.focus(), 100);
   };
 
@@ -281,9 +367,106 @@ export default function DailyTasksPage() {
     setError('');
     setSuccess('');
 
-    if (!questionText || !optionA || !optionB || !optionC || !optionD || !subject || !topic || !concept) {
-      setError('Please fill in all required question fields & metadata.');
+    if (!subject || !topic || !concept) {
+      setError('Please select Subject, Chapter, and Concept.');
       return;
+    }
+
+    if (selectedExams.length === 0) {
+      setError('Please select at least one Exam Category.');
+      return;
+    }
+
+    // Type-specific validations and data structures
+    let finalQuestionText = questionText;
+    let finalOptionA = optionA;
+    let finalOptionB = optionB;
+    let finalOptionC = optionC;
+    let finalOptionD = optionD;
+    let extraData: any = null;
+
+    if (questionType === 'MCQ') {
+      if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+        setError('Please fill in question text and all four options.');
+        return;
+      }
+    } else if (questionType === 'ASSERTION_REASON') {
+      if (!assertionText || !reasonText) {
+        setError('Please fill in both Assertion and Reason fields.');
+        return;
+      }
+      finalQuestionText = `Assertion (A): ${assertionText}\nReason (R): ${reasonText}`;
+      finalOptionA = "A and R are true and R is the correct explanation.";
+      finalOptionB = "A and R are true but R is not the correct explanation.";
+      finalOptionC = "A is true but R is false.";
+      finalOptionD = "A is false but R is true.";
+      extraData = { assertionText, reasonText };
+    } else if (questionType === 'STATEMENT_BASED') {
+      if (!statement1 || !statement2) {
+        setError('Please fill in at least Statement 1 and Statement 2.');
+        return;
+      }
+      if (!optionA || !optionB || !optionC || !optionD) {
+        setError('Please provide options A, B, C, D representing statement combinations.');
+        return;
+      }
+      const statementsList = [statement1, statement2];
+      if (statement3) statementsList.push(statement3);
+      if (statement4) statementsList.push(statement4);
+      
+      finalQuestionText = statementsList.map((st, idx) => `Statement ${idx + 1}: ${st}`).join('\n') + `\n\nChoose the correct answer:`;
+      extraData = { statements: [statement1, statement2, statement3, statement4].filter(Boolean) };
+    } else if (questionType === 'TRUE_FALSE') {
+      if (!questionText) {
+        setError('Please fill in the statement text.');
+        return;
+      }
+      finalOptionA = "True";
+      finalOptionB = "False";
+      finalOptionC = "";
+      finalOptionD = "";
+      if (correctAnswer !== 'A' && correctAnswer !== 'B') {
+        setError('For True/False, the correct answer must be A (True) or B (False).');
+        return;
+      }
+    } else if (questionType === 'MATCH_THE_FOLLOWING') {
+      if (!colA1 || !colA2 || !colBP || !colBQ) {
+        setError('Please fill in at least two items in Column A and Column B.');
+        return;
+      }
+      if (!optionA || !optionB || !optionC || !optionD) {
+        setError('Please provide all four option choices for matching combinations.');
+        return;
+      }
+      const colA = [colA1, colA2, colA3, colA4].filter(Boolean);
+      const colB = [colBP, colBQ, colBR, colBS].filter(Boolean);
+      finalQuestionText = `Match the entries in Column A with Column B:\n\nColumn A:\n` + 
+        colA.map((item, idx) => `${idx + 1}. ${item}`).join('\n') + 
+        `\n\nColumn B:\n` + 
+        colB.map((item, idx) => `${String.fromCharCode(65 + idx)}. ${item}`).join('\n');
+      extraData = { 
+        matchColumnA: [colA1, colA2, colA3, colA4].filter(Boolean), 
+        matchColumnB: [colBP, colBQ, colBR, colBS].filter(Boolean) 
+      };
+    } else if (questionType === 'NUMERICAL') {
+      if (!questionText || !correctAnswer) {
+        setError('Please fill in the question text and the correct numerical answer.');
+        return;
+      }
+      finalOptionA = "";
+      finalOptionB = "";
+      finalOptionC = "";
+      finalOptionD = "";
+    } else if (questionType === 'DIAGRAM') {
+      if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+        setError('Please fill in question text and all four options.');
+        return;
+      }
+      const hasDiagram = images.some(img => img.type === 'QUESTION' || img.type === 'DIAGRAM');
+      if (!hasDiagram) {
+        setError('Diagram Based Questions require a diagram image to be attached or pasted.');
+        return;
+      }
     }
 
     try {
@@ -298,11 +481,11 @@ export default function DailyTasksPage() {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          questionText,
-          optionA,
-          optionB,
-          optionC,
-          optionD,
+          questionText: finalQuestionText,
+          optionA: finalOptionA,
+          optionB: finalOptionB,
+          optionC: finalOptionC,
+          optionD: finalOptionD,
           correctAnswer,
           detailedSolution,
           subject,
@@ -311,7 +494,9 @@ export default function DailyTasksPage() {
           concept,
           subConcept,
           classVal,
-          examType,
+          examType: selectedExams.join(', '),
+          questionType,
+          extraData,
           images,
         }),
       });
@@ -738,8 +923,8 @@ export default function DailyTasksPage() {
                 </div>
               </div>
 
-              {/* Subconcept & Exam type */}
-              <div className="grid grid-cols-3 gap-4">
+              {/* Subconcept, Tag, Exam categories, and Question Type */}
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Concept</label>
                   <select
@@ -767,131 +952,362 @@ export default function DailyTasksPage() {
                     placeholder="e.g. Free-body diagram"
                   />
                 </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Exam Categories *</label>
+                  <div className="flex flex-wrap gap-1.5 bg-black p-1.5 rounded-lg border border-brand-border min-h-[36px] items-center">
+                    {['NEET', 'JEE', 'KCET', 'CET'].map((exam) => {
+                      const isChecked = selectedExams.includes(exam);
+                      return (
+                        <button
+                          type="button"
+                          key={exam}
+                          onClick={() => {
+                            if (isChecked) {
+                              setSelectedExams(prev => prev.filter(x => x !== exam));
+                            } else {
+                              setSelectedExams(prev => [...prev, exam]);
+                            }
+                          }}
+                          className={`px-2 py-1 rounded text-[10px] font-bold transition select-none border border-0 cursor-pointer ${
+                            isChecked
+                              ? 'bg-brand-gold text-black'
+                              : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {exam}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
 
                 <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Exam Type *</label>
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Question Type *</label>
                   <select
-                    value={examType}
-                    onChange={(e) => setExamType(e.target.value)}
-                    className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
+                    value={questionType}
+                    onChange={(e) => setQuestionType(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                   >
-                    <option value="JEE">JEE</option>
-                    <option value="NEET">NEET</option>
-                    <option value="KCET">KCET</option>
-                    <option value="CET">CET</option>
+                    <option value="MCQ">Standard MCQ</option>
+                    <option value="ASSERTION_REASON">Assertion & Reason</option>
+                    <option value="STATEMENT_BASED">Statement Based</option>
+                    <option value="TRUE_FALSE">True / False</option>
+                    <option value="MATCH_THE_FOLLOWING">Match the Following</option>
+                    <option value="NUMERICAL">Numerical Answer Type</option>
+                    <option value="DIAGRAM">Diagram Based Question</option>
                   </select>
                 </div>
               </div>
 
-              {/* Question Text with paste and attachment support */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Question Text *</label>
-                  <div className="flex gap-2">
-                    <label className="flex items-center gap-1 text-[9px] font-bold text-brand-gold cursor-pointer bg-zinc-900 border border-brand-border px-2 py-0.5 rounded hover:bg-zinc-800">
-                      <Paperclip className="w-3 h-3" />
-                      <span>Attach Image</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleUploadImageFile(e, 'QUESTION')}
-                        className="hidden"
-                      />
+              {/* DYNAMIC FIELDS BASE ON QUESTION TYPE */}
+
+              {/* MCQ or DIAGRAM or TRUE_FALSE or NUMERICAL standard text field */}
+              {(questionType === 'MCQ' || questionType === 'DIAGRAM' || questionType === 'TRUE_FALSE' || questionType === 'NUMERICAL') && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">
+                      {questionType === 'TRUE_FALSE' ? 'Statement *' : questionType === 'NUMERICAL' ? 'Numerical Question *' : 'Question Text *'}
                     </label>
+                    <div className="flex gap-2">
+                      <label className="flex items-center gap-1 text-[9px] font-bold text-brand-gold cursor-pointer bg-zinc-900 border border-brand-border px-2 py-0.5 rounded hover:bg-zinc-800">
+                        <Paperclip className="w-3 h-3" />
+                        <span>Attach Image</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleUploadImageFile(e, 'QUESTION')}
+                          className="hidden"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                  
+                  {questionType === 'DIAGRAM' && (
+                    <div className="bg-brand-gold/10 border border-brand-gold/25 p-2 rounded text-[10px] text-brand-gold leading-relaxed">
+                      💡 <strong>Diagram-Based Question:</strong> You must attach or paste a diagram image below.
+                    </div>
+                  )}
+
+                  <textarea
+                    ref={questionTextareaRef}
+                    required
+                    rows={4}
+                    value={questionText}
+                    onChange={(e) => setQuestionText(e.target.value)}
+                    onPaste={(e) => handlePasteImage(e, 'QUESTION')}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                    placeholder={
+                      questionType === 'DIAGRAM' 
+                        ? "Type question text referring to the diagram, and attach the diagram image..." 
+                        : "Type question text or paste image (Ctrl+V) directly inside here..."
+                    }
+                  />
+                  
+                  {uploadingField === 'QUESTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading image...</p>}
+                  
+                  {images.filter((img) => img.type === 'QUESTION').map((img, i) => (
+                    <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1">
+                      <img src={img.imageUrl} alt="Question Asset" className="max-h-12 object-contain rounded" />
+                      <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ASSERTION & REASON */}
+              {questionType === 'ASSERTION_REASON' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Assertion (A) *</label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={assertionText}
+                      onChange={(e) => setAssertionText(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                      placeholder="Type Assertion (A)..."
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Reason (R) *</label>
+                    <textarea
+                      required
+                      rows={2}
+                      value={reasonText}
+                      onChange={(e) => setReasonText(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                      placeholder="Type Reason (R)..."
+                    />
+                  </div>
+                  <div className="p-3 bg-black/40 border border-brand-border rounded-xl text-[11px] text-zinc-400 space-y-1">
+                    <p className="font-bold text-brand-gold">Predefined Options:</p>
+                    <p><strong>A:</strong> A and R are true and R is the correct explanation.</p>
+                    <p><strong>B:</strong> A and R are true but R is not the correct explanation.</p>
+                    <p><strong>C:</strong> A is true but R is false.</p>
+                    <p><strong>D:</strong> A is false but R is true.</p>
                   </div>
                 </div>
-                
-                <textarea
-                  ref={questionTextareaRef}
-                  required
-                  rows={4}
-                  value={questionText}
-                  onChange={(e) => setQuestionText(e.target.value)}
-                  onPaste={(e) => handlePasteImage(e, 'QUESTION')}
-                  className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
-                  placeholder="Type question text or paste image (Ctrl+V) directly inside here..."
-                />
-                
-                {uploadingField === 'QUESTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading Question image to Cloudinary...</p>}
-                
-                {/* Image previews for Question field */}
-                {images.filter((img) => img.type === 'QUESTION').map((img, i) => (
-                  <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1">
-                    <img src={img.imageUrl} alt="Question Asset" className="max-h-12 object-contain rounded" />
-                    <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              )}
 
-              {/* Options with paste-to-attach support */}
-              <div className="space-y-3">
-                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Options *</label>
-                {(['A', 'B', 'C', 'D'] as const).map((opt) => {
-                  const fieldName = `OPTION_${opt}`;
-                  return (
-                    <div key={opt} className="space-y-1">
-                      <div className="flex gap-3 items-center">
-                        <span className="w-6 h-6 rounded-full bg-zinc-900 border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
-                          {opt}
-                        </span>
-                        
-                        <input
-                          type="text"
-                          required
-                          value={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD}
-                          onChange={(e) => {
-                            if (opt === 'A') setOptionA(e.target.value);
-                            else if (opt === 'B') setOptionB(e.target.value);
-                            else if (opt === 'C') setOptionC(e.target.value);
-                            else setOptionD(e.target.value);
-                          }}
-                          onPaste={(e) => handlePasteImage(e, fieldName)}
-                          className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                          placeholder={`Type Option ${opt} text or paste image (Ctrl+V)...`}
-                        />
+              {/* STATEMENT BASED */}
+              {questionType === 'STATEMENT_BASED' && (
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Statements *</label>
+                  <input
+                    type="text"
+                    required
+                    value={statement1}
+                    onChange={(e) => setStatement1(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    placeholder="Statement 1 *"
+                  />
+                  <input
+                    type="text"
+                    required
+                    value={statement2}
+                    onChange={(e) => setStatement2(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    placeholder="Statement 2 *"
+                  />
+                  <input
+                    type="text"
+                    value={statement3}
+                    onChange={(e) => setStatement3(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    placeholder="Statement 3 (Optional)"
+                  />
+                  <input
+                    type="text"
+                    value={statement4}
+                    onChange={(e) => setStatement4(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                    placeholder="Statement 4 (Optional)"
+                  />
+                </div>
+              )}
 
-                        <label className="p-1.5 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 cursor-pointer">
-                          <Paperclip className="w-3.5 h-3.5" />
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleUploadImageFile(e, fieldName)}
-                            className="hidden"
-                          />
-                        </label>
-                      </div>
-
-                      {uploadingField === fieldName && <p className="text-[10px] text-brand-gold animate-pulse pl-9">Uploading Option {opt} image...</p>}
-
-                      {/* Option image previews */}
-                      {images.filter((img) => img.type === fieldName).map((img, i) => (
-                        <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1 ml-9">
-                          <img src={img.imageUrl} alt={`Option ${opt} Asset`} className="max-h-10 object-contain rounded" />
-                          <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
+              {/* MATCH THE FOLLOWING */}
+              {questionType === 'MATCH_THE_FOLLOWING' && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Column A *</label>
+                      <input
+                        type="text"
+                        required
+                        value={colA1}
+                        onChange={(e) => setColA1(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row 1 *"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={colA2}
+                        onChange={(e) => setColA2(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row 2 *"
+                      />
+                      <input
+                        type="text"
+                        value={colA3}
+                        onChange={(e) => setColA3(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row 3 (Optional)"
+                      />
+                      <input
+                        type="text"
+                        value={colA4}
+                        onChange={(e) => setColA4(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row 4 (Optional)"
+                      />
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="space-y-2">
+                      <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Column B *</label>
+                      <input
+                        type="text"
+                        required
+                        value={colBP}
+                        onChange={(e) => setColBP(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row P *"
+                      />
+                      <input
+                        type="text"
+                        required
+                        value={colBQ}
+                        onChange={(e) => setColBQ(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row Q *"
+                      />
+                      <input
+                        type="text"
+                        value={colBR}
+                        onChange={(e) => setColBR(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row R (Optional)"
+                      />
+                      <input
+                        type="text"
+                        value={colBS}
+                        onChange={(e) => setColBS(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                        placeholder="Row S (Optional)"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
 
-              {/* Correct Answer Dropdown */}
+              {/* Option Choice Inputs (shown for MCQ, DIAGRAM, STATEMENT_BASED, MATCH_THE_FOLLOWING) */}
+              {(questionType === 'MCQ' || questionType === 'DIAGRAM' || questionType === 'STATEMENT_BASED' || questionType === 'MATCH_THE_FOLLOWING') && (
+                <div className="space-y-3">
+                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">
+                    {questionType === 'STATEMENT_BASED' || questionType === 'MATCH_THE_FOLLOWING' 
+                      ? 'Option Combinations *' 
+                      : 'Options *'}
+                  </label>
+                  {(['A', 'B', 'C', 'D'] as const).map((opt) => {
+                    const fieldName = `OPTION_${opt}`;
+                    return (
+                      <div key={opt} className="space-y-1">
+                        <div className="flex gap-3 items-center">
+                          <span className="w-6 h-6 rounded-full bg-zinc-900 border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
+                            {opt}
+                          </span>
+                          
+                          <input
+                            type="text"
+                            required
+                            value={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD}
+                            onChange={(e) => {
+                              if (opt === 'A') setOptionA(e.target.value);
+                              else if (opt === 'B') setOptionB(e.target.value);
+                              else if (opt === 'C') setOptionC(e.target.value);
+                              else setOptionD(e.target.value);
+                            }}
+                            onPaste={(e) => handlePasteImage(e, fieldName)}
+                            className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                            placeholder={
+                              questionType === 'STATEMENT_BASED' 
+                                ? `e.g. Option ${opt} (e.g. Only 1 & 2 are correct)`
+                                : questionType === 'MATCH_THE_FOLLOWING'
+                                  ? `e.g. Option ${opt} (e.g. 1-P, 2-Q, 3-R, 4-S)`
+                                  : `Type Option ${opt} text or paste image (Ctrl+V)...`
+                            }
+                          />
+
+                          {(questionType === 'MCQ' || questionType === 'DIAGRAM') && (
+                            <label className="p-1.5 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 cursor-pointer">
+                              <Paperclip className="w-3.5 h-3.5" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleUploadImageFile(e, fieldName)}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+                        </div>
+
+                        {uploadingField === fieldName && <p className="text-[10px] text-brand-gold animate-pulse pl-9">Uploading Option {opt} image...</p>}
+
+                        {/* Option image previews */}
+                        {images.filter((img) => img.type === fieldName).map((img, i) => (
+                          <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1 ml-9">
+                            <img src={img.imageUrl} alt={`Option ${opt} Asset`} className="max-h-10 object-contain rounded" />
+                            <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Correct Option Dropdown */}
               <div className="w-1/2">
-                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Correct Option *</label>
-                <select
-                  value={correctAnswer}
-                  onChange={(e) => setCorrectAnswer(e.target.value)}
-                  className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
-                >
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
-                  <option value="D">D</option>
-                </select>
+                <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">
+                  {questionType === 'NUMERICAL' ? 'Correct Numerical Value *' : 'Correct Option *'}
+                </label>
+                {questionType === 'NUMERICAL' ? (
+                  <input
+                    type="text"
+                    required
+                    value={correctAnswer}
+                    onChange={(e) => setCorrectAnswer(e.target.value)}
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs font-mono"
+                    placeholder="e.g. 25.6 or 4"
+                  />
+                ) : questionType === 'TRUE_FALSE' ? (
+                  <select
+                    value={correctAnswer}
+                    onChange={(e) => setCorrectAnswer(e.target.value)}
+                    className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
+                  >
+                    <option value="A">True</option>
+                    <option value="B">False</option>
+                  </select>
+                ) : (
+                  <select
+                    value={correctAnswer}
+                    onChange={(e) => setCorrectAnswer(e.target.value)}
+                    className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
+                )}
               </div>
 
               {/* Detailed Solution with paste-to-attach */}

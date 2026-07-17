@@ -44,6 +44,8 @@ export async function PATCH(
       subConcept,
       classVal,
       examType,
+      questionType,
+      extraData,
       images,
     } = body;
 
@@ -51,10 +53,10 @@ export async function PATCH(
       where: { id: qId },
       data: {
         questionText,
-        optionA,
-        optionB,
-        optionC,
-        optionD,
+        optionA: optionA || null,
+        optionB: optionB || null,
+        optionC: optionC || null,
+        optionD: optionD || null,
         correctAnswer,
         detailedSolution,
         subject,
@@ -64,6 +66,8 @@ export async function PATCH(
         subConcept: subConcept || null,
         classVal,
         examType,
+        questionType: questionType || 'MCQ',
+        extraData: extraData || null,
         status: 'PENDING',
       },
     });

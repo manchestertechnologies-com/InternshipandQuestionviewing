@@ -29,6 +29,8 @@ interface Question {
   difficulty: string;
   status: string;
   reviewFeedback: string | null;
+  questionType?: string;
+  extraData?: any;
   intern: {
     name: string;
     rollNo: number;
@@ -51,6 +53,7 @@ export default function QuestionRepository() {
   const [topicFilter, setTopicFilter] = useState('All');
   const [conceptFilter, setConceptFilter] = useState('All');
   const [subConceptFilter, setSubConceptFilter] = useState('All');
+  const [questionTypeFilter, setQuestionTypeFilter] = useState('All');
   const [examFilter, setExamFilter] = useState('All');
   const [difficultyFilter, setDifficultyFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -134,7 +137,7 @@ export default function QuestionRepository() {
   };
 
   // Helper to count questions at any level
-  const getCount = (subj: string, cls?: string, chap?: string, conc?: string, subc?: string) => {
+  const getCount = (subj: string, cls?: string, chap?: string, conc?: string, subc?: string, qType?: string) => {
     return questions.filter(q => {
       if (q.subject !== subj) return false;
       if (cls) {
@@ -144,6 +147,14 @@ export default function QuestionRepository() {
       if (chap && q.topic !== chap) return false;
       if (conc && q.concept !== conc) return false;
       if (subc && q.subConcept !== subc) return false;
+      if (qType) {
+        const currentQType = (q as any).questionType || 'MCQ';
+        if (currentQType !== qType) return false;
+      }
+      if (examFilter !== 'All') {
+        const qExams = q.examType ? q.examType.split(',').map(s => s.trim()) : [];
+        if (!qExams.includes(examFilter)) return false;
+      }
       return true;
     }).length;
   };
@@ -154,14 +165,16 @@ export default function QuestionRepository() {
     setTopicFilter('All');
     setConceptFilter('All');
     setSubConceptFilter('All');
+    setQuestionTypeFilter('All');
   };
 
-  const setHierarchyFilters = (subj: string, cls?: string, chap?: string, conc?: string, subc?: string) => {
+  const setHierarchyFilters = (subj: string, cls?: string, chap?: string, conc?: string, subc?: string, qType?: string) => {
     setSubjectFilter(subj);
     setClassFilter(cls ? (cls === 'Class 11' ? '11th' : '12th') : 'All');
     setTopicFilter(chap || 'All');
     setConceptFilter(conc || 'All');
     setSubConceptFilter(subc || 'All');
+    setQuestionTypeFilter(qType || 'All');
   };
 
   const filteredQuestions = questions.filter(q => {
@@ -177,12 +190,16 @@ export default function QuestionRepository() {
     const matchesConcept = conceptFilter === 'All' || q.concept === conceptFilter;
     const matchesSubConcept = subConceptFilter === 'All' || q.subConcept === subConceptFilter;
     
-    const matchesExam = examFilter === 'All' || q.examType === examFilter;
+    const qExams = q.examType ? q.examType.split(',').map(s => s.trim()) : [];
+    const matchesExam = examFilter === 'All' || qExams.includes(examFilter);
     const matchesDifficulty = difficultyFilter === 'All' || q.difficulty === difficultyFilter;
     const matchesStatus = statusFilter === 'All' || q.status === statusFilter;
     const matchesGroup = groupFilter === 'All' || (q.intern && q.intern.group === groupFilter);
 
-    return matchesSearch && matchesSubject && matchesClass && matchesTopic && matchesConcept && matchesSubConcept && matchesExam && matchesDifficulty && matchesStatus && matchesGroup;
+    const currentQType = (q as any).questionType || 'MCQ';
+    const matchesQuestionType = questionTypeFilter === 'All' || currentQType === questionTypeFilter;
+
+    return matchesSearch && matchesSubject && matchesClass && matchesTopic && matchesConcept && matchesSubConcept && matchesExam && matchesDifficulty && matchesStatus && matchesGroup && matchesQuestionType;
   });
 
   return (
@@ -215,7 +232,7 @@ export default function QuestionRepository() {
           )}
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
           <div className="flex items-center gap-2 bg-black/40 border border-brand-border px-3 py-2 rounded-lg col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-1">
             <Search className="w-4 h-4 text-brand-muted" />
             <input
@@ -237,6 +254,24 @@ export default function QuestionRepository() {
               <option value="JEE">JEE</option>
               <option value="NEET">NEET</option>
               <option value="KCET">KCET</option>
+              <option value="CET">CET</option>
+            </select>
+          </div>
+
+          <div>
+            <select
+              value={questionTypeFilter}
+              onChange={(e) => setQuestionTypeFilter(e.target.value)}
+              className="w-full text-sm bg-black border border-brand-border text-white px-3 py-2.5 rounded-lg focus:outline-none focus:border-brand-gold"
+            >
+              <option value="All">All Types</option>
+              <option value="MCQ">MCQ</option>
+              <option value="ASSERTION_REASON">Assertion & Reason</option>
+              <option value="STATEMENT_BASED">Statement Based</option>
+              <option value="TRUE_FALSE">True / False</option>
+              <option value="MATCH_THE_FOLLOWING">Match the Following</option>
+              <option value="NUMERICAL">Numerical</option>
+              <option value="DIAGRAM">Diagram Based</option>
             </select>
           </div>
 
@@ -282,7 +317,7 @@ export default function QuestionRepository() {
         </div>
 
         {/* Selected Academic Path display */}
-        {(subjectFilter !== 'All' || classFilter !== 'All' || topicFilter !== 'All') && (
+        {(subjectFilter !== 'All' || classFilter !== 'All' || topicFilter !== 'All' || questionTypeFilter !== 'All') && (
           <div className="bg-black/30 border border-brand-border/40 p-3 rounded-lg text-xs text-brand-muted flex flex-wrap gap-2 items-center">
             <span className="font-semibold text-brand-gold">Selected NCERT Path:</span>
             <span>{subjectFilter}</span>
@@ -308,6 +343,12 @@ export default function QuestionRepository() {
               <>
                 <ChevronRight className="w-3.5 h-3.5" />
                 <span className="text-white font-medium">{subConceptFilter}</span>
+              </>
+            )}
+            {questionTypeFilter !== 'All' && (
+              <>
+                <ChevronRight className="w-3.5 h-3.5" />
+                <span className="text-brand-gold font-bold">{questionTypeFilter}</span>
               </>
             )}
           </div>
@@ -428,23 +469,90 @@ export default function QuestionRepository() {
 
                                                 {isConcExpanded && (
                                                   <div className="pl-3 space-y-0.5 border-l border-zinc-950">
-                                                    {conc.subConcepts.map((subc) => {
-                                                      const subcCount = getCount(subj, cls, chap.name, conc.name, subc);
-                                                      const isSubcSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === conc.name && subConceptFilter === subc;
+                                                    {conc.subConcepts.length === 0 ? (
+                                                      // If there are no sub-concepts, render question types directly
+                                                      [
+                                                        { code: 'MCQ', label: 'MCQ' },
+                                                        { code: 'ASSERTION_REASON', label: 'Assertion & Reason' },
+                                                        { code: 'STATEMENT_BASED', label: 'Statement Based' },
+                                                        { code: 'TRUE_FALSE', label: 'True / False' },
+                                                        { code: 'MATCH_THE_FOLLOWING', label: 'Match the Following' },
+                                                        { code: 'NUMERICAL', label: 'Numerical' },
+                                                        { code: 'DIAGRAM', label: 'Diagram Based' }
+                                                      ].map((qt) => {
+                                                        const qtCount = getCount(subj, cls, chap.name, conc.name, undefined, qt.code);
+                                                        const isQtSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === conc.name && subConceptFilter === 'All' && questionTypeFilter === qt.code;
+                                                        return (
+                                                          <div
+                                                            key={qt.code}
+                                                            onClick={() => setHierarchyFilters(subj, cls, chap.name, conc.name, undefined, qt.code)}
+                                                            className={`flex items-center justify-between py-0.5 px-1 rounded cursor-pointer transition text-[9px] ${
+                                                              isQtSelected ? 'text-brand-gold font-bold bg-white/5' : 'text-zinc-700 hover:text-zinc-500'
+                                                            }`}
+                                                          >
+                                                            <span className="truncate">{qt.label}</span>
+                                                            <span className="text-[8px] text-zinc-800 font-mono">({qtCount})</span>
+                                                          </div>
+                                                        );
+                                                      })
+                                                    ) : (
+                                                      // Render sub-concepts
+                                                      conc.subConcepts.map((subc) => {
+                                                        const subcId = `${subj}-${cls}-${chap.name}-${conc.name}-${subc}`;
+                                                        const subcCount = getCount(subj, cls, chap.name, conc.name, subc);
+                                                        const isSubcExpanded = expandedNodes.includes(subcId);
+                                                        const isSubcSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === conc.name && subConceptFilter === subc && questionTypeFilter === 'All';
 
-                                                      return (
-                                                        <div
-                                                          key={subc}
-                                                          onClick={() => setHierarchyFilters(subj, cls, chap.name, conc.name, subc)}
-                                                          className={`flex items-center justify-between py-0.5 px-1 rounded cursor-pointer transition text-[9px] ${
-                                                            isSubcSelected ? 'text-white font-bold bg-white/5' : 'text-zinc-700 hover:text-zinc-500'
-                                                          }`}
-                                                        >
-                                                          <span className="truncate">{subc}</span>
-                                                          <span className="text-[8px] text-zinc-800 font-mono">({subcCount})</span>
-                                                        </div>
-                                                      );
-                                                    })}
+                                                        return (
+                                                          <div key={subc} className="space-y-1">
+                                                            <div
+                                                              onClick={() => {
+                                                                toggleNode(subcId);
+                                                                setHierarchyFilters(subj, cls, chap.name, conc.name, subc);
+                                                              }}
+                                                              className={`flex items-center justify-between py-0.5 px-1 rounded cursor-pointer transition text-[9px] ${
+                                                                isSubcSelected ? 'text-white font-bold bg-white/5' : 'text-zinc-700 hover:text-zinc-500'
+                                                              }`}
+                                                            >
+                                                              <div className="flex items-center gap-1 min-w-0">
+                                                                {isSubcExpanded ? <ChevronDown className="w-1.5 h-1.5 shrink-0" /> : <ChevronRight className="w-1.5 h-1.5 shrink-0" />}
+                                                                <span className="truncate">{subc}</span>
+                                                              </div>
+                                                              <span className="text-[8px] text-zinc-800 font-mono">({subcCount})</span>
+                                                            </div>
+
+                                                            {isSubcExpanded && (
+                                                              <div className="pl-3 space-y-0.5 border-l border-zinc-900">
+                                                                {[
+                                                                  { code: 'MCQ', label: 'MCQ' },
+                                                                  { code: 'ASSERTION_REASON', label: 'Assertion & Reason' },
+                                                                  { code: 'STATEMENT_BASED', label: 'Statement Based' },
+                                                                  { code: 'TRUE_FALSE', label: 'True / False' },
+                                                                  { code: 'MATCH_THE_FOLLOWING', label: 'Match the Following' },
+                                                                  { code: 'NUMERICAL', label: 'Numerical' },
+                                                                  { code: 'DIAGRAM', label: 'Diagram Based' }
+                                                                ].map((qt) => {
+                                                                  const qtCount = getCount(subj, cls, chap.name, conc.name, subc, qt.code);
+                                                                  const isQtSelected = subjectFilter === subj && classFilter === qClsVal && topicFilter === chap.name && conceptFilter === conc.name && subConceptFilter === subc && questionTypeFilter === qt.code;
+                                                                  return (
+                                                                    <div
+                                                                      key={qt.code}
+                                                                      onClick={() => setHierarchyFilters(subj, cls, chap.name, conc.name, subc, qt.code)}
+                                                                      className={`flex items-center justify-between py-0.5 px-1 rounded cursor-pointer transition text-[9px] ${
+                                                                        isQtSelected ? 'text-brand-gold font-bold bg-white/5' : 'text-zinc-700 hover:text-zinc-500'
+                                                                      }`}
+                                                                    >
+                                                                      <span className="truncate">{qt.label}</span>
+                                                                      <span className="text-[8px] text-zinc-800 font-mono">({qtCount})</span>
+                                                                    </div>
+                                                                  );
+                                                                })}
+                                                              </div>
+                                                            )}
+                                                          </div>
+                                                        );
+                                                      })
+                                                    )}
                                                   </div>
                                                 )}
                                               </div>
@@ -504,6 +612,7 @@ export default function QuestionRepository() {
                       <div>Sub-Concept: <span className="text-zinc-300 font-medium">{q.subConcept || 'N/A'}</span></div>
                       <div>Class: <span className="text-zinc-300 font-medium">{q.classVal}</span></div>
                       <div>Exam: <span className="text-zinc-300 font-medium">{q.examType}</span></div>
+                      <div>Type: <span className="text-brand-gold font-bold">{q.questionType || 'MCQ'}</span></div>
                       <div>Difficulty: <span className="text-white font-medium">{q.difficulty}</span></div>
                       <div className="col-span-2">Author: <span className="text-zinc-300 font-medium">{q.intern?.name} (Roll {q.intern?.rollNo})</span></div>
                     </div>
@@ -588,8 +697,8 @@ export default function QuestionRepository() {
                   <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.examType}</p>
                 </div>
                 <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
-                  <p className="text-[10px] text-brand-muted uppercase font-bold">Status</p>
-                  <p className="text-sm font-semibold text-brand-gold mt-0.5">{selectedQuestion.status}</p>
+                  <p className="text-[10px] text-brand-muted uppercase font-bold">Question Type</p>
+                  <p className="text-sm font-semibold text-brand-gold mt-0.5">{(selectedQuestion as any).questionType || 'MCQ'}</p>
                 </div>
               </div>
 
@@ -601,7 +710,9 @@ export default function QuestionRepository() {
 
               {/* Question Text */}
               <div className="space-y-2">
-                <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">Question Text</h4>
+                <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">
+                  {((selectedQuestion as any).questionType === 'TRUE_FALSE') ? 'Statement' : 'Question Text'}
+                </h4>
                 <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border text-white text-sm whitespace-pre-wrap leading-relaxed">
                   {selectedQuestion.questionText}
                 </div>
@@ -628,25 +739,99 @@ export default function QuestionRepository() {
                 </div>
               )}
 
-              {/* Options */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {(['A', 'B', 'C', 'D'] as const).map((opt) => (
-                  <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
-                    selectedQuestion.correctAnswer === opt
-                      ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
-                      : 'bg-zinc-950/40 border-brand-border text-zinc-300'
-                  }`}>
-                    <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                      selectedQuestion.correctAnswer === opt
-                        ? 'bg-emerald-500 text-black'
-                        : 'bg-zinc-800 text-zinc-400'
-                    }`}>
-                      {opt}
-                    </span>
-                    <div className="whitespace-pre-wrap">{selectedQuestion[`option${opt}`]}</div>
+              {/* Match Column Grid */}
+              {((selectedQuestion as any).questionType === 'MATCH_THE_FOLLOWING' && (selectedQuestion as any).extraData) && (
+                <div className="p-4 bg-zinc-950/60 border border-brand-border rounded-xl space-y-3">
+                  <h5 className="text-xs font-bold text-brand-gold uppercase tracking-wider">Columns Match Grid</h5>
+                  <div className="grid grid-cols-2 gap-8 text-sm">
+                    <div className="space-y-1">
+                      <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column A</p>
+                      {(((selectedQuestion as any).extraData as any).matchColumnA || []).map((item: string, idx: number) => (
+                        <div key={idx} className="text-white py-1">{idx + 1}. {item}</div>
+                      ))}
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column B</p>
+                      {(((selectedQuestion as any).extraData as any).matchColumnB || []).map((item: string, idx: number) => (
+                        <div key={idx} className="text-white py-1">{String.fromCharCode(65 + idx)}. {item}</div>
+                      ))}
+                    </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {/* Options Dynamic rendering based on type */}
+              {((selectedQuestion as any).questionType === 'NUMERICAL') ? (
+                <div className="p-4 bg-emerald-950/20 border border-emerald-500/50 rounded-xl flex items-center justify-between text-sm">
+                  <span className="font-semibold text-white">Correct Numerical Answer:</span>
+                  <span className="font-mono text-lg font-bold text-emerald-400 bg-black/60 px-4 py-1.5 rounded-lg border border-brand-border">{selectedQuestion.correctAnswer}</span>
+                </div>
+              ) : ((selectedQuestion as any).questionType === 'TRUE_FALSE') ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { opt: 'A', label: "True" },
+                    { opt: 'B', label: "False" }
+                  ].map(({ opt, label }) => (
+                    <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
+                      selectedQuestion.correctAnswer === opt
+                        ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                        : 'bg-zinc-950/40 border-brand-border text-zinc-300'
+                    }`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                        selectedQuestion.correctAnswer === opt
+                          ? 'bg-emerald-500 text-black'
+                          : 'bg-zinc-800 text-zinc-400'
+                      }`}>
+                        {opt === 'A' ? 'T' : 'F'}
+                      </span>
+                      <div className="whitespace-pre-wrap">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : ((selectedQuestion as any).questionType === 'ASSERTION_REASON') ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {[
+                    { opt: 'A', label: "A and R are true and R is the correct explanation." },
+                    { opt: 'B', label: "A and R are true but R is not the correct explanation." },
+                    { opt: 'C', label: "A is true but R is false." },
+                    { opt: 'D', label: "A is false but R is true." }
+                  ].map(({ opt, label }) => (
+                    <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
+                      selectedQuestion.correctAnswer === opt
+                        ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                        : 'bg-zinc-950/40 border-brand-border text-zinc-300'
+                    }`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                        selectedQuestion.correctAnswer === opt
+                          ? 'bg-emerald-500 text-black'
+                          : 'bg-zinc-800 text-zinc-400'
+                      }`}>
+                        {opt}
+                      </span>
+                      <div className="whitespace-pre-wrap">{label}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                    <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
+                      selectedQuestion.correctAnswer === opt
+                        ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                        : 'bg-zinc-950/40 border-brand-border text-zinc-300'
+                    }`}>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                        selectedQuestion.correctAnswer === opt
+                          ? 'bg-emerald-500 text-black'
+                          : 'bg-zinc-800 text-zinc-400'
+                      }`}>
+                        {opt}
+                      </span>
+                      <div className="whitespace-pre-wrap">{selectedQuestion[`option${opt}`]}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Detailed Solution */}
               <div className="space-y-2">

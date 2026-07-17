@@ -56,6 +56,8 @@ export async function POST(
       subConcept,
       classVal,
       examType,
+      questionType,
+      extraData,
       images, // Array of { imageUrl: string, type: string }
     } = body;
 
@@ -72,10 +74,10 @@ export async function POST(
     const question = await prisma.question.create({
       data: {
         questionText,
-        optionA,
-        optionB,
-        optionC,
-        optionD,
+        optionA: optionA || null,
+        optionB: optionB || null,
+        optionC: optionC || null,
+        optionD: optionD || null,
         correctAnswer,
         detailedSolution,
         subject,
@@ -89,6 +91,8 @@ export async function POST(
         status: 'PENDING',
         internId: intern.id,
         taskAssignmentId,
+        questionType: questionType || 'MCQ',
+        extraData: extraData || null,
         images: { create: savedImages },
       },
       include: { images: true },

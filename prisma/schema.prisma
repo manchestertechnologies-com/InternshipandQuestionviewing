@@ -169,11 +169,11 @@ enum QuestionStatus {
 model Question {
   id             String           @id @default(uuid())
   questionText   String
-  optionA        String
-  optionB        String
-  optionC        String
-  optionD        String
-  correctAnswer  String           // "A", "B", "C", "D"
+  optionA        String?
+  optionB        String?
+  optionC        String?
+  optionD        String?
+  correctAnswer  String           // "A", "B", "C", "D" or numerical value
   detailedSolution String
   
   // Metadata
@@ -183,7 +183,7 @@ model Question {
   concept        String
   subConcept     String?
   classVal       String           // "11th" or "12th"
-  examType       String           // "JEE", "NEET", "KCET", "CET"
+  examType       String           // Comma-separated list e.g. "JEE, NEET"
   difficulty     String           @default("Easy") // "Easy", "Medium", "Hard"
   
   status         QuestionStatus   @default(PENDING)
@@ -200,6 +200,10 @@ model Question {
 
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
+
+  // Classification extensions
+  questionType   String           @default("MCQ")
+  extraData      Json?
 }
 
 model QuestionImage {
