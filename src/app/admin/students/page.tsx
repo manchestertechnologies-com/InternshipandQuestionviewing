@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, AlertTriangle, CheckCircle, Database } from 'lucide-react';
+import { Search, RefreshCw, AlertTriangle, CheckCircle, Database, Trash2 } from 'lucide-react';
 
 interface Intern {
   id: string;
@@ -36,6 +36,25 @@ export default function StudentsManagement() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteIntern = async (id: string, name: string) => {
+    if (!window.confirm(`Are you absolutely sure you want to delete the intern "${name}"? This action is irreversible and will delete all their reports, tasks, and data.`)) {
+      return;
+    }
+
+    try {
+      setError('');
+      const res = await fetch(`/api/admin/students?id=${id}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete intern');
+
+      setStudents((prev) => prev.filter((s) => s.id !== id));
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -197,7 +216,7 @@ export default function StudentsManagement() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-sm">
                       <thead>
-                        <tr className="border-b border-brand-border text-brand-muted font-medium">
+                        <tr className="border-b border-brand-border text-brand-muted font-medium text-xs">
                           <th className="pb-3">Roll No</th>
                           <th className="pb-3">Student Name</th>
                           <th className="pb-3">Domain</th>
@@ -205,6 +224,7 @@ export default function StudentsManagement() {
                           <th className="pb-3">Course</th>
                           <th className="pb-3">Application ID</th>
                           <th className="pb-3 text-right">Points</th>
+                          <th className="pb-3 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-brand-border">
@@ -218,6 +238,15 @@ export default function StudentsManagement() {
                             <td className="py-3.5 text-xs font-mono">{student.applicationID || 'N/A'}</td>
                             <td className="py-3.5 text-right font-semibold text-brand-gold">
                               {student.totalPoints} pts
+                            </td>
+                            <td className="py-3.5 text-right">
+                              <button
+                                onClick={() => handleDeleteIntern(student.id, student.name)}
+                                className="p-1.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-md hover:bg-rose-500 hover:text-white transition duration-200 cursor-pointer"
+                                title="Delete Intern"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
                             </td>
                           </tr>
                         ))}
