@@ -108,7 +108,7 @@ export default function InternDashboard() {
         <div className="space-y-3 text-center md:text-left relative z-10">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-brand-gold/10 text-brand-gold text-xs font-semibold uppercase tracking-wider border border-brand-gold/20">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Summer Intern 2026</span>
+            <span>Intern 2026</span>
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-white">
             Welcome Back, <span className="text-gold-gradient">{session?.user?.name || 'Intern'}</span>!
