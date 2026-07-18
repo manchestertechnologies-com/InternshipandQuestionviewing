@@ -59,6 +59,8 @@ model MentorProfile {
   interns        InternProfile[]
   tasks          Task[]
   announcements  Announcement[]
+  domainProjects DomainProject[]
+  meetings       Meeting[]
 }
 
 model InternProfile {
@@ -69,6 +71,8 @@ model InternProfile {
   name          String
   phoneNumber   String?
   domain        String?            // Excel Branch/Specialization
+  duration      String?            // Internship Duration (e.g. "30 Days", "45 Days", "60 Days")
+  branch        String?            // Branch/Specialization (raw value from Word docs)
   group         String             // Excel Group column
   collegeName   String?
   course        String?
@@ -89,6 +93,8 @@ model InternProfile {
   taskAssignments TaskAssignment[]
   weeklySubmissions WeeklySubmission[]
   questions         Question[]
+  domainProjectAssignments DomainProjectAssignment[]
+  meetingTargets MeetingTarget[]
   
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -260,6 +266,16 @@ model WeeklySubmission {
   fileUrl        String
   submissionTime DateTime      @default(now())
   createdAt      DateTime      @default(now())
+
+  // Extended fields for Domain Projects
+  domainProjectAssignmentId String?
+  domainProjectAssignment   DomainProjectAssignment? @relation(fields: [domainProjectAssignmentId], references: [id], onDelete: Cascade)
+  domain                    String?
+  duration                  String?
+  projectTitle              String?
+  weekNumber                Int?
+  status                    String                   @default("PENDING") // "PENDING", "APPROVED", "CORRECTION_REQUESTED"
+  mentorComment             String?
 }
 
 model ProblemStatement {
@@ -274,4 +290,73 @@ model ProblemStatement {
   group       String   // "Group 1", "Group 2", "Group 3"
   uploadedBy  String   // "Admin" or Mentor Name
   createdAt   DateTime @default(now())
+}
+
+model DomainProject {
+  id               String          @id @default(uuid())
+  title            String
+  domain           String
+  problemStatement String
+  description      String?
+  technologies     String?
+  expectedOutcome  String?
+  duration         String          // e.g. "30 Days", "45 Days", "60 Days"
+  startDate        DateTime
+  finalDeadline    DateTime
+  weeklyMilestones String?
+  instructions     String?
+  fileUrl          String?
+  fileName         String?
+  
+  mentorId         String
+  mentor           MentorProfile   @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  
+  assignments      DomainProjectAssignment[]
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+}
+
+model DomainProjectAssignment {
+  id             String            @id @default(uuid())
+  projectId      String
+  project        DomainProject     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  internId       String
+  intern         InternProfile     @relation(fields: [internId], references: [id], onDelete: Cascade)
+  
+  status         String            @default("ASSIGNED") // "ASSIGNED", "IN_PROGRESS", "COMPLETED"
+  progress       Float             @default(0)
+  
+  weeklySubmissions WeeklySubmission[]
+  
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([projectId, internId])
+}
+
+model Meeting {
+  id             String            @id @default(uuid())
+  title          String
+  meetLink       String
+  date           String
+  time           String
+  meetingType    String            // "Daily Task Meeting", "Weekly Project Review", etc.
+  instructions   String?
+  
+  mentorId       String
+  mentor         MentorProfile     @relation(fields: [mentorId], references: [id], onDelete: Cascade)
+  
+  targets        MeetingTarget[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model MeetingTarget {
+  id             String            @id @default(uuid())
+  meetingId      String
+  meeting        Meeting           @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  internId       String
+  intern         InternProfile     @relation(fields: [internId], references: [id], onDelete: Cascade)
+  
+  createdAt      DateTime          @default(now())
 }

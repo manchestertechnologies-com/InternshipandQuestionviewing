@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Megaphone, Bell, Check, RefreshCw, AlertCircle, X, Sparkles, Calendar, Video, Users } from 'lucide-react';
+import { Megaphone, Bell, Check, RefreshCw, AlertCircle, X, Sparkles, Calendar, Video, Users, Phone, ShieldAlert, GraduationCap } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 
@@ -20,10 +20,37 @@ interface Notification {
   createdAt: string;
 }
 
+interface Meeting {
+  id: string;
+  title: string;
+  meetLink: string;
+  date: string;
+  time: string;
+  meetingType: string;
+  mentorName: string;
+}
+
+interface Profile {
+  rollNo: number;
+  name: string;
+  phoneNumber: string | null;
+  domain: string | null;
+  duration: string | null;
+  branch: string | null;
+  group: string;
+  course: string | null;
+  status: string | null;
+  mentor?: {
+    name: string;
+  };
+}
+
 export default function InternDashboard() {
   const { data: session } = useSession();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -34,6 +61,8 @@ export default function InternDashboard() {
       const data = await res.json();
       setNotifications(data.notifications);
       setAnnouncements(data.announcements);
+      setProfile(data.profile);
+      setMeetings(data.meetings || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -83,7 +112,7 @@ export default function InternDashboard() {
             Welcome Back, <span className="text-gold-gradient">{session?.user?.name || 'Intern'}</span>!
           </h1>
           <p className="text-zinc-400 text-sm max-w-md">
-            Track daily tasks, submit weekly reports, log questions, and keep tabs on the leaderboards.
+            Track daily tasks, submit weekly reports, schedule Google Meet reviews, and view standings.
           </p>
         </div>
 
@@ -93,89 +122,127 @@ export default function InternDashboard() {
             alt="Manchester Technologies logo"
             fill
             className="object-cover p-2 rounded-full"
+            unoptimized
           />
         </div>
       </div>
 
-      {/* Internship Info & Weekly Classes */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Internship Info & Upcoming Meetings */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Card 1: Internship Duration & Info */}
         <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/20 transition duration-300">
           <div className="space-y-3">
             <h3 className="font-bold text-white text-base flex items-center gap-2">
               <Calendar className="w-5 h-5 text-brand-gold" />
-              <span>Internship Details</span>
+              <span>Internship Profile</span>
             </h3>
             <p className="text-xs text-brand-muted">Your active internship parameters and duration.</p>
             <div className="space-y-2 pt-2 text-xs">
               <div className="flex justify-between border-b border-brand-border/40 pb-2">
-                <span className="text-brand-muted">Domain:</span>
-                <span className="text-white font-medium">{session?.user?.domain || 'Web Development'}</span>
+                <span className="text-brand-muted">Roll Number:</span>
+                <span className="text-white font-mono">#{profile?.rollNo || 'N/A'}</span>
               </div>
               <div className="flex justify-between border-b border-brand-border/40 pb-2">
+                <span className="text-brand-muted">Phone Number:</span>
+                <span className="text-white font-medium">{profile?.phoneNumber || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-border/40 pb-2">
+                <span className="text-brand-muted">Domain:</span>
+                <span className="text-white font-medium">{profile?.domain || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-border/40 pb-2">
+                <span className="text-brand-muted">Duration Batch:</span>
+                <span className="text-white font-semibold text-brand-gold">{profile?.duration || 'N/A'}</span>
+              </div>
+              {profile?.course && (
+                <div className="flex justify-between border-b border-brand-border/40 pb-2">
+                  <span className="text-brand-muted">Course:</span>
+                  <span className="text-white font-medium">{profile.course}</span>
+                </div>
+              )}
+              {profile?.branch && (
+                <div className="flex justify-between border-b border-brand-border/40 pb-2">
+                  <span className="text-brand-muted">Branch / Specialization:</span>
+                  <span className="text-white font-medium">{profile.branch}</span>
+                </div>
+              )}
+              <div className="flex justify-between border-b border-brand-border/40 pb-2">
                 <span className="text-brand-muted">Group:</span>
-                <span className="text-white font-medium">{session?.user?.group || 'Group 1'}</span>
+                <span className="text-white font-medium">{profile?.group || 'N/A'}</span>
+              </div>
+              <div className="flex justify-between border-b border-brand-border/40 pb-2">
+                <span className="text-brand-muted">Assigned Mentor:</span>
+                <span className="text-white font-semibold text-brand-gold">{profile?.mentor?.name || 'N/A'}</span>
               </div>
               <div className="flex justify-between pb-1">
-                <span className="text-brand-muted">Duration:</span>
-                <span className="text-brand-gold font-bold">12 Weeks (Summer 2026)</span>
+                <span className="text-brand-muted">Internship Status:</span>
+                <span className={`font-bold ${profile?.status === 'Active' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {profile?.status || 'Active'}
+                </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Card 2: Domain-Based Class */}
-        <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/20 transition duration-300 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-brand-gold/5 rounded-full blur-xl pointer-events-none" />
-          <div className="space-y-3">
-            <h3 className="font-bold text-white text-base flex items-center gap-2">
-              <Video className="w-5 h-5 text-brand-gold" />
-              <span>Weekly Domain Class</span>
-            </h3>
-            <p className="text-xs text-brand-muted">Specially catered for <strong className="text-white">{session?.user?.domain || 'Web Development'}</strong>.</p>
-            <div className="space-y-1 text-xs pt-2">
-              <p className="text-white font-semibold">Google Meet Session</p>
-              <p className="text-brand-muted">Every Wednesday at 6:00 PM</p>
+        {/* Card 2 & 3: Upcoming Targeted Meetings */}
+        {meetings.length > 0 ? (
+          meetings.map((meeting) => (
+            <div key={meeting.id} className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/20 transition duration-300 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-brand-gold/5 rounded-full blur-xl pointer-events-none" />
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="font-bold text-white text-base flex items-center gap-2">
+                    <Video className="w-5 h-5 text-brand-gold" />
+                    <span>Upcoming Meeting</span>
+                  </h3>
+                  <span className="text-[9px] bg-brand-gold/10 border border-brand-gold/20 text-brand-gold px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                    {meeting.meetingType}
+                  </span>
+                </div>
+                <p className="text-sm font-semibold text-white truncate">{meeting.title}</p>
+                <div className="space-y-1.5 text-xs pt-1 text-zinc-300">
+                  <p className="flex justify-between border-b border-brand-border/30 pb-1">
+                    <span className="text-brand-muted">Date:</span>
+                    <span className="text-white font-medium">{meeting.date}</span>
+                  </p>
+                  <p className="flex justify-between border-b border-brand-border/30 pb-1">
+                    <span className="text-brand-muted">Time:</span>
+                    <span className="text-white font-medium">{meeting.time}</span>
+                  </p>
+                  <p className="flex justify-between pb-0.5">
+                    <span className="text-brand-muted">Host Mentor:</span>
+                    <span className="text-white font-semibold">{meeting.mentorName}</span>
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <a
+                  href={meeting.meetLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 bg-brand-gold text-black hover:bg-brand-gold-hover font-bold rounded-lg text-xs transition duration-200"
+                >
+                  <Video className="w-4 h-4" />
+                  <span>Join Google Meet</span>
+                </a>
+              </div>
             </div>
+          ))
+        ) : (
+          <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-center items-center hover:border-brand-gold/20 transition duration-300 relative overflow-hidden lg:col-span-2 text-center py-12 space-y-3">
+            <Video className="w-12 h-12 text-zinc-600" />
+            <p className="font-bold text-white text-base">No Scheduled Meetings</p>
+            <p className="text-xs text-brand-muted max-w-xs">There are no Google Meet sessions scheduled for you by your mentor at the moment.</p>
           </div>
-          <div className="mt-4">
-            <a
-              href="https://meet.google.com/abc-defg-hij"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full inline-flex items-center justify-center gap-1.5 py-2 bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold font-semibold rounded-lg text-xs transition duration-200 border border-brand-gold/20"
-            >
-              <Video className="w-4 h-4" />
-              <span>Join Domain Class</span>
-            </a>
-          </div>
-        </div>
+        )}
 
-        {/* Card 3: General Class */}
-        <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/20 transition duration-300 relative overflow-hidden">
-          <div className="space-y-3">
-            <h3 className="font-bold text-white text-base flex items-center gap-2">
-              <Users className="w-5 h-5 text-brand-gold" />
-              <span>Weekly General Class</span>
-            </h3>
-            <p className="text-xs text-brand-muted">Common classes where core concepts & skills are taught.</p>
-            <div className="space-y-1 text-xs pt-2">
-              <p className="text-white font-semibold">Google Meet Session (All)</p>
-              <p className="text-brand-muted">Every Saturday at 4:00 PM</p>
-            </div>
+        {meetings.length === 1 && (
+          <div className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-center items-center hover:border-brand-gold/20 transition duration-300 relative overflow-hidden text-center py-12 space-y-3">
+            <Video className="w-8 h-8 text-zinc-600" />
+            <p className="font-bold text-white text-sm">No More Meetings</p>
+            <p className="text-xs text-brand-muted max-w-xs">You are up to date on all calendar schedules.</p>
           </div>
-          <div className="mt-4">
-            <a
-              href="https://meet.google.com/xyz-qprs-tuv"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full inline-flex items-center justify-center gap-1.5 py-2 bg-zinc-900 hover:bg-zinc-800 text-white font-semibold rounded-lg text-xs transition duration-200 border border-brand-border"
-            >
-              <Users className="w-4 h-4" />
-              <span>Join General Class</span>
-            </a>
-          </div>
-        </div>
+        )}
       </div>
 
       {error && (

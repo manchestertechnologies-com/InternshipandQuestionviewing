@@ -19,8 +19,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Mentor profile not found' }, { status: 404 });
     }
 
-    const projects = await prisma.problemStatement.findMany({
-      where: { group: mentorProfile.group },
+    const projects = await prisma.domainProject.findMany({
+      where: { mentorId: mentorProfile.id },
+      include: {
+        assignments: {
+          include: {
+            intern: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -47,36 +54,64 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { title, description, fileUrl, docUrl, docName, refUrl, refName } = body;
+    const {
+      title,
+      domain,
+      problemStatement,
+      description,
+      technologies,
+      expectedOutcome,
+      duration,
+      startDate,
+      finalDeadline,
+      weeklyMilestones,
+      instructions,
+      fileUrl,
+      fileName,
+      internIds,
+    } = body;
 
-    if (!title || !fileUrl) {
-      return NextResponse.json({ error: 'Title and Problem Statement document are required' }, { status: 400 });
+    if (!title || !domain || !problemStatement || !duration || !startDate || !finalDeadline || !internIds || !Array.isArray(internIds) || internIds.length === 0) {
+      return NextResponse.json({ error: 'Missing required fields or no interns selected' }, { status: 400 });
     }
 
-    const project = await prisma.problemStatement.create({
+    const project = await prisma.domainProject.create({
       data: {
         title,
+        domain,
+        problemStatement,
         description: description || null,
-        fileUrl,
-        docUrl: docUrl || null,
-        docName: docName || null,
-        refUrl: refUrl || null,
-        refName: refName || null,
-        group: mentorProfile.group,
-        uploadedBy: mentorProfile.name,
+        technologies: technologies || null,
+        expectedOutcome: expectedOutcome || null,
+        duration,
+        startDate: new Date(startDate),
+        finalDeadline: new Date(finalDeadline),
+        weeklyMilestones: weeklyMilestones || null,
+        instructions: instructions || null,
+        fileUrl: fileUrl || null,
+        fileName: fileName || null,
+        mentorId: mentorProfile.id,
       },
     });
 
-    // Notify all interns in the group
-    const groupInterns = await prisma.internProfile.findMany({
-      where: { group: mentorProfile.group },
-    });
+    for (const internId of internIds) {
+      const assignment = await prisma.domainProjectAssignment.create({
+        data: {
+          projectId: project.id,
+          internId,
+          status: 'ASSIGNED',
+          progress: 0,
+        },
+        include: {
+          intern: true,
+        },
+      });
 
-    for (const intern of groupInterns) {
+      // Send in-app notification
       await prisma.notification.create({
         data: {
-          userId: intern.userId,
-          content: `Your mentor uploaded a new Domain Project: "${title}". Check the Domain Project tab.`,
+          userId: assignment.intern.userId,
+          content: `Your mentor assigned a new Domain Project: "${title}". Check the Domain Project tab.`,
           type: 'ANNOUNCEMENT',
         },
       });

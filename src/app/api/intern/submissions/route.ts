@@ -50,15 +50,21 @@ export async function POST(request: Request) {
 
     let fileUrl = '';
     let fileName = '';
+    let weekNumber: number | null = null;
+    let domainProjectAssignmentId: string | null = null;
 
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
       const body = await request.json();
       fileUrl = body.fileUrl;
       fileName = body.fileName;
+      weekNumber = body.weekNumber ? parseInt(body.weekNumber, 10) : null;
+      domainProjectAssignmentId = body.domainProjectAssignmentId || null;
     } else {
       const formData = await request.formData();
       const file = formData.get('file') as File | null;
+      const weekNumStr = formData.get('weekNumber') as string | null;
+      const assignmentIdStr = formData.get('domainProjectAssignmentId') as string | null;
 
       if (!file || file.size === 0) {
         return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
@@ -74,10 +80,29 @@ export async function POST(request: Request) {
       );
       fileUrl = url;
       fileName = file.name;
+      weekNumber = weekNumStr ? parseInt(weekNumStr, 10) : null;
+      domainProjectAssignmentId = assignmentIdStr || null;
     }
 
     if (!fileUrl) {
       return NextResponse.json({ error: 'File upload failed or URL missing' }, { status: 400 });
+    }
+
+    // Automatically resolve domain project details if assigned
+    let domain = internProfile.domain || '';
+    let duration = internProfile.duration || '';
+    let projectTitle = '';
+
+    if (domainProjectAssignmentId) {
+      const assignment = await prisma.domainProjectAssignment.findUnique({
+        where: { id: domainProjectAssignmentId },
+        include: { project: true },
+      });
+      if (assignment) {
+        projectTitle = assignment.project.title;
+        domain = assignment.project.domain;
+        duration = assignment.project.duration;
+      }
     }
 
     const submission = await prisma.weeklySubmission.create({
@@ -87,6 +112,12 @@ export async function POST(request: Request) {
         rollNumber: internProfile.rollNo.toString(),
         fileName,
         fileUrl,
+        domainProjectAssignmentId,
+        weekNumber,
+        domain,
+        duration,
+        projectTitle: projectTitle || null,
+        status: 'PENDING',
       },
     });
 
@@ -95,7 +126,7 @@ export async function POST(request: Request) {
       await prisma.notification.create({
         data: {
           userId: internProfile.mentor.userId,
-          content: `Roll No ${internProfile.rollNo} (${internProfile.name}) has uploaded their weekly submission.`,
+          content: `Roll No ${internProfile.rollNo} (${internProfile.name}) has uploaded their Week ${weekNumber || 'report'} submission.`,
           type: 'SUBMISSION',
         },
       });

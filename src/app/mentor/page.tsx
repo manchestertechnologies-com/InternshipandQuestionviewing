@@ -1,7 +1,23 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Users, Mail, Award, Edit, Star, RefreshCw, X, ShieldAlert } from 'lucide-react';
+import {
+  Users,
+  Mail,
+  Award,
+  Edit,
+  Star,
+  RefreshCw,
+  X,
+  ShieldAlert,
+  Phone,
+  Book,
+  Clock,
+  Video,
+  FileCheck,
+  ClipboardList,
+  GraduationCap
+} from 'lucide-react';
 
 interface Intern {
   id: string;
@@ -9,6 +25,8 @@ interface Intern {
   name: string;
   phoneNumber: string | null;
   domain: string | null;
+  duration: string | null;
+  branch: string | null;
   group: string;
   collegeName: string | null;
   course: string | null;
@@ -23,10 +41,21 @@ interface Intern {
   };
 }
 
+interface Stats {
+  dailyTasksPending: number;
+  dailyTasksCompleted: number;
+  activeDomainProjects: number;
+  weeklyReportsPendingReview: number;
+  upcomingMeetings: number;
+  questionsPendingReview: number;
+}
+
 export default function MentorInterns() {
   const [interns, setInterns] = useState<Intern[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(true);
   const [error, setError] = useState('');
 
   // Modals
@@ -55,8 +84,23 @@ export default function MentorInterns() {
     }
   };
 
+  const fetchStats = async () => {
+    setLoadingStats(true);
+    try {
+      const res = await fetch('/api/mentor/dashboard-stats');
+      if (!res.ok) throw new Error('Failed to load stats');
+      const data = await res.json();
+      setStats(data);
+    } catch (err: any) {
+      console.error('Stats loading error:', err);
+    } finally {
+      setLoadingStats(false);
+    }
+  };
+
   useEffect(() => {
     fetchInterns();
+    fetchStats();
   }, []);
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -76,6 +120,7 @@ export default function MentorInterns() {
 
       setEditIntern(null);
       fetchInterns();
+      fetchStats();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -100,6 +145,7 @@ export default function MentorInterns() {
 
       setScoreIntern(null);
       fetchInterns();
+      fetchStats();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -119,8 +165,8 @@ export default function MentorInterns() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold text-gold-gradient">Assigned Interns</h1>
-        <p className="text-zinc-400 text-sm mt-1">Mentor, monitor, score, and edit student profiles in your group</p>
+        <h1 className="text-3xl font-bold text-gold-gradient">Mentor Dashboard</h1>
+        <p className="text-zinc-400 text-sm mt-1">Monitor, evaluate, and schedule sessions for your assigned group interns</p>
       </div>
 
       {error && (
@@ -129,124 +175,216 @@ export default function MentorInterns() {
         </div>
       )}
 
-      {/* Search Filter */}
-      <div className="glass-panel p-4 rounded-xl border border-brand-border flex items-center bg-black/40 w-full max-w-md">
-        <Users className="w-5 h-5 text-brand-muted mr-3" />
-        <input
-          type="text"
-          placeholder="Search by name, email, or domain..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="bg-transparent text-white placeholder-zinc-500 text-sm w-full focus:outline-none"
-        />
+      {/* Stats Section */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/10 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-brand-muted">Daily Pending</span>
+            <ClipboardList className="w-4 h-4 text-amber-500" />
+          </div>
+          <p className="text-2xl font-bold text-white mt-2">
+            {loadingStats ? <RefreshCw className="w-5 h-5 animate-spin" /> : stats?.dailyTasksPending ?? 0}
+          </p>
+        </div>
+
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/10 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-brand-muted">Daily Completed</span>
+            <ClipboardList className="w-4 h-4 text-emerald-500" />
+          </div>
+          <p className="text-2xl font-bold text-white mt-2">
+            {loadingStats ? <RefreshCw className="w-5 h-5 animate-spin" /> : stats?.dailyTasksCompleted ?? 0}
+          </p>
+        </div>
+
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/10 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-brand-muted">Domain Projects</span>
+            <Book className="w-4 h-4 text-brand-gold" />
+          </div>
+          <p className="text-2xl font-bold text-white mt-2">
+            {loadingStats ? <RefreshCw className="w-5 h-5 animate-spin" /> : stats?.activeDomainProjects ?? 0}
+          </p>
+        </div>
+
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/10 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-brand-muted">Reports Pending</span>
+            <Clock className="w-4 h-4 text-rose-500" />
+          </div>
+          <p className="text-2xl font-bold text-white mt-2">
+            {loadingStats ? <RefreshCw className="w-5 h-5 animate-spin" /> : stats?.weeklyReportsPendingReview ?? 0}
+          </p>
+        </div>
+
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/10 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-brand-muted">Upcoming Meet</span>
+            <Video className="w-4 h-4 text-sky-500" />
+          </div>
+          <p className="text-2xl font-bold text-white mt-2">
+            {loadingStats ? <RefreshCw className="w-5 h-5 animate-spin" /> : stats?.upcomingMeetings ?? 0}
+          </p>
+        </div>
+
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/10 transition">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase font-bold text-brand-muted">Reviews Pending</span>
+            <FileCheck className="w-4 h-4 text-purple-500" />
+          </div>
+          <p className="text-2xl font-bold text-white mt-2">
+            {loadingStats ? <RefreshCw className="w-5 h-5 animate-spin" /> : stats?.questionsPendingReview ?? 0}
+          </p>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="py-12 flex justify-center items-center">
-          <RefreshCw className="w-8 h-8 animate-spin text-brand-gold" />
+      <div className="border-t border-brand-border pt-6">
+        <h2 className="text-xl font-bold text-white mb-4">My Interns</h2>
+        
+        {/* Search Filter */}
+        <div className="glass-panel p-4 rounded-xl border border-brand-border flex items-center bg-black/40 w-full max-w-md mb-6">
+          <Users className="w-5 h-5 text-brand-muted mr-3" />
+          <input
+            type="text"
+            placeholder="Search by name, email, or domain..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="bg-transparent text-white placeholder-zinc-500 text-sm w-full focus:outline-none"
+          />
         </div>
-      ) : (
-        <div className="space-y-10">
-          {(() => {
-            const internsByDomain: { [key: string]: Intern[] } = {};
-            filteredInterns.forEach((intern) => {
-              const dom = intern.domain || 'Web Development';
-              if (!internsByDomain[dom]) {
-                internsByDomain[dom] = [];
+
+        {loading ? (
+          <div className="py-12 flex justify-center items-center">
+            <RefreshCw className="w-8 h-8 animate-spin text-brand-gold" />
+          </div>
+        ) : (
+          <div className="space-y-10">
+            {(() => {
+              const internsByDomain: { [key: string]: Intern[] } = {};
+              filteredInterns.forEach((intern) => {
+                const dom = intern.domain || 'Unassigned Domain';
+                if (!internsByDomain[dom]) {
+                  internsByDomain[dom] = [];
+                }
+                internsByDomain[dom].push(intern);
+              });
+
+              const activeDomains = Object.keys(internsByDomain).sort();
+
+              if (activeDomains.length === 0) {
+                return (
+                  <div className="py-12 text-center text-brand-muted italic glass-panel border border-brand-border rounded-xl">
+                    No assigned interns found matching the criteria
+                  </div>
+                );
               }
-              internsByDomain[dom].push(intern);
-            });
 
-            const activeDomains = Object.keys(internsByDomain).sort();
-
-            if (activeDomains.length === 0) {
-              return (
-                <div className="py-12 text-center text-brand-muted italic">
-                  No assigned interns found matching the criteria
-                </div>
-              );
-            }
-
-            return activeDomains.map((domName) => (
-              <div key={domName} className="space-y-4">
-                <h3 className="text-xl font-bold text-brand-gold border-b border-brand-border/40 pb-2 flex items-center justify-between">
-                  <span>{domName}</span>
-                  <span className="text-xs bg-white/5 text-brand-muted px-2.5 py-0.5 rounded-full font-medium">
-                    {internsByDomain[domName].length} Interns
-                  </span>
-                </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {internsByDomain[domName].map((intern, idx) => (
-                    <div key={intern.id} className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/30 transition duration-300 relative overflow-hidden group">
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs bg-brand-gold/10 text-brand-gold border border-brand-gold/30 px-2 py-0.5 rounded-md font-bold">
-                              #{idx + 1}
+              return activeDomains.map((domName) => (
+                <div key={domName} className="space-y-4">
+                  <h3 className="text-xl font-bold text-brand-gold border-b border-brand-border/40 pb-2 flex items-center justify-between">
+                    <span>{domName}</span>
+                    <span className="text-xs bg-white/5 text-brand-muted px-2.5 py-0.5 rounded-full font-medium">
+                      {internsByDomain[domName].length} Interns
+                    </span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {internsByDomain[domName].map((intern) => (
+                      <div key={intern.id} className="glass-panel p-6 rounded-2xl border border-brand-border flex flex-col justify-between hover:border-brand-gold/30 transition duration-300 relative overflow-hidden group">
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs bg-brand-gold/10 text-brand-gold border border-brand-gold/30 px-2 py-0.5 rounded-md font-bold">
+                                Roll #{intern.rollNo}
+                              </span>
+                              <h3 className="font-bold text-white text-lg">{intern.name}</h3>
+                            </div>
+                            <span className="text-[10px] bg-white/5 border border-brand-border text-brand-muted px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
+                              Rank #{intern.rank || 'N/A'}
                             </span>
-                            <h3 className="font-bold text-white text-lg">{intern.name}</h3>
                           </div>
-                          <span className="text-[10px] bg-white/5 border border-brand-border text-brand-muted px-2.5 py-1 rounded-full font-bold uppercase tracking-wider">
-                            Rank #{intern.rank || 'N/A'}
-                          </span>
-                        </div>
-                        <p className="text-xs text-brand-gold font-semibold uppercase tracking-wider">Roll #{intern.rollNo}</p>
 
-                        <div className="space-y-2 text-sm text-zinc-300">
-                          <div className="flex items-center gap-2">
-                            <Mail className="w-4 h-4 text-brand-muted" />
-                            <span className="truncate">{intern.user.email}</span>
+                          <div className="space-y-2 text-xs text-zinc-300">
+                            <div className="flex items-center gap-2">
+                              <Mail className="w-4 h-4 text-brand-muted shrink-0" />
+                              <span className="truncate">{intern.user.email}</span>
+                            </div>
+                            {intern.phoneNumber && (
+                              <div className="flex items-center gap-2">
+                                <Phone className="w-4 h-4 text-brand-muted shrink-0" />
+                                <span>{intern.phoneNumber}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Clock className="w-4 h-4 text-brand-muted shrink-0" />
+                              <span>Duration: {intern.duration || 'N/A'}</span>
+                            </div>
+                            {(intern.course || intern.branch) && (
+                              <div className="flex items-center gap-2">
+                                <GraduationCap className="w-4 h-4 text-brand-muted shrink-0" />
+                                <span>
+                                  {intern.course || 'N/A'} ({intern.branch || 'General'})
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2">
+                              <Users className="w-4 h-4 text-brand-muted shrink-0" />
+                              <span>{intern.group}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <ShieldAlert className="w-4 h-4 text-brand-muted shrink-0" />
+                              <span>Status: <strong className={intern.status === 'Active' ? 'text-emerald-400' : 'text-rose-400'}>{intern.status || 'Active'}</strong></span>
+                            </div>
+                          </div>
+
+                          {/* Score Stats */}
+                          <div className="grid grid-cols-2 gap-4 bg-black/40 border border-brand-border/60 p-3 rounded-lg text-xs text-center mt-2">
+                            <div>
+                              <p className="text-brand-muted uppercase font-bold">Total Points</p>
+                              <p className="text-base font-bold text-white mt-0.5">{intern.totalPoints} pts</p>
+                            </div>
+                            <div>
+                              <p className="text-brand-muted uppercase font-bold">Mentor Rating</p>
+                              <p className="text-base font-bold text-brand-gold mt-0.5">{intern.mentorScore || 'N/A'} / 10</p>
+                            </div>
                           </div>
                         </div>
 
-                        {/* Score Stats */}
-                        <div className="grid grid-cols-2 gap-4 bg-black/40 border border-brand-border/60 p-3 rounded-lg text-xs text-center mt-2">
-                          <div>
-                            <p className="text-brand-muted uppercase font-bold">Total Points</p>
-                            <p className="text-base font-bold text-white mt-0.5">{intern.totalPoints} pts</p>
-                          </div>
-                          <div>
-                            <p className="text-brand-muted uppercase font-bold">Mentor Score</p>
-                            <p className="text-base font-bold text-brand-gold mt-0.5">{intern.mentorScore || 'N/A'} / 10</p>
-                          </div>
+                        {/* Action Buttons */}
+                        <div className="mt-6 pt-4 border-t border-brand-border flex gap-3">
+                          <button
+                            onClick={() => {
+                              setEditIntern(intern);
+                              setName(intern.name);
+                              setEmail(intern.user.email);
+                              setDomain(intern.domain || '');
+                              setGroup(intern.group);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-brand-border rounded-lg text-xs font-semibold text-zinc-300 hover:bg-zinc-900 transition cursor-pointer"
+                          >
+                            <Edit className="w-4 h-4" />
+                            <span>Edit Profile</span>
+                          </button>
+                          
+                          <button
+                            onClick={() => {
+                              setScoreIntern(intern);
+                              setScore(intern.mentorScore || 5);
+                            }}
+                            className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-zinc-900 border border-brand-border rounded-lg text-xs font-semibold text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
+                          >
+                            <Star className="w-4 h-4" />
+                            <span>Score Intern</span>
+                          </button>
                         </div>
                       </div>
-
-                      {/* Action Buttons */}
-                      <div className="mt-6 pt-4 border-t border-brand-border flex gap-3">
-                        <button
-                          onClick={() => {
-                            setEditIntern(intern);
-                            setName(intern.name);
-                            setEmail(intern.user.email);
-                            setDomain(intern.domain || '');
-                            setGroup(intern.group);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-brand-border rounded-lg text-xs font-semibold text-zinc-300 hover:bg-zinc-900 transition cursor-pointer"
-                        >
-                          <Edit className="w-4 h-4" />
-                          <span>Edit Profile</span>
-                        </button>
-                        
-                        <button
-                          onClick={() => {
-                            setScoreIntern(intern);
-                            setScore(intern.mentorScore || 5);
-                          }}
-                          className="flex-1 flex items-center justify-center gap-1.5 py-2 bg-zinc-900 border border-brand-border rounded-lg text-xs font-semibold text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
-                        >
-                          <Star className="w-4 h-4" />
-                          <span>Score Intern</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ));
-          })()}
-        </div>
-      )}
+              ));
+            })()}
+          </div>
+        )}
+      </div>
 
       {/* Edit Profile Modal */}
       {editIntern && (

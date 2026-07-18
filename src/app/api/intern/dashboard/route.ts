@@ -16,6 +16,9 @@ export async function GET() {
     // Get InternProfile
     const intern = await prisma.internProfile.findUnique({
       where: { userId },
+      include: {
+        mentor: true,
+      },
     });
 
     if (!intern) {
@@ -40,10 +43,45 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Load upcoming targeted meetings
+    const todayStr = new Date().toISOString().split('T')[0];
+    const meetingTargets = await prisma.meetingTarget.findMany({
+      where: {
+        internId: intern.id,
+        meeting: {
+          date: { gte: todayStr },
+        },
+      },
+      include: {
+        meeting: {
+          include: {
+            mentor: true,
+          },
+        },
+      },
+      orderBy: {
+        meeting: {
+          date: 'asc',
+        },
+      },
+      take: 2,
+    });
+
+    const meetings = meetingTargets.map((mt) => ({
+      id: mt.meeting.id,
+      title: mt.meeting.title,
+      meetLink: mt.meeting.meetLink,
+      date: mt.meeting.date,
+      time: mt.meeting.time,
+      meetingType: mt.meeting.meetingType,
+      mentorName: mt.meeting.mentor.name,
+    }));
+
     return NextResponse.json({
       notifications,
       announcements,
       profile: intern,
+      meetings,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
