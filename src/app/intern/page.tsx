@@ -50,6 +50,7 @@ export default function InternDashboard() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [pastMeetings, setPastMeetings] = useState<Meeting[]>([]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -63,6 +64,7 @@ export default function InternDashboard() {
       setAnnouncements(data.announcements);
       setProfile(data.profile);
       setMeetings(data.meetings || []);
+      setPastMeetings(data.pastMeetings || []);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -244,6 +246,43 @@ export default function InternDashboard() {
           </div>
         )}
       </div>
+
+      {pastMeetings.length > 0 && (
+        <div className="glass-panel p-6 rounded-2xl border border-brand-border space-y-4">
+          <h2 className="text-sm font-bold text-white uppercase tracking-widest text-brand-gold flex items-center gap-2 border-b border-brand-border/40 pb-2">
+            <Calendar className="w-4 h-4" />
+            <span>Meeting History</span>
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-60 overflow-y-auto pr-2">
+            {pastMeetings.map((meeting) => (
+              <div key={meeting.id} className="p-4 bg-black/40 border border-brand-border rounded-xl text-xs space-y-2 hover:border-brand-gold/10 transition">
+                <div className="flex justify-between items-start gap-2">
+                  <span className="font-bold text-zinc-300 truncate max-w-[150px]">{meeting.title}</span>
+                  <span className="text-[8px] bg-zinc-800 text-zinc-400 px-2 py-0.5 rounded uppercase tracking-wider font-semibold">
+                    {meeting.meetingType}
+                  </span>
+                </div>
+                <div className="space-y-1 text-zinc-400">
+                  <p className="flex justify-between">
+                    <span>Date:</span>
+                    <span className="text-zinc-300 font-medium">
+                      {new Date(meeting.date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                    </span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span>Time:</span>
+                    <span className="text-zinc-300 font-medium">{meeting.time}</span>
+                  </p>
+                  <p className="flex justify-between">
+                    <span>Host:</span>
+                    <span className="text-zinc-300 font-semibold">{meeting.mentorName}</span>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-950/50 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg text-sm text-center">

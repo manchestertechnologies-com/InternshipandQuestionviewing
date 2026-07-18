@@ -100,6 +100,22 @@ export default function MentorProjectsPage() {
     setSelectedInterns(matchingInterns.map((i) => i.id));
   }, [projectDomain, durationFilter, interns]);
 
+  // Automatically calculate finalDeadline
+  useEffect(() => {
+    if (!startDate) return;
+    const date = new Date(startDate);
+    if (isNaN(date.getTime())) return;
+
+    const days = parseInt(duration, 10);
+    if (isNaN(days)) return;
+
+    const deadlineDate = new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+    const yyyy = deadlineDate.getFullYear();
+    const mm = String(deadlineDate.getMonth() + 1).padStart(2, '0');
+    const dd = String(deadlineDate.getDate()).padStart(2, '0');
+    setFinalDeadline(`${yyyy}-${mm}-${dd}`);
+  }, [startDate, duration]);
+
   const handleCheckboxChange = (internId: string) => {
     setSelectedInterns((prev) =>
       prev.includes(internId)
@@ -118,36 +134,52 @@ export default function MentorProjectsPage() {
   };
 
   const uploadFileDirect = async (targetFile: File, folderName: string): Promise<string> => {
-    const signRes = await fetch(`/api/cloudinary/sign?folder=${encodeURIComponent(folderName)}`);
-    if (!signRes.ok) throw new Error('Failed to generate upload signature');
-    const signData = await signRes.json();
-    const { signature, timestamp, folder, apiKey, cloudName } = signData;
+    try {
+      const signRes = await fetch(`/api/cloudinary/sign?folder=${encodeURIComponent(folderName)}`);
+      if (!signRes.ok) throw new Error('Failed to generate upload signature');
+      const signData = await signRes.json();
+      const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
-    const ext = targetFile.name.split('.').pop()?.toLowerCase() || '';
-    const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
+      const ext = targetFile.name.split('.').pop()?.toLowerCase() || '';
+      const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
 
-    const cloudinaryData = new FormData();
-    cloudinaryData.append('file', targetFile);
-    cloudinaryData.append('api_key', apiKey);
-    cloudinaryData.append('timestamp', timestamp.toString());
-    cloudinaryData.append('signature', signature);
-    cloudinaryData.append('folder', folder);
+      const cloudinaryData = new FormData();
+      cloudinaryData.append('file', targetFile);
+      cloudinaryData.append('api_key', apiKey);
+      cloudinaryData.append('timestamp', timestamp.toString());
+      cloudinaryData.append('signature', signature);
+      cloudinaryData.append('folder', folder);
 
-    const cloudinaryRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-      {
-        method: 'POST',
-        body: cloudinaryData,
+      const cloudinaryRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+        {
+          method: 'POST',
+          body: cloudinaryData,
+        }
+      );
+
+      if (cloudinaryRes.ok) {
+        const uploadResult = await cloudinaryRes.json();
+        return uploadResult.secure_url;
+      } else {
+        console.warn('Cloudinary upload direct failed, trying local upload...');
       }
-    );
-
-    if (!cloudinaryRes.ok) {
-      const errorData = await cloudinaryRes.json();
-      throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+    } catch (e) {
+      console.warn('Cloudinary upload direct threw error, trying local upload:', e);
     }
 
-    const uploadResult = await cloudinaryRes.json();
-    return uploadResult.secure_url;
+    // Local upload fallback
+    const localFormData = new FormData();
+    localFormData.append('file', targetFile);
+    const localRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: localFormData,
+    });
+    if (!localRes.ok) {
+      throw new Error('Both Cloudinary and Local file upload failed.');
+    }
+    const localResult = await localRes.json();
+    return localResult.secure_url;
   };
 
   const handleCreateProject = async (e: React.FormEvent) => {
@@ -450,7 +482,7 @@ export default function MentorProjectsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-brand-text uppercase tracking-wider mb-2">
-                    Duration Filter *
+                    Project Duration *
                   </label>
                   <select
                     value={duration}

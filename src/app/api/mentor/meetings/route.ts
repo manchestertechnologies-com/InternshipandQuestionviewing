@@ -71,6 +71,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing required meeting details' }, { status: 400 });
     }
 
+    const meetingDateTime = new Date(`${date}T${time}:00`);
+    if (meetingDateTime < new Date()) {
+      return NextResponse.json({ error: 'Meeting date/time cannot be in the past' }, { status: 400 });
+    }
+
     // Resolve target interns under this mentor's group
     let targetedInternIds: string[] = [];
 

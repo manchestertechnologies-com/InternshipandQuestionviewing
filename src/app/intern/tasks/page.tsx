@@ -296,33 +296,51 @@ export default function DailyTasksPage() {
   const uploadImageDirect = async (fileBlob: Blob, type: string): Promise<string> => {
     setUploadingField(type);
     try {
-      const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/question-images');
-      if (!signRes.ok) throw new Error('Failed to generate upload signature');
-      const signData = await signRes.json();
-      const { signature, timestamp, folder, apiKey, cloudName } = signData;
+      try {
+        const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/question-images');
+        if (!signRes.ok) throw new Error('Failed to generate upload signature');
+        const signData = await signRes.json();
+        const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
-      const cloudinaryData = new FormData();
-      cloudinaryData.append('file', fileBlob);
-      cloudinaryData.append('api_key', apiKey);
-      cloudinaryData.append('timestamp', timestamp.toString());
-      cloudinaryData.append('signature', signature);
-      cloudinaryData.append('folder', folder);
+        const cloudinaryData = new FormData();
+        cloudinaryData.append('file', fileBlob);
+        cloudinaryData.append('api_key', apiKey);
+        cloudinaryData.append('timestamp', timestamp.toString());
+        cloudinaryData.append('signature', signature);
+        cloudinaryData.append('folder', folder);
 
-      const cloudinaryRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        {
-          method: 'POST',
-          body: cloudinaryData,
+        const cloudinaryRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+          {
+            method: 'POST',
+            body: cloudinaryData,
+          }
+        );
+
+        if (cloudinaryRes.ok) {
+          const uploadResult = await cloudinaryRes.json();
+          return uploadResult.secure_url;
+        } else {
+          console.warn('Cloudinary image upload failed, trying local upload...');
         }
-      );
-
-      if (!cloudinaryRes.ok) {
-        const errorData = await cloudinaryRes.json();
-        throw new Error(errorData.error?.message || 'Image upload failed');
+      } catch (e) {
+        console.warn('Cloudinary image upload threw error, trying local upload:', e);
       }
 
-      const uploadResult = await cloudinaryRes.json();
-      return uploadResult.secure_url;
+      // Local upload fallback
+      const localFormData = new FormData();
+      // Ensure file name is set for blob
+      const fileOfBlob = new File([fileBlob], `crop_${Date.now()}.png`, { type: 'image/png' });
+      localFormData.append('file', fileOfBlob);
+      const localRes = await fetch('/api/upload', {
+        method: 'POST',
+        body: localFormData,
+      });
+      if (!localRes.ok) {
+        throw new Error('Both Cloudinary and Local file upload failed.');
+      }
+      const localResult = await localRes.json();
+      return localResult.secure_url;
     } finally {
       setUploadingField(null);
     }

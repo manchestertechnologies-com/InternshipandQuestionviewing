@@ -12,38 +12,32 @@ export interface SyncResult {
   errors: string[];
 }
 
-function normalizeDomain(rawDomain: string | null | undefined): string {
-  if (!rawDomain) return 'General';
+function normalizeInternshipDomain(rawDomain: string | null | undefined): string {
+  if (!rawDomain) return 'Web Development';
   const clean = rawDomain.trim().toLowerCase();
 
-  if (clean.includes('machine learning') || clean === 'aiml') {
-    return 'Artificial Intelligence and Machine Learning';
+  if (clean === 'ai' || clean.includes('artificial intelligence')) {
+    return 'Artificial Intelligence';
   }
-  if (
-    clean.includes('data analytics') ||
-    clean.includes('data analyst') ||
-    clean.includes('data analysis') ||
-    clean.includes('da') ||
-    clean.includes('analyst')
-  ) {
-    return 'Artificial Intelligence and Data Analytics';
+  if (clean.includes('machine learning') || clean.includes('machinelearning')) {
+    return 'Machine Learning';
   }
-  if (clean.includes('information science') || clean === 'ise') {
-    return 'Information Science and Engineering';
+  if (clean.includes('web development') || clean.includes('web') || clean === 'web dev') {
+    return 'Web Development';
   }
-  if (clean === 'cse' || clean.includes('computer science') || clean.includes('engineering')) {
-    return 'Computer Science and Engineering';
+  if (clean.includes('full stack') || clean.includes('fullstack')) {
+    return 'Full Stack Development';
   }
-  if (clean.includes('computer application')) {
-    return 'Computer Application';
+  if (clean.includes('database') || clean.includes('db')) {
+    return 'Database Development';
   }
-  if (clean.includes('cloud')) {
-    return 'Cloud Computing';
+  if (clean.includes('mobile') || clean.includes('app')) {
+    return 'Mobile App Development';
   }
-  if (clean.includes('data science') || clean.includes('ds')) {
-    return 'Data Science';
+  if (clean.includes('testing') || clean.includes('qa') || clean.includes('quality')) {
+    return 'Testing & QA';
   }
-  return 'General';
+  return 'Web Development';
 }
 
 export async function syncExcelData(): Promise<SyncResult> {
@@ -56,14 +50,29 @@ export async function syncExcelData(): Promise<SyncResult> {
   };
 
   try {
-    // Check public folder first (which Vercel guarantees is packaged and readable at runtime)
+    // 1. Load interns_data.json lookup map if it exists
+    const jsonPath = path.join(process.cwd(), 'prisma', 'interns_data.json');
+    let jsonData: any[] = [];
+    if (fs.existsSync(jsonPath)) {
+      try {
+        jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+      } catch (err: any) {
+        console.error('Failed to parse interns_data.json:', err);
+      }
+    }
+
+    const jsonMap = new Map<string, any>();
+    jsonData.forEach((row) => {
+      const email = row['Email ID']?.toString().trim().toLowerCase();
+      if (email) {
+        jsonMap.set(email, row);
+      }
+    });
+
     const filename = process.env.EXCEL_FILE_PATH || 'Manchester_Technologies_Consolidated_Groupwise_Final_Updated.xlsx';
-    
-    // Check public folder first (which Vercel guarantees is packaged and readable at runtime)
     let filePath = path.isAbsolute(filename) ? filename : path.join(process.cwd(), 'public', filename);
 
     if (!path.isAbsolute(filename) && !fs.existsSync(filePath)) {
-      // Fallback to root folder
       filePath = path.join(process.cwd(), filename);
     }
 
@@ -80,34 +89,39 @@ export async function syncExcelData(): Promise<SyncResult> {
 
     // Fetch all mentors to map group -> mentorId
     const mentors = await prisma.mentorProfile.findMany({});
-    const mentorMap = new Map<string, string>(); // group name -> mentorProfile.id
+    const mentorMap = new Map<string, string>();
     mentors.forEach(m => {
-      // Normalize group names, e.g. "Group 1" -> "Group 1"
       mentorMap.set(m.group.trim().toLowerCase(), m.id);
     });
 
-    // Default password hash
     const defaultPasswordHash = await bcrypt.hash('123456', 10);
 
     for (const row of rawData) {
       try {
-        const email = row['Email ID']?.toString().trim();
+        const rawEmail = row['Email ID']?.toString().trim();
+        if (!rawEmail) {
+          result.errors.push(`Row with S.No ${row['S.No']} lacks an Email ID. Skipped.`);
+          result.skipped++;
+          continue;
+        }
+
+        const email = rawEmail.toLowerCase();
         const rawSNo = row['S.No']?.toString().trim();
         const name = row['Student Name']?.toString().trim();
         const group = row['Group']?.toString().trim() || 'Group 1';
-        const rawDomain = row['Branch/Specialization']?.toString().trim();
-        const domain = normalizeDomain(rawDomain);
         const course = row['Course']?.toString().trim() || '';
         const phoneNumber = row['Phone Number']?.toString().trim() || '';
         const applicationID = row['Application ID']?.toString().trim() || '';
         const collegeName = row['College Name']?.toString().trim() || '';
         const status = row['Status']?.toString().trim() || '';
 
-        if (!email) {
-          result.errors.push(`Row with S.No ${rawSNo} lacks an Email ID. Skipped.`);
-          result.skipped++;
-          continue;
-        }
+        // Resolve domain, duration, and branch from interns_data.json lookup if available
+        const jsonRow = jsonMap.get(email);
+        const domainVal = jsonRow ? jsonRow['Domain'] : (row['Domain'] || row['Branch/Specialization']);
+        const domain = normalizeInternshipDomain(domainVal);
+        
+        const duration = jsonRow ? jsonRow['Duration'] : (row['Duration'] || '45 Days');
+        const branch = jsonRow ? (jsonRow['Branch / Specialization'] || jsonRow['Branch']) : (row['Branch/Specialization'] || 'General');
 
         const rollNo = parseInt(rawSNo, 10);
         if (isNaN(rollNo)) {
@@ -116,11 +130,9 @@ export async function syncExcelData(): Promise<SyncResult> {
           continue;
         }
 
-        // Determine correct mentor ID for this group
         const mentorKey = group.trim().toLowerCase();
         const mentorId = mentorMap.get(mentorKey) || null;
 
-        // Check if user already exists
         const existingUser = await prisma.user.findUnique({
           where: { email },
           include: { internProfile: true },
@@ -135,7 +147,6 @@ export async function syncExcelData(): Promise<SyncResult> {
 
           const profile = existingUser.internProfile;
           if (!profile) {
-            // Re-create profile if missing for some reason
             await prisma.internProfile.create({
               data: {
                 userId: existingUser.id,
@@ -143,6 +154,8 @@ export async function syncExcelData(): Promise<SyncResult> {
                 name,
                 phoneNumber,
                 domain,
+                duration,
+                branch,
                 group,
                 collegeName,
                 course,
@@ -155,12 +168,13 @@ export async function syncExcelData(): Promise<SyncResult> {
             continue;
           }
 
-          // Check if any fields are modified
           const isModified =
             profile.name !== name ||
             profile.rollNo !== rollNo ||
             profile.phoneNumber !== phoneNumber ||
             profile.domain !== domain ||
+            profile.duration !== duration ||
+            profile.branch !== branch ||
             profile.group !== group ||
             profile.collegeName !== collegeName ||
             profile.course !== course ||
@@ -176,6 +190,8 @@ export async function syncExcelData(): Promise<SyncResult> {
                 rollNo,
                 phoneNumber,
                 domain,
+                duration,
+                branch,
                 group,
                 collegeName,
                 course,
@@ -189,7 +205,6 @@ export async function syncExcelData(): Promise<SyncResult> {
             result.skipped++;
           }
         } else {
-          // Create new user and intern profile
           await prisma.user.create({
             data: {
               email,
@@ -201,6 +216,8 @@ export async function syncExcelData(): Promise<SyncResult> {
                   name,
                   phoneNumber,
                   domain,
+                  duration,
+                  branch,
                   group,
                   collegeName,
                   course,

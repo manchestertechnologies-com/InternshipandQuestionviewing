@@ -43,14 +43,10 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     });
 
-    // Load upcoming targeted meetings
-    const todayStr = new Date().toISOString().split('T')[0];
+    // Load all targeted meetings
     const meetingTargets = await prisma.meetingTarget.findMany({
       where: {
         internId: intern.id,
-        meeting: {
-          date: { gte: todayStr },
-        },
       },
       include: {
         meeting: {
@@ -59,15 +55,11 @@ export async function GET() {
           },
         },
       },
-      orderBy: {
-        meeting: {
-          date: 'asc',
-        },
-      },
-      take: 2,
     });
 
-    const meetings = meetingTargets.map((mt) => ({
+    const now = new Date();
+
+    const parsedMeetings = meetingTargets.map((mt) => ({
       id: mt.meeting.id,
       title: mt.meeting.title,
       meetLink: mt.meeting.meetLink,
@@ -75,13 +67,25 @@ export async function GET() {
       time: mt.meeting.time,
       meetingType: mt.meeting.meetingType,
       mentorName: mt.meeting.mentor.name,
+      dateTime: new Date(`${mt.meeting.date}T${mt.meeting.time || '00:00'}:00`),
     }));
+
+    const upcomingMeetings = parsedMeetings
+      .filter((m) => m.dateTime >= now)
+      .sort((a, b) => a.dateTime.getTime() - b.dateTime.getTime())
+      .map(({ dateTime, ...m }) => m); // strip helper date object
+
+    const pastMeetings = parsedMeetings
+      .filter((m) => m.dateTime < now)
+      .sort((a, b) => b.dateTime.getTime() - a.dateTime.getTime())
+      .map(({ dateTime, ...m }) => m);
 
     return NextResponse.json({
       notifications,
       announcements,
       profile: intern,
-      meetings,
+      meetings: upcomingMeetings,
+      pastMeetings,
     });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -139,7 +139,7 @@ export async function POST(request: Request) {
             await tx.notification.create({
               data: {
                 userId: intern.userId,
-                content: `New daily task assigned: "${title}". Deadline: TODAY at ${timeStr}.`,
+                content: "Your mentor has assigned a new Daily Task.",
                 type: 'TASK_ASSIGNED',
               },
             });

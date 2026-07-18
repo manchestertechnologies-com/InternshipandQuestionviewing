@@ -12,44 +12,55 @@ const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });
 
-function normalizeDomain(rawDomain) {
+function normalizeInternshipDomain(rawDomain) {
   if (!rawDomain) return 'Web Development';
   const clean = rawDomain.trim().toLowerCase();
 
-  if (clean.includes('machine learning') || clean === 'aiml') {
-    return 'Machine Learning';
-  }
-  if (
-    clean.includes('data analytics') ||
-    clean.includes('data analyst') ||
-    clean.includes('data analysis') ||
-    clean.includes('da') ||
-    clean.includes('analyst') ||
-    clean.includes('ai') ||
-    clean.includes('artificial')
-  ) {
+  if (clean === 'ai' || clean.includes('artificial intelligence')) {
     return 'Artificial Intelligence';
   }
-  if (clean.includes('information science') || clean === 'ise') {
-    return 'Database Development';
+  if (clean.includes('machine learning') || clean.includes('machinelearning')) {
+    return 'Machine Learning';
   }
-  if (clean === 'cse' || clean.includes('computer science') || clean.includes('engineering')) {
-    return 'Full Stack Development';
-  }
-  if (clean.includes('computer application')) {
+  if (clean.includes('web development') || clean.includes('web') || clean === 'web dev') {
     return 'Web Development';
   }
-  if (clean.includes('cloud')) {
-    return 'Testing & QA';
+  if (clean.includes('full stack') || clean.includes('fullstack')) {
+    return 'Full Stack Development';
   }
-  if (clean.includes('data science') || clean.includes('ds')) {
-    return 'Machine Learning';
+  if (clean.includes('database') || clean.includes('db')) {
+    return 'Database Development';
+  }
+  if (clean.includes('mobile') || clean.includes('app')) {
+    return 'Mobile App Development';
+  }
+  if (clean.includes('testing') || clean.includes('qa') || clean.includes('quality')) {
+    return 'Testing & QA';
   }
   return 'Web Development';
 }
 
 async function main() {
   console.log("Starting local Excel matching and database sync...");
+
+  // Load interns_data.json lookup map if it exists
+  const jsonPath = path.join(process.cwd(), 'prisma', 'interns_data.json');
+  let jsonData = [];
+  if (fs.existsSync(jsonPath)) {
+    try {
+      jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    } catch (err) {
+      console.error('Failed to parse interns_data.json:', err);
+    }
+  }
+
+  const jsonMap = new Map();
+  jsonData.forEach((row) => {
+    const email = row['Email ID']?.toString().trim().toLowerCase();
+    if (email) {
+      jsonMap.set(email, row);
+    }
+  });
 
   const filePath = path.join(process.cwd(), 'public', 'Manchester_Technologies_Consolidated_Groupwise_Final_Updated.xlsx');
   
@@ -79,22 +90,29 @@ async function main() {
 
   for (const row of rawData) {
     try {
-      const email = row['Email ID']?.toString().trim();
+      const rawEmail = row['Email ID']?.toString().trim();
+      if (!rawEmail) {
+        skipped++;
+        continue;
+      }
+
+      const email = rawEmail.toLowerCase();
       const rawSNo = row['S.No']?.toString().trim();
       const name = row['Student Name']?.toString().trim();
       const group = row['Group']?.toString().trim() || 'Group 1';
-      const rawDomain = row['Branch/Specialization']?.toString().trim();
-      const domain = normalizeDomain(rawDomain);
       const course = row['Course']?.toString().trim() || '';
       const phoneNumber = row['Phone Number']?.toString().trim() || '';
       const applicationID = row['Application ID']?.toString().trim() || '';
       const collegeName = row['College Name']?.toString().trim() || '';
       const status = row['Status']?.toString().trim() || '';
 
-      if (!email) {
-        skipped++;
-        continue;
-      }
+      // Resolve domain, duration, and branch from interns_data.json lookup if available
+      const jsonRow = jsonMap.get(email);
+      const domainVal = jsonRow ? jsonRow['Domain'] : (row['Domain'] || row['Branch/Specialization']);
+      const domain = normalizeInternshipDomain(domainVal);
+      
+      const duration = jsonRow ? jsonRow['Duration'] : (row['Duration'] || '45 Days');
+      const branch = jsonRow ? (jsonRow['Branch / Specialization'] || jsonRow['Branch']) : (row['Branch/Specialization'] || 'General');
 
       const rollNo = parseInt(rawSNo, 10);
       if (isNaN(rollNo)) {
@@ -125,6 +143,8 @@ async function main() {
               name,
               phoneNumber,
               domain,
+              duration,
+              branch,
               group,
               collegeName,
               course,
@@ -142,6 +162,8 @@ async function main() {
           profile.rollNo !== rollNo ||
           profile.phoneNumber !== phoneNumber ||
           profile.domain !== domain ||
+          profile.duration !== duration ||
+          profile.branch !== branch ||
           profile.group !== group ||
           profile.collegeName !== collegeName ||
           profile.course !== course ||
@@ -157,6 +179,8 @@ async function main() {
               rollNo,
               phoneNumber,
               domain,
+              duration,
+              branch,
               group,
               collegeName,
               course,
@@ -181,6 +205,8 @@ async function main() {
                 name,
                 phoneNumber,
                 domain,
+                duration,
+                branch,
                 group,
                 collegeName,
                 course,

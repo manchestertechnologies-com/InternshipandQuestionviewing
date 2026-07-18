@@ -101,6 +101,11 @@ export default function MentorMeetingsPage() {
       if (!date) throw new Error('Date is required');
       if (!time) throw new Error('Time is required');
 
+      const meetingDateTime = new Date(`${date}T${time}:00`);
+      if (meetingDateTime < new Date()) {
+        throw new Error('Meeting date/time cannot be in the past');
+      }
+
       const payload: any = {
         title: title.trim(),
         meetLink: meetLink.trim(),

@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       await prisma.notification.create({
         data: {
           userId: internProfile.mentor.userId,
-          content: `Roll No ${internProfile.rollNo} (${internProfile.name}) has uploaded their Week ${weekNumber || 'report'} submission.`,
+          content: `${internProfile.name} submitted Week ${weekNumber || 'X'} report for ${projectTitle || 'Project'}.`,
           type: 'SUBMISSION',
         },
       });
