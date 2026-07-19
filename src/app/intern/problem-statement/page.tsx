@@ -71,7 +71,15 @@ export default function DomainProjectsPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
+      const selectedFile = e.target.files[0];
+      if (selectedFile.size > 10 * 1024 * 1024) {
+        setError('File is too large (above 10MB). Cloudinary Free plan limits uploads to 10MB. Please compress your file or choose a smaller one.');
+        setFile(null);
+        e.target.value = '';
+        return;
+      }
+      setFile(selectedFile);
+      setError('');
     }
   };
 

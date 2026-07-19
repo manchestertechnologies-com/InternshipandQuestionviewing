@@ -565,7 +565,19 @@ export default function DomainProjectPage() {
                     type="file"
                     required
                     accept=".pdf,.docx,.doc,.zip"
-                    onChange={(e) => e.target.files && setFile(e.target.files[0])}
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        const selectedFile = e.target.files[0];
+                        if (selectedFile.size > 10 * 1024 * 1024) {
+                          setError('File is too large (above 10MB). Cloudinary Free plan limits uploads to 10MB. Please compress your file or choose a smaller one.');
+                          setFile(null);
+                          e.target.value = '';
+                          return;
+                        }
+                        setFile(selectedFile);
+                        setError('');
+                      }
+                    }}
                     className="w-full text-zinc-400 text-xs file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-zinc-900 file:text-brand-gold file:cursor-pointer hover:file:bg-zinc-800"
                   />
                 </div>
