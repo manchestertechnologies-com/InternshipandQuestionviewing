@@ -716,26 +716,43 @@ export default function DomainProjectPage() {
                 </div>
               </div>
 
-              {project?.fileUrl && (
-                <div className="flex items-center justify-between bg-black/40 border border-brand-border/60 p-3 rounded-xl max-w-md mt-6">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="w-4 h-4 text-brand-gold shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-xs text-white truncate font-mono">{project.fileName || 'Project_Guidelines'}</p>
-                      <p className="text-[9px] text-brand-muted">Download Guidelines</p>
-                    </div>
+              {project?.fileUrl && (() => {
+                let projectFiles: { url: string; name: string }[] = [];
+                if (project.fileUrl.startsWith('[')) {
+                  try {
+                    projectFiles = JSON.parse(project.fileUrl);
+                  } catch (e) {
+                    projectFiles = [{ url: project.fileUrl, name: project.fileName || 'Project_Guidelines' }];
+                  }
+                } else {
+                  projectFiles = [{ url: project.fileUrl, name: project.fileName || 'Project_Guidelines' }];
+                }
+
+                return (
+                  <div className="flex flex-wrap gap-3 mt-6">
+                    {projectFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-black/40 border border-brand-border/60 p-3 rounded-xl min-w-[240px] max-w-sm hover:border-brand-gold/20 transition">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-brand-gold shrink-0" />
+                          <div className="min-w-0">
+                            <p className="text-xs text-white truncate font-mono">{file.name}</p>
+                            <p className="text-[9px] text-brand-muted">Download Guidelines</p>
+                          </div>
+                        </div>
+                        <a
+                          href={file.url}
+                          download
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-2 bg-zinc-950 hover:bg-zinc-900 border border-brand-border rounded-lg text-brand-gold cursor-pointer ml-4 transition"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      </div>
+                    ))}
                   </div>
-                  <a
-                    href={project.fileUrl}
-                    download
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 bg-zinc-950 hover:bg-zinc-900 border border-brand-border rounded-lg text-brand-gold cursor-pointer ml-4 transition"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                </div>
-              )}
+                );
+              })()}
             </div>
 
             {/* Right: Timeline & Progress Card */}

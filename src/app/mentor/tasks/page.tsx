@@ -44,7 +44,7 @@ export default function TaskAssignmentPage() {
   const [cutoffHour, setCutoffHour] = useState('23'); // '23' (11:59:59 PM), '22', '20', '18', '17'
   const [assignScope, setAssignScope] = useState<'ALL' | 'SPECIFIC'>('ALL');
   const [selectedInterns, setSelectedInterns] = useState<string[]>([]);
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
 
@@ -85,15 +85,17 @@ export default function TaskAssignmentPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      const selectedFile = e.target.files[0];
-      if (selectedFile.size > 10 * 1024 * 1024) {
-        setError('File is too large (above 10MB). Cloudinary Free plan limits PDF/Word uploads to 10MB. Please compress your file or choose a smaller one.');
-        setFile(null);
-        e.target.value = ''; // Clear file input
-        return;
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      for (const f of selectedFiles) {
+        if (f.size > 10 * 1024 * 1024) {
+          setError(`File "${f.name}" is too large (above 10MB). Cloudinary Free plan limits uploads to 10MB. Please choose smaller files.`);
+          setFiles([]);
+          e.target.value = '';
+          return;
+        }
       }
-      setFile(selectedFile);
+      setFiles(selectedFiles);
       setError('');
     }
   };
@@ -111,70 +113,80 @@ export default function TaskAssignmentPage() {
       let fileUrl: string | null = null;
       let fileName: string | null = null;
 
-      // 1. Upload file to Cloudinary from client side if selected, fallback to local upload if disabled/fails
-      if (file) {
+      // 1. Upload files to Cloudinary from client side if selected
+      if (files.length > 0) {
         setUploadingFile(true);
         try {
-          let uploaded = false;
-          let lastErrorMsg = '';
+          const uploadedList = [];
+          for (const currentFile of files) {
+            let uploaded = false;
+            let lastErrorMsg = '';
+            let fileUrlLocal = '';
+            let fileNameLocal = '';
 
-          try {
-            const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/tasks');
-            if (!signRes.ok) {
-              const errData = await signRes.json().catch(() => ({}));
-              throw new Error(errData.error || 'Failed to generate upload signature');
-            }
-            const signData = await signRes.json();
-            const { signature, timestamp, folder, apiKey, cloudName } = signData;
-
-            const ext = file.name.split('.').pop()?.toLowerCase() || '';
-            const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc') ? 'raw' : 'auto';
-
-            const cloudinaryData = new FormData();
-            cloudinaryData.append('file', file);
-            cloudinaryData.append('api_key', apiKey);
-            cloudinaryData.append('timestamp', timestamp.toString());
-            cloudinaryData.append('signature', signature);
-            cloudinaryData.append('folder', folder);
-
-            const cloudinaryRes = await fetch(
-              `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-              {
-                method: 'POST',
-                body: cloudinaryData,
+            try {
+              const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/tasks');
+              if (!signRes.ok) {
+                const errData = await signRes.json().catch(() => ({}));
+                throw new Error(errData.error || 'Failed to generate upload signature');
               }
-            );
+              const signData = await signRes.json();
+              const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
-            if (cloudinaryRes.ok) {
-              const uploadResult = await cloudinaryRes.json();
-              fileUrl = uploadResult.secure_url;
-              fileName = file.name;
-              uploaded = true;
-            } else {
-              const errResult = await cloudinaryRes.json().catch(() => ({}));
-              lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
-              console.warn('Cloudinary responded with error, trying local upload:', lastErrorMsg);
+              const ext = currentFile.name.split('.').pop()?.toLowerCase() || '';
+              const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc') ? 'raw' : 'auto';
+
+              const cloudinaryData = new FormData();
+              cloudinaryData.append('file', currentFile);
+              cloudinaryData.append('api_key', apiKey);
+              cloudinaryData.append('timestamp', timestamp.toString());
+              cloudinaryData.append('signature', signature);
+              cloudinaryData.append('folder', folder);
+
+              const cloudinaryRes = await fetch(
+                `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+                {
+                  method: 'POST',
+                  body: cloudinaryData,
+                }
+              );
+
+              if (cloudinaryRes.ok) {
+                const uploadResult = await cloudinaryRes.json();
+                fileUrlLocal = uploadResult.secure_url;
+                fileNameLocal = currentFile.name;
+                uploaded = true;
+              } else {
+                const errResult = await cloudinaryRes.json().catch(() => ({}));
+                lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
+                console.warn('Cloudinary responded with error, trying local upload:', lastErrorMsg);
+              }
+            } catch (e: any) {
+              lastErrorMsg = e.message || String(e);
+              console.warn('Client-side Cloudinary upload failed, attempting local upload:', e);
             }
-          } catch (e: any) {
-            lastErrorMsg = e.message || String(e);
-            console.warn('Client-side Cloudinary upload failed, attempting local upload:', e);
+
+            if (!uploaded) {
+              const localFormData = new FormData();
+              localFormData.append('file', currentFile);
+              const localRes = await fetch('/api/upload', {
+                method: 'POST',
+                body: localFormData,
+              });
+              if (!localRes.ok) {
+                const errData = await localRes.json().catch(() => ({}));
+                throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
+              }
+              const localResult = await localRes.json();
+              fileUrlLocal = localResult.secure_url;
+              fileNameLocal = currentFile.name;
+            }
+
+            uploadedList.push({ url: fileUrlLocal, name: fileNameLocal });
           }
 
-          if (!uploaded) {
-            const localFormData = new FormData();
-            localFormData.append('file', file);
-            const localRes = await fetch('/api/upload', {
-              method: 'POST',
-              body: localFormData,
-            });
-            if (!localRes.ok) {
-              const errData = await localRes.json().catch(() => ({}));
-              throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
-            }
-            const localResult = await localRes.json();
-            fileUrl = localResult.secure_url;
-            fileName = file.name;
-          }
+          fileUrl = JSON.stringify(uploadedList);
+          fileName = uploadedList.map(f => f.name).join(', ');
         } finally {
           setUploadingFile(false);
         }
@@ -208,7 +220,7 @@ export default function TaskAssignmentPage() {
       setCutoffHour('23');
       setAssignScope('ALL');
       setSelectedInterns([]);
-      setFile(null);
+      setFiles([]);
       setShowModal(false);
       fetchData();
     } catch (err: any) {
@@ -379,6 +391,7 @@ export default function TaskAssignmentPage() {
                 </label>
                 <input
                   type="file"
+                  multiple
                   accept=".docx,.pdf"
                   onChange={handleFileChange}
                   className="w-full text-zinc-400 text-xs file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-zinc-900 file:text-brand-gold file:cursor-pointer hover:file:bg-zinc-800"

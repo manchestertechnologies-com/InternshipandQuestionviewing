@@ -58,7 +58,7 @@ export default function MentorProjectsPage() {
   const [weeklyMilestones, setWeeklyMilestones] = useState('');
   const [instructions, setInstructions] = useState('');
   
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [selectedInterns, setSelectedInterns] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -208,9 +208,14 @@ export default function MentorProjectsPage() {
 
       let fileUrl: string | null = null;
       let fileName: string | null = null;
-      if (file) {
-        fileUrl = await uploadFileDirect(file, 'manchester-tech/projects');
-        fileName = file.name;
+      if (files.length > 0) {
+        const uploadedList = [];
+        for (const currentFile of files) {
+          const url = await uploadFileDirect(currentFile, 'manchester-tech/projects');
+          uploadedList.push({ url, name: currentFile.name });
+        }
+        fileUrl = JSON.stringify(uploadedList);
+        fileName = uploadedList.map(f => f.name).join(', ');
       }
 
       const res = await fetch('/api/mentor/projects', {
@@ -245,7 +250,7 @@ export default function MentorProjectsPage() {
       setExpectedOutcome('');
       setWeeklyMilestones('');
       setInstructions('');
-      setFile(null);
+      setFiles([]);
       setSelectedInterns([]);
       setShowModal(false);
       fetchData();
@@ -560,17 +565,20 @@ export default function MentorProjectsPage() {
                 </label>
                 <input
                   type="file"
+                  multiple
                   accept=".pdf,.docx,.doc,.zip"
                   onChange={(e) => {
-                    if (e.target.files && e.target.files.length > 0) {
-                      const selectedFile = e.target.files[0];
-                      if (selectedFile.size > 10 * 1024 * 1024) {
-                        setError('File is too large (above 10MB). Cloudinary Free plan limits uploads to 10MB. Please compress your file or choose a smaller one.');
-                        setFile(null);
-                        e.target.value = '';
-                        return;
+                    if (e.target.files) {
+                      const selectedFiles = Array.from(e.target.files);
+                      for (const f of selectedFiles) {
+                        if (f.size > 10 * 1024 * 1024) {
+                          setError(`File "${f.name}" is too large (above 10MB). Cloudinary Free plan limits uploads to 10MB. Please choose smaller files.`);
+                          setFiles([]);
+                          e.target.value = '';
+                          return;
+                        }
                       }
-                      setFile(selectedFile);
+                      setFiles(selectedFiles);
                       setError('');
                     }
                   }}

@@ -120,6 +120,10 @@ export default function DailyTasksPage() {
   // Image upload indicators
   const [uploadingField, setUploadingField] = useState<string | null>(null);
 
+  // Extracted images from DOCX
+  const [extractedImages, setExtractedImages] = useState<{ name: string; url: string }[]>([]);
+  const [extracting, setExtracting] = useState<string | null>(null);
+
   // References for autofocus
   const questionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -607,6 +611,65 @@ export default function DailyTasksPage() {
     setImages((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const handleExtractImages = async (fileUrl: string, fileName: string) => {
+    setExtracting(fileName);
+    setError('');
+    try {
+      const res = await fetch(fileUrl);
+      if (!res.ok) throw new Error('Failed to fetch document file');
+      const arrayBuffer = await res.arrayBuffer();
+      
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(arrayBuffer);
+      const mediaFolder = zip.folder("word/media");
+      
+      if (!mediaFolder) {
+        throw new Error('No embedded images found in this document (word/media folder is missing).');
+      }
+
+      const files = mediaFolder.files;
+      const imagesFound: { name: string; url: string }[] = [];
+
+      for (const [name, fileData] of Object.entries(files)) {
+        if (fileData.dir) continue;
+        const blob = await fileData.async("blob");
+        const url = URL.createObjectURL(blob);
+        const baseName = name.split('/').pop() || name;
+        imagesFound.push({ name: baseName, url });
+      }
+
+      if (imagesFound.length === 0) {
+        throw new Error('No image files found inside this document.');
+      }
+
+      setExtractedImages(imagesFound);
+      setSuccess(`Successfully extracted ${imagesFound.length} images from ${fileName}!`);
+    } catch (err: any) {
+      setError(`Extraction failed: ${err.message}`);
+    } finally {
+      setExtracting(null);
+    }
+  };
+
+  const handleAttachExtractedImage = async (blobUrl: string, type: string) => {
+    setError('');
+    setSuccess('');
+    setUploadingField(type);
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      
+      const fileOfBlob = new File([blob], `extracted_${Date.now()}.png`, { type: 'image/png' });
+      const url = await uploadImageDirect(fileOfBlob, type);
+      setImages((prev) => [...prev, { imageUrl: url, type }]);
+      setSuccess(`Extracted image successfully uploaded and attached to ${type}!`);
+    } catch (err: any) {
+      setError(`Failed to attach image: ${err.message}`);
+    } finally {
+      setUploadingField(null);
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-[70vh] flex items-center justify-center">
@@ -626,13 +689,20 @@ export default function DailyTasksPage() {
 
   // Set up inline document viewer
   const fileUrl = selectedAsg?.task.fileUrl;
-  const isPdf = fileUrl?.toLowerCase().endsWith('.pdf') || fileUrl?.startsWith('data:application/pdf');
-  const isDocx = fileUrl?.toLowerCase().endsWith('.docx') || fileUrl?.toLowerCase().endsWith('.doc');
-  const docViewerUrl = isPdf
-    ? fileUrl
-    : isDocx
-      ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fileUrl || '')}`
-      : null;
+  const fileName = selectedAsg?.task.fileName;
+
+  let filesList: { url: string; name: string }[] = [];
+  if (fileUrl) {
+    if (fileUrl.startsWith('[')) {
+      try {
+        filesList = JSON.parse(fileUrl);
+      } catch (e) {
+        filesList = [{ url: fileUrl, name: fileName || 'worksheet' }];
+      }
+    } else {
+      filesList = [{ url: fileUrl, name: fileName || 'worksheet' }];
+    }
+  }
 
   // Academic hierarchy values based on selection
   const chapters = subject ? getChapters(subject, classVal) : [];
@@ -716,64 +786,134 @@ export default function DailyTasksPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[60vh]">
           
           {/* LEFT PANEL: Document Viewer */}
-          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[68vh] lg:h-auto">
+          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[75vh] lg:h-auto">
             <div className="p-4 border-b border-brand-border flex items-center justify-between shrink-0 bg-black/60">
               <span className="text-xs font-bold text-brand-gold uppercase tracking-wider flex items-center gap-1.5">
                 <FileText className="w-4 h-4" />
-                <span>Worksheet Attachment</span>
+                <span>Worksheet Attachments ({filesList.length})</span>
               </span>
-              
-              {docViewerUrl && (
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setPdfZoom((z) => Math.max(50, z - 10))}
-                    className="p-1 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
-                  >
-                    <ZoomOut className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="text-[10px] font-semibold text-brand-muted">{pdfZoom}%</span>
-                  <button
-                    onClick={() => setPdfZoom((z) => Math.min(200, z + 10))}
-                    className="p-1 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 transition cursor-pointer"
-                  >
-                    <ZoomIn className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between bg-zinc-950/40">
-              {docViewerUrl ? (
-                <div
-                  className="w-full h-full min-h-[500px] transition-transform duration-100 ease-out origin-top-left"
-                  style={{ transform: `scale(${pdfZoom / 100})`, width: `${100 / (pdfZoom / 100)}%`, height: `${100 / (pdfZoom / 100)}%` }}
-                >
-                  <iframe
-                    src={docViewerUrl}
-                    className="w-full h-full rounded-lg border border-brand-border bg-white"
-                  />
-                </div>
-              ) : fileUrl ? (
-                <div className="my-auto text-center space-y-4 max-w-sm mx-auto p-6 bg-black/60 border border-brand-border rounded-2xl">
-                  <FileText className="w-12 h-12 text-brand-gold mx-auto" />
-                  <div>
-                    <h4 className="font-bold text-white text-base truncate">{selectedAsg.task.fileName}</h4>
-                    <p className="text-xs text-brand-muted mt-1 leading-relaxed">
-                      Attachment format not previewable. Please download the file to view the worksheet.
-                    </p>
-                  </div>
-                  <a
-                    href={fileUrl}
-                    download
-                    className="w-full flex items-center justify-center gap-2 py-2 px-4 bg-zinc-900 border border-brand-border hover:bg-zinc-850 text-brand-gold text-xs font-semibold rounded-lg transition cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Download Worksheet</span>
-                  </a>
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between bg-zinc-950/40 space-y-4">
+              {filesList.length > 0 ? (
+                <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[55vh]">
+                  {filesList.map((file, idx) => {
+                    const isPdf = file.url.toLowerCase().endsWith('.pdf') || file.url.startsWith('data:application/pdf');
+                    const isDocx = file.url.toLowerCase().endsWith('.docx') || file.url.toLowerCase().endsWith('.doc');
+                    const docViewerUrl = isPdf
+                      ? file.url
+                      : isDocx
+                        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url || '')}`
+                        : null;
+
+                    return (
+                      <div key={idx} className="flex-1 min-w-[280px] h-[55vh] flex flex-col border border-brand-border/40 rounded-xl bg-black/40 p-3 overflow-hidden">
+                        <div className="text-xs text-white truncate font-semibold mb-2 flex justify-between items-center bg-black/60 p-2 rounded border border-brand-border/30">
+                          <span className="truncate max-w-[150px]">{file.name}</span>
+                          <div className="flex items-center gap-2">
+                            {isDocx && (
+                              <button
+                                onClick={() => handleExtractImages(file.url, file.name)}
+                                disabled={extracting === file.name}
+                                className="text-[10px] bg-brand-gold text-black px-2 py-0.5 rounded font-bold hover:bg-brand-gold-hover border-0 cursor-pointer disabled:opacity-50"
+                              >
+                                {extracting === file.name ? 'Extracting...' : 'Extract Images'}
+                              </button>
+                            )}
+                            <a href={file.url} download className="text-brand-gold hover:text-white transition shrink-0">
+                              <Download className="w-3.5 h-3.5" />
+                            </a>
+                          </div>
+                        </div>
+                        {docViewerUrl ? (
+                          <iframe
+                            src={docViewerUrl}
+                            className="w-full flex-1 rounded-lg border border-brand-border bg-white"
+                          />
+                        ) : (
+                          <div className="my-auto text-center space-y-4 p-4">
+                            <FileText className="w-12 h-12 text-brand-gold mx-auto" />
+                            <p className="text-xs text-brand-muted leading-relaxed">
+                              Format not previewable. Please download to view.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="my-auto text-center text-brand-muted italic py-12">
                   No worksheets attached for this task. Please read instructions.
+                </div>
+              )}
+
+              {/* Extracted Images gallery */}
+              {extractedImages.length > 0 && (
+                <div className="mt-4 p-4 bg-black/60 border border-brand-border rounded-xl shrink-0">
+                  <div className="flex justify-between items-center mb-3">
+                    <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4" />
+                      <span>Extracted Document Diagrams ({extractedImages.length})</span>
+                    </h4>
+                    <button
+                      onClick={() => setExtractedImages([])}
+                      className="text-xs text-red-400 hover:text-red-300 font-bold border-0 bg-transparent cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin max-w-full">
+                    {extractedImages.map((img, idx) => (
+                      <div key={idx} className="shrink-0 flex flex-col items-center bg-zinc-900 border border-brand-border/60 p-2 rounded-lg gap-2 group relative">
+                        <img src={img.url} alt={img.name} className="h-20 w-auto rounded object-contain bg-white" />
+                        <span className="text-[9px] text-zinc-400 max-w-[80px] truncate">{img.name}</span>
+                        
+                        {/* Hover Overlay Menu */}
+                        <div className="absolute inset-0 bg-black/90 opacity-0 group-hover:opacity-100 flex flex-col justify-center items-center gap-1 transition rounded-lg p-1">
+                          <span className="text-[8px] text-brand-gold font-bold mb-0.5">Attach to:</span>
+                          <div className="grid grid-cols-2 gap-1 w-full text-[8px]">
+                            <button
+                              onClick={() => handleAttachExtractedImage(img.url, 'QUESTION')}
+                              className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold"
+                            >
+                              Question
+                            </button>
+                            <button
+                              onClick={() => handleAttachExtractedImage(img.url, 'SOLUTION')}
+                              className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold"
+                            >
+                              Solution
+                            </button>
+                            <button
+                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_A')}
+                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
+                            >
+                              Opt A
+                            </button>
+                            <button
+                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_B')}
+                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
+                            >
+                              Opt B
+                            </button>
+                            <button
+                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_C')}
+                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
+                            >
+                              Opt C
+                            </button>
+                            <button
+                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_D')}
+                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
+                            >
+                              Opt D
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
