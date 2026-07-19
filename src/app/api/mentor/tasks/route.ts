@@ -117,6 +117,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No interns selected for assignment' }, { status: 400 });
     }
 
+    // Pre-fetch intern profiles outside the transaction to avoid multiple concurrent queries inside it
+    const interns = await prisma.internProfile.findMany({
+      where: { id: { in: assigneeIds } },
+    });
+
     // Create task and assignments in a transaction
     const result = await prisma.$transaction(async (tx) => {
       const task = await tx.task.create({
@@ -130,28 +135,40 @@ export async function POST(request: Request) {
         },
       });
 
-      const assignments = await Promise.all(
-        assigneeIds.map(async (internId) => {
-          const intern = await tx.internProfile.findUnique({ where: { id: internId } });
+      const notificationData = assigneeIds.map((internId) => {
+        const intern = interns.find(i => i.id === internId);
+        return {
+          userId: intern?.userId || '',
+          content: "Your mentor has assigned a new Daily Task.",
+          type: 'TASK_ASSIGNED',
+        };
+      }).filter(n => n.userId !== '');
 
-          if (intern) {
-            const timeStr = deadlineDays === 23 ? '23:59:59' : `${deadlineDays}:00:00`;
-            await tx.notification.create({
-              data: {
-                userId: intern.userId,
-                content: "Your mentor has assigned a new Daily Task.",
-                type: 'TASK_ASSIGNED',
-              },
-            });
-          }
+      if (notificationData.length > 0) {
+        await tx.notification.createMany({
+          data: notificationData,
+        });
+      }
 
-          return tx.taskAssignment.create({
-            data: { taskId: task.id, internId, status: 'ASSIGNED' },
-          });
-        })
-      );
+      const assignmentData = assigneeIds.map((internId) => ({
+        taskId: task.id,
+        internId,
+        status: 'ASSIGNED',
+      }));
+
+      await tx.taskAssignment.createMany({
+        data: assignmentData,
+      });
+
+      // Retrieve the created assignments to return in the response
+      const assignments = await tx.taskAssignment.findMany({
+        where: { taskId: task.id },
+        include: { intern: true },
+      });
 
       return { task, assignments };
+    }, {
+      timeout: 15000, // Extend interactive transaction timeout to 15s to handle high-latency connections
     });
 
     return NextResponse.json(result);
