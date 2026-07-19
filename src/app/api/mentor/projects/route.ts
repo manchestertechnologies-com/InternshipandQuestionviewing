@@ -94,26 +94,32 @@ export async function POST(request: Request) {
       },
     });
 
-    for (const internId of internIds) {
-      const assignment = await prisma.domainProjectAssignment.create({
-        data: {
-          projectId: project.id,
-          internId,
-          status: 'ASSIGNED',
-          progress: 0,
-        },
-        include: {
-          intern: true,
-        },
-      });
+    // Fetch intern profiles to map user IDs
+    const interns = await prisma.internProfile.findMany({
+      where: { id: { in: internIds } },
+      select: { id: true, userId: true },
+    });
 
-      // Send in-app notification
-      await prisma.notification.create({
-        data: {
-          userId: assignment.intern.userId,
-          content: `Your mentor assigned a new Domain Project: "${title}". Check the Domain Project tab.`,
-          type: 'ANNOUNCEMENT',
-        },
+    const assignmentData = internIds.map((internId) => ({
+      projectId: project.id,
+      internId,
+      status: 'ASSIGNED',
+      progress: 0,
+    }));
+
+    await prisma.domainProjectAssignment.createMany({
+      data: assignmentData,
+    });
+
+    const notificationData = interns.map((intern) => ({
+      userId: intern.userId,
+      content: `Your mentor assigned a new Domain Project: "${title}". Check the Domain Project tab.`,
+      type: 'ANNOUNCEMENT',
+    }));
+
+    if (notificationData.length > 0) {
+      await prisma.notification.createMany({
+        data: notificationData,
       });
     }
 

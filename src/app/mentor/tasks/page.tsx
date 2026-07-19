@@ -46,6 +46,7 @@ export default function TaskAssignmentPage() {
   const [selectedInterns, setSelectedInterns] = useState<string[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -104,65 +105,70 @@ export default function TaskAssignmentPage() {
 
       // 1. Upload file to Cloudinary from client side if selected, fallback to local upload if disabled/fails
       if (file) {
-        let uploaded = false;
-        let lastErrorMsg = '';
-
+        setUploadingFile(true);
         try {
-          const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/tasks');
-          if (!signRes.ok) {
-            const errData = await signRes.json().catch(() => ({}));
-            throw new Error(errData.error || 'Failed to generate upload signature');
-          }
-          const signData = await signRes.json();
-          const { signature, timestamp, folder, apiKey, cloudName } = signData;
+          let uploaded = false;
+          let lastErrorMsg = '';
 
-          const ext = file.name.split('.').pop()?.toLowerCase() || '';
-          const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc') ? 'raw' : 'auto';
-
-          const cloudinaryData = new FormData();
-          cloudinaryData.append('file', file);
-          cloudinaryData.append('api_key', apiKey);
-          cloudinaryData.append('timestamp', timestamp.toString());
-          cloudinaryData.append('signature', signature);
-          cloudinaryData.append('folder', folder);
-
-          const cloudinaryRes = await fetch(
-            `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-            {
-              method: 'POST',
-              body: cloudinaryData,
+          try {
+            const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/tasks');
+            if (!signRes.ok) {
+              const errData = await signRes.json().catch(() => ({}));
+              throw new Error(errData.error || 'Failed to generate upload signature');
             }
-          );
+            const signData = await signRes.json();
+            const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
-          if (cloudinaryRes.ok) {
-            const uploadResult = await cloudinaryRes.json();
-            fileUrl = uploadResult.secure_url;
+            const ext = file.name.split('.').pop()?.toLowerCase() || '';
+            const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc') ? 'raw' : 'auto';
+
+            const cloudinaryData = new FormData();
+            cloudinaryData.append('file', file);
+            cloudinaryData.append('api_key', apiKey);
+            cloudinaryData.append('timestamp', timestamp.toString());
+            cloudinaryData.append('signature', signature);
+            cloudinaryData.append('folder', folder);
+
+            const cloudinaryRes = await fetch(
+              `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+              {
+                method: 'POST',
+                body: cloudinaryData,
+              }
+            );
+
+            if (cloudinaryRes.ok) {
+              const uploadResult = await cloudinaryRes.json();
+              fileUrl = uploadResult.secure_url;
+              fileName = file.name;
+              uploaded = true;
+            } else {
+              const errResult = await cloudinaryRes.json().catch(() => ({}));
+              lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
+              console.warn('Cloudinary responded with error, trying local upload:', lastErrorMsg);
+            }
+          } catch (e: any) {
+            lastErrorMsg = e.message || String(e);
+            console.warn('Client-side Cloudinary upload failed, attempting local upload:', e);
+          }
+
+          if (!uploaded) {
+            const localFormData = new FormData();
+            localFormData.append('file', file);
+            const localRes = await fetch('/api/upload', {
+              method: 'POST',
+              body: localFormData,
+            });
+            if (!localRes.ok) {
+              const errData = await localRes.json().catch(() => ({}));
+              throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
+            }
+            const localResult = await localRes.json();
+            fileUrl = localResult.secure_url;
             fileName = file.name;
-            uploaded = true;
-          } else {
-            const errResult = await cloudinaryRes.json().catch(() => ({}));
-            lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
-            console.warn('Cloudinary responded with error, trying local upload:', lastErrorMsg);
           }
-        } catch (e: any) {
-          lastErrorMsg = e.message || String(e);
-          console.warn('Client-side Cloudinary upload failed, attempting local upload:', e);
-        }
-
-        if (!uploaded) {
-          const localFormData = new FormData();
-          localFormData.append('file', file);
-          const localRes = await fetch('/api/upload', {
-            method: 'POST',
-            body: localFormData,
-          });
-          if (!localRes.ok) {
-            const errData = await localRes.json().catch(() => ({}));
-            throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
-          }
-          const localResult = await localRes.json();
-          fileUrl = localResult.secure_url;
-          fileName = file.name;
+        } finally {
+          setUploadingFile(false);
         }
       }
 
@@ -450,7 +456,7 @@ export default function TaskAssignmentPage() {
                   disabled={submitting}
                   className="flex-1 py-2.5 px-4 rounded-lg bg-brand-gold hover:bg-brand-gold-hover text-black text-sm font-bold transition cursor-pointer btn-gold border-0"
                 >
-                  {submitting ? 'Assigning...' : 'Assign Task'}
+                  {submitting ? (uploadingFile ? 'Uploading Worksheet...' : 'Assigning Task...') : 'Assign Task'}
                 </button>
               </div>
             </form>

@@ -160,18 +160,18 @@ export async function POST(request: Request) {
         data: assignmentData,
       });
 
-      // Retrieve the created assignments to return in the response
-      const assignments = await tx.taskAssignment.findMany({
-        where: { taskId: task.id },
-        include: { intern: true },
-      });
-
-      return { task, assignments };
+      return { task };
     }, {
       timeout: 15000, // Extend interactive transaction timeout to 15s to handle high-latency connections
     });
 
-    return NextResponse.json(result);
+    // Retrieve the created assignments to return in the response outside the transaction
+    const assignments = await prisma.taskAssignment.findMany({
+      where: { taskId: result.task.id },
+      include: { intern: true },
+    });
+
+    return NextResponse.json({ task: result.task, assignments });
   } catch (err: any) {
     console.error('Task creation error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });
