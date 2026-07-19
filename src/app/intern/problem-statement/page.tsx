@@ -87,10 +87,14 @@ export default function DomainProjectsPage() {
       let fileUrl = '';
       let uploaded = false;
 
+      let lastErrorMsg = '';
       try {
         // 1. Get Cloudinary signature from our local API
         const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/weekly-submissions');
-        if (!signRes.ok) throw new Error('Failed to generate upload signature');
+        if (!signRes.ok) {
+          const errData = await signRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to generate upload signature');
+        }
         const signData = await signRes.json();
         const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
@@ -119,9 +123,12 @@ export default function DomainProjectsPage() {
           fileUrl = uploadResult.secure_url;
           uploaded = true;
         } else {
-          console.warn('Cloudinary upload failed, attempting local upload...');
+          const errResult = await cloudinaryRes.json().catch(() => ({}));
+          lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
+          console.warn('Cloudinary upload failed, attempting local upload:', lastErrorMsg);
         }
-      } catch (e) {
+      } catch (e: any) {
+        lastErrorMsg = e.message || String(e);
         console.warn('Cloudinary upload threw error, trying local upload:', e);
       }
 
@@ -133,7 +140,8 @@ export default function DomainProjectsPage() {
           body: localFormData,
         });
         if (!localRes.ok) {
-          throw new Error('Both Cloudinary and Local file upload failed.');
+          const errData = await localRes.json().catch(() => ({}));
+          throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
         }
         const localResult = await localRes.json();
         fileUrl = localResult.secure_url;

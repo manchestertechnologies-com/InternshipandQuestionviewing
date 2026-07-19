@@ -295,10 +295,14 @@ export default function DailyTasksPage() {
 
   const uploadImageDirect = async (fileBlob: Blob, type: string): Promise<string> => {
     setUploadingField(type);
+    let lastErrorMsg = '';
     try {
       try {
         const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/question-images');
-        if (!signRes.ok) throw new Error('Failed to generate upload signature');
+        if (!signRes.ok) {
+          const errData = await signRes.json().catch(() => ({}));
+          throw new Error(errData.error || 'Failed to generate upload signature');
+        }
         const signData = await signRes.json();
         const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
@@ -321,9 +325,12 @@ export default function DailyTasksPage() {
           const uploadResult = await cloudinaryRes.json();
           return uploadResult.secure_url;
         } else {
-          console.warn('Cloudinary image upload failed, trying local upload...');
+          const errResult = await cloudinaryRes.json().catch(() => ({}));
+          lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
+          console.warn('Cloudinary image upload failed, trying local upload:', lastErrorMsg);
         }
-      } catch (e) {
+      } catch (e: any) {
+        lastErrorMsg = e.message || String(e);
         console.warn('Cloudinary image upload threw error, trying local upload:', e);
       }
 
@@ -337,7 +344,8 @@ export default function DailyTasksPage() {
         body: localFormData,
       });
       if (!localRes.ok) {
-        throw new Error('Both Cloudinary and Local file upload failed.');
+        const errData = await localRes.json().catch(() => ({}));
+        throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
       }
       const localResult = await localRes.json();
       return localResult.secure_url;

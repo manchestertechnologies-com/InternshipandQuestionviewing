@@ -134,9 +134,13 @@ export default function MentorProjectsPage() {
   };
 
   const uploadFileDirect = async (targetFile: File, folderName: string): Promise<string> => {
+    let lastErrorMsg = '';
     try {
       const signRes = await fetch(`/api/cloudinary/sign?folder=${encodeURIComponent(folderName)}`);
-      if (!signRes.ok) throw new Error('Failed to generate upload signature');
+      if (!signRes.ok) {
+        const errData = await signRes.json().catch(() => ({}));
+        throw new Error(errData.error || 'Failed to generate upload signature');
+      }
       const signData = await signRes.json();
       const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
@@ -162,9 +166,12 @@ export default function MentorProjectsPage() {
         const uploadResult = await cloudinaryRes.json();
         return uploadResult.secure_url;
       } else {
-        console.warn('Cloudinary upload direct failed, trying local upload...');
+        const errResult = await cloudinaryRes.json().catch(() => ({}));
+        lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
+        console.warn('Cloudinary upload direct failed, trying local upload:', lastErrorMsg);
       }
-    } catch (e) {
+    } catch (e: any) {
+      lastErrorMsg = e.message || String(e);
       console.warn('Cloudinary upload direct threw error, trying local upload:', e);
     }
 
@@ -176,7 +183,8 @@ export default function MentorProjectsPage() {
       body: localFormData,
     });
     if (!localRes.ok) {
-      throw new Error('Both Cloudinary and Local file upload failed.');
+      const errData = await localRes.json().catch(() => ({}));
+      throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
     }
     const localResult = await localRes.json();
     return localResult.secure_url;
