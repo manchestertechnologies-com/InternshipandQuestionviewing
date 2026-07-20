@@ -75,6 +75,7 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [viewEngine, setViewEngine] = useState<'NATIVE' | 'MOZILLA' | 'GOOGLE'>('NATIVE');
 
   useEffect(() => {
     let isMounted = true;
@@ -169,14 +170,24 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
     );
   }
 
+  const activeUrl = blobUrl || url;
+  const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
+  const mozillaPdfJsUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(activeUrl)}`;
+
   return (
-    <object data={blobUrl || url} type="application/pdf" className="w-full h-full min-h-[55vh]">
-      <iframe
-        src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(blobUrl || url)}`}
-        className="w-full h-full min-h-[55vh] border-0 bg-white"
-        title={name}
-      />
-    </object>
+    <div className="w-full h-full flex flex-col min-h-[55vh]">
+      <div className="w-full flex-1 relative bg-white min-h-[50vh]">
+        {viewEngine === 'NATIVE' ? (
+          <object data={activeUrl} type="application/pdf" className="w-full h-full min-h-[50vh]">
+            <iframe src={mozillaPdfJsUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
+          </object>
+        ) : viewEngine === 'MOZILLA' ? (
+          <iframe src={mozillaPdfJsUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
+        ) : (
+          <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
+        )}
+      </div>
+    </div>
   );
 }
 
