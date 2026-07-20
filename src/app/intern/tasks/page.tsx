@@ -1816,17 +1816,17 @@ export default function DailyTasksPage() {
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <a
-                  href={fullscreenDoc.url}
+                  href={fullscreenDoc.isPdf ? (fullscreenDoc.url.includes('res.cloudinary.com') && fullscreenDoc.url.includes('/raw/upload/') ? fullscreenDoc.url.replace('/raw/upload/', '/image/upload/') : fullscreenDoc.url) : fullscreenDoc.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                  className="flex items-center gap-1.5 bg-brand-gold text-black px-3.5 py-1.5 rounded-lg text-xs font-bold transition hover:bg-brand-gold-hover"
                 >
                   <ExternalLink className="w-4 h-4" /> Open in Browser Tab
                 </a>
                 <a
                   href={fullscreenDoc.url}
                   download
-                  className="flex items-center gap-1.5 bg-brand-gold hover:bg-brand-gold-hover text-black px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                  className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
                 >
                   <Download className="w-4 h-4" /> Download
                 </a>
@@ -1838,13 +1838,26 @@ export default function DailyTasksPage() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 bg-white rounded-xl overflow-hidden min-h-0">
+            <div className="flex-1 bg-white rounded-xl overflow-hidden min-h-0 relative">
               {fullscreenDoc.isPdf ? (
-                <object data={fullscreenDoc.url} type="application/pdf" className="w-full h-full">
-                  <iframe src={`https://docs.google.com/gview?url=${encodeURIComponent(fullscreenDoc.url)}&embedded=true`} className="w-full h-full" />
-                </object>
+                (() => {
+                  let modalPdfUrl = fullscreenDoc.url;
+                  if (modalPdfUrl.includes('res.cloudinary.com')) {
+                    if (modalPdfUrl.includes('/raw/upload/')) {
+                      modalPdfUrl = modalPdfUrl.replace('/raw/upload/', '/image/upload/');
+                    }
+                    if (!modalPdfUrl.toLowerCase().endsWith('.pdf') && !modalPdfUrl.includes('?')) {
+                      modalPdfUrl = `${modalPdfUrl}.pdf`;
+                    }
+                  }
+                  return (
+                    <object data={modalPdfUrl} type="application/pdf" className="w-full h-full min-h-[70vh]">
+                      <iframe src={modalPdfUrl} className="w-full h-full border-0 min-h-[70vh]" title={fullscreenDoc.name} />
+                    </object>
+                  );
+                })()
               ) : (
-                <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullscreenDoc.url)}`} className="w-full h-full" />
+                <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullscreenDoc.url)}`} className="w-full h-full border-0" title={fullscreenDoc.name} />
               )}
             </div>
           </div>
