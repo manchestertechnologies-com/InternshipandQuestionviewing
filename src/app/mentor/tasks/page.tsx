@@ -101,46 +101,6 @@ export default function TaskAssignmentPage() {
   };
 
   const uploadFileDirect = async (targetFile: File, folderName: string): Promise<string> => {
-    let lastErrorMsg = '';
-    try {
-      const signRes = await fetch(`/api/cloudinary/sign?folder=${encodeURIComponent(folderName)}`);
-      if (signRes.ok) {
-        const signData = await signRes.json();
-        const { signature, timestamp, folder, apiKey, cloudName } = signData;
-
-        const ext = targetFile.name.split('.').pop()?.toLowerCase() || '';
-        const resourceType = 'auto';
-
-        const cloudinaryData = new FormData();
-        cloudinaryData.append('file', targetFile);
-        cloudinaryData.append('api_key', apiKey);
-        cloudinaryData.append('timestamp', timestamp.toString());
-        cloudinaryData.append('signature', signature);
-        cloudinaryData.append('folder', folder);
-
-        const cloudinaryRes = await fetch(
-          `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-          {
-            method: 'POST',
-            body: cloudinaryData,
-          }
-        );
-
-        if (cloudinaryRes.ok) {
-          const uploadResult = await cloudinaryRes.json();
-          return uploadResult.secure_url;
-        } else {
-          const errResult = await cloudinaryRes.json().catch(() => ({}));
-          lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
-          console.warn('Cloudinary upload direct failed, falling back to local upload:', lastErrorMsg);
-        }
-      }
-    } catch (e: any) {
-      lastErrorMsg = e.message || String(e);
-      console.warn('Cloudinary upload threw error, falling back to local upload:', e);
-    }
-
-    // Local upload fallback
     const localFormData = new FormData();
     localFormData.append('file', targetFile);
     const localRes = await fetch('/api/upload', {
@@ -149,10 +109,10 @@ export default function TaskAssignmentPage() {
     });
     if (!localRes.ok) {
       const errData = await localRes.json().catch(() => ({}));
-      throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
+      throw new Error(errData.error || 'Upload failed: Internal server error');
     }
     const localResult = await localRes.json();
-    return localResult.secure_url;
+    return localResult.secure_url || localResult.url;
   };
 
   const handleCreateTask = async (e: React.FormEvent) => {
