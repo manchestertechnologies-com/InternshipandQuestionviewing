@@ -24,21 +24,22 @@ export async function uploadToCloudinary(
   fileName: string,
   folder: string
 ): Promise<{ url: string; publicId: string }> {
-  // First, check if Cloudinary keys exist
   const isCloudinaryConfigured = cloudName && apiKey && apiSecret;
+  const randomId = Math.random().toString(36).substring(2, 7);
+  const safeName = `${Date.now()}_${randomId}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
   if (isCloudinaryConfigured) {
     try {
       const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
       const resourceType: 'image' | 'raw' | 'auto' =
-        ext === 'pdf' ? 'raw' : ext === 'docx' || ext === 'doc' ? 'raw' : 'auto';
+        ext === 'pdf' ? 'image' : ext === 'docx' || ext === 'doc' ? 'raw' : 'auto';
 
       const result = await new Promise<{ url: string; publicId: string }>((resolve, reject) => {
         const uploadStream = cloudinary.uploader.upload_stream(
           {
             folder,
             resource_type: resourceType,
-            public_id: `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+            public_id: safeName,
             use_filename: false,
           },
           (error, result) => {
@@ -59,9 +60,7 @@ export async function uploadToCloudinary(
     const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     await fs.mkdir(uploadDir, { recursive: true });
 
-    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
     const filePath = path.join(uploadDir, safeName);
-    
     await fs.writeFile(filePath, buffer);
     const localUrl = `/uploads/${safeName}`;
     return { url: localUrl, publicId: safeName };

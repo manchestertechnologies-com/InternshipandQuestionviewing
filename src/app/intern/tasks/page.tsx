@@ -17,7 +17,10 @@ import {
   ZoomIn,
   ZoomOut,
   Paperclip,
-  X
+  X,
+  Copy,
+  ExternalLink,
+  Maximize2
 } from 'lucide-react';
 import ImageCropper from '@/components/ImageCropper';
 import { ACADEMIC_HIERARCHY, getChapters, getConcepts } from '@/lib/academicHierarchy';
@@ -133,6 +136,11 @@ export default function DailyTasksPage() {
 
   // Zoom for PDF/DOCX
   const [pdfZoom, setPdfZoom] = useState(100);
+
+  // Tabbed attachment viewer state
+  const [activeFileIndex, setActiveFileIndex] = useState(0);
+  const [pdfEngine, setPdfEngine] = useState<'NATIVE' | 'GOOGLE'>('NATIVE');
+  const [fullscreenDoc, setFullscreenDoc] = useState<{ url: string; name: string; isPdf: boolean } | null>(null);
 
   // Countdown timer state
   const [timeLeft, setTimeLeft] = useState<{ days: number; hours: number; mins: number; secs: number } | null>(null);
@@ -670,6 +678,32 @@ export default function DailyTasksPage() {
     }
   };
 
+  const [zoomedImage, setZoomedImage] = useState<{ name: string; url: string } | null>(null);
+
+  const handleCopyExtractedImage = async (blobUrl: string) => {
+    setError('');
+    setSuccess('');
+    try {
+      const response = await fetch(blobUrl);
+      const blob = await response.blob();
+      if (navigator.clipboard && window.ClipboardItem) {
+        const item = new ClipboardItem({ [blob.type || 'image/png']: blob });
+        await navigator.clipboard.write([item]);
+        setSuccess('Image copied to clipboard! You can paste (Ctrl+V) it anywhere.');
+      } else {
+        await navigator.clipboard.writeText(blobUrl);
+        setSuccess('Image URL copied to clipboard!');
+      }
+    } catch (err: any) {
+      try {
+        await navigator.clipboard.writeText(blobUrl);
+        setSuccess('Image URL copied to clipboard!');
+      } catch (e: any) {
+        setError('Could not copy image automatically. Right-click the image and select "Copy image".');
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="h-[70vh] flex items-center justify-center">
@@ -722,6 +756,7 @@ export default function DailyTasksPage() {
               const matched = assignments.find((a) => a.id === e.target.value);
               if (matched) {
                 setSelectedAsg(matched);
+                setActiveFileIndex(0);
                 clearForm();
               }
             }}
@@ -785,130 +820,284 @@ export default function DailyTasksPage() {
       {selectedAsg && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[60vh]">
           
-          {/* LEFT PANEL: Document Viewer */}
-          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[75vh] lg:h-auto">
-            <div className="p-4 border-b border-brand-border flex items-center justify-between shrink-0 bg-black/60">
-              <span className="text-xs font-bold text-brand-gold uppercase tracking-wider flex items-center gap-1.5">
-                <FileText className="w-4 h-4" />
-                <span>Worksheet Attachments ({filesList.length})</span>
-              </span>
+          {/* LEFT PANEL: Document Viewer with Attachment Tabs */}
+          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[82vh] lg:h-auto">
+            {/* Header Tabs */}
+            <div className="p-3 border-b border-brand-border flex flex-wrap items-center justify-between gap-2 bg-black/60 shrink-0">
+              <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 scrollbar-thin">
+                <span className="text-xs font-bold text-brand-gold uppercase tracking-wider flex items-center gap-1.5 shrink-0 mr-1">
+                  <FileText className="w-4 h-4" />
+                  <span>Worksheets ({filesList.length}):</span>
+                </span>
+
+                {filesList.map((file, idx) => {
+                  const lowerName = (file.name || '').toLowerCase();
+                  const lowerUrl = (file.url || '').toLowerCase();
+                  const isPdf = lowerName.endsWith('.pdf') || lowerUrl.includes('.pdf');
+                  const isDocx = lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerUrl.includes('.docx');
+
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setActiveFileIndex(idx)}
+                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition border flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                        activeFileIndex === idx
+                          ? 'bg-brand-gold text-black border-brand-gold font-bold shadow-md'
+                          : 'bg-zinc-900 text-zinc-300 border-brand-border/60 hover:border-brand-gold/50'
+                      }`}
+                    >
+                      <span className="truncate max-w-[150px]">{file.name}</span>
+                      <span className="text-[9px] opacity-75 uppercase px-1 py-0.2 rounded bg-black/20 font-mono">
+                        {isPdf ? 'PDF' : isDocx ? 'DOCX' : 'FILE'}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col justify-between bg-zinc-950/40 space-y-4">
+            {/* Active File Content Container - FULL WIDTH & ENLARGED */}
+            <div className="flex-1 overflow-y-auto p-4 flex flex-col bg-zinc-950/40 space-y-4">
               {filesList.length > 0 ? (
-                <div className="flex flex-col xl:flex-row gap-4 w-full xl:h-[55vh]">
-                  {filesList.map((file, idx) => {
-                    const isPdf = file.url.toLowerCase().endsWith('.pdf') || file.url.startsWith('data:application/pdf');
-                    const isDocx = file.url.toLowerCase().endsWith('.docx') || file.url.toLowerCase().endsWith('.doc');
-                    const docViewerUrl = isPdf
-                      ? file.url
-                      : isDocx
-                        ? `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(file.url || '')}`
-                        : null;
+                (() => {
+                  const currentFile = filesList[activeFileIndex] || filesList[0];
+                  const lowerUrl = (currentFile.url || '').toLowerCase();
+                  const lowerName = (currentFile.name || '').toLowerCase();
+                  const isPdf = lowerName.endsWith('.pdf') || lowerUrl.includes('.pdf') || lowerUrl.startsWith('data:application/pdf');
+                  const isDocx = lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerUrl.includes('.docx') || lowerUrl.includes('.doc');
 
-                    return (
-                      <div key={idx} className="flex-1 min-w-[280px] h-[55vh] flex flex-col border border-brand-border/40 rounded-xl bg-black/40 p-3 overflow-hidden">
-                        <div className="text-xs text-white truncate font-semibold mb-2 flex justify-between items-center bg-black/60 p-2 rounded border border-brand-border/30">
-                          <span className="truncate max-w-[150px]">{file.name}</span>
-                          <div className="flex items-center gap-2">
-                            {isDocx && (
-                              <button
-                                onClick={() => handleExtractImages(file.url, file.name)}
-                                disabled={extracting === file.name}
-                                className="text-[10px] bg-brand-gold text-black px-2 py-0.5 rounded font-bold hover:bg-brand-gold-hover border-0 cursor-pointer disabled:opacity-50"
-                              >
-                                {extracting === file.name ? 'Extracting...' : 'Extract Images'}
-                              </button>
-                            )}
-                            <a href={file.url} download className="text-brand-gold hover:text-white transition shrink-0">
-                              <Download className="w-3.5 h-3.5" />
-                            </a>
-                          </div>
+                  const getSafePdfUrl = (url: string) => {
+                    if (!url) return '';
+                    if (url.includes('res.cloudinary.com') && url.includes('/raw/upload/')) {
+                      return url.replace('/raw/upload/', '/image/upload/');
+                    }
+                    return url;
+                  };
+
+                  const safePdfUrl = getSafePdfUrl(currentFile.url);
+                  const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(safePdfUrl)}&embedded=true`;
+                  const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentFile.url || '')}`;
+
+                  return (
+                    <div className="w-full flex-1 flex flex-col border border-brand-border/40 rounded-xl bg-black/40 p-3 overflow-hidden min-h-[58vh]">
+                      {/* Active File Header Toolbar */}
+                      <div className="text-xs text-white font-semibold mb-3 flex flex-wrap justify-between items-center bg-black/60 p-2.5 rounded border border-brand-border/30 gap-2 shrink-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <FileText className="w-4 h-4 text-brand-gold shrink-0" />
+                          <span className="truncate max-w-[200px] text-xs font-bold text-white">{currentFile.name}</span>
                         </div>
-                        {docViewerUrl ? (
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {isDocx && (
+                            <button
+                              onClick={() => handleExtractImages(currentFile.url, currentFile.name)}
+                              disabled={extracting === currentFile.name}
+                              className="text-xs bg-brand-gold text-black px-3 py-1 rounded font-bold hover:bg-brand-gold-hover border-0 cursor-pointer disabled:opacity-50 transition shadow"
+                            >
+                              {extracting === currentFile.name ? 'Extracting...' : 'Extract Images'}
+                            </button>
+                          )}
+
+                          {isPdf && (
+                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded border border-brand-border/40">
+                              <button
+                                onClick={() => setPdfEngine('NATIVE')}
+                                className={`text-[10px] px-2 py-0.5 rounded font-bold transition border-0 cursor-pointer ${
+                                  pdfEngine === 'NATIVE' ? 'bg-brand-gold text-black' : 'text-zinc-400 hover:text-white'
+                                }`}
+                                title="Use Browser Native PDF Viewer"
+                              >
+                                Native PDF
+                              </button>
+                              <button
+                                onClick={() => setPdfEngine('GOOGLE')}
+                                className={`text-[10px] px-2 py-0.5 rounded font-bold transition border-0 cursor-pointer ${
+                                  pdfEngine === 'GOOGLE' ? 'bg-brand-gold text-black' : 'text-zinc-400 hover:text-white'
+                                }`}
+                                title="Use Google Docs Viewer Engine"
+                              >
+                                Google Engine
+                              </button>
+                            </div>
+                          )}
+
+                          <button
+                            onClick={() => setFullscreenDoc({ url: safePdfUrl, name: currentFile.name, isPdf })}
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shrink-0 border-0 cursor-pointer"
+                            title="Enlarge Fullscreen"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                            <span>Enlarge</span>
+                          </button>
+
+                          <a
+                            href={safePdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shrink-0"
+                            title="Open in New Browser Tab"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            <span>Open Tab</span>
+                          </a>
+
+                          <a
+                            href={currentFile.url}
+                            download
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-brand-gold px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shrink-0"
+                            title="Download File"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>Download</span>
+                          </a>
+                        </div>
+                      </div>
+
+                      {/* Main Document Viewer Frame */}
+                      <div className="w-full flex-1 rounded-lg border border-brand-border bg-white overflow-hidden relative min-h-[50vh]">
+                        {isPdf ? (
+                          pdfEngine === 'NATIVE' ? (
+                            <object
+                              data={safePdfUrl}
+                              type="application/pdf"
+                              className="w-full h-full min-h-[50vh]"
+                            >
+                              <iframe
+                                src={googleDocsViewerUrl}
+                                className="w-full h-full min-h-[50vh]"
+                              />
+                            </object>
+                          ) : (
+                            <iframe
+                              src={googleDocsViewerUrl}
+                              className="w-full h-full min-h-[50vh]"
+                            />
+                          )
+                        ) : isDocx ? (
                           <iframe
-                            src={docViewerUrl}
-                            className="w-full flex-1 rounded-lg border border-brand-border bg-white"
+                            src={officeViewerUrl}
+                            className="w-full h-full min-h-[50vh]"
                           />
                         ) : (
-                          <div className="my-auto text-center space-y-4 p-4">
-                            <FileText className="w-12 h-12 text-brand-gold mx-auto" />
+                          <div className="h-full flex flex-col items-center justify-center p-6 space-y-4 bg-zinc-950 text-center">
+                            <FileText className="w-16 h-16 text-brand-gold" />
                             <p className="text-xs text-brand-muted leading-relaxed">
-                              Format not previewable. Please download to view.
+                              Format not previewable inline.
                             </p>
+                            <a
+                              href={currentFile.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 bg-brand-gold text-black px-4 py-2 rounded-lg font-bold hover:bg-brand-gold-hover transition"
+                            >
+                              <ExternalLink className="w-4 h-4" /> Open File in Browser Tab
+                            </a>
                           </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="my-auto text-center text-brand-muted italic py-12">
                   No worksheets attached for this task. Please read instructions.
                 </div>
               )}
 
-              {/* Extracted Images gallery */}
+              {/* Extracted Images gallery - LARGE & EASY TO COPY */}
               {extractedImages.length > 0 && (
-                <div className="mt-4 p-4 bg-black/60 border border-brand-border rounded-xl shrink-0">
-                  <div className="flex justify-between items-center mb-3">
-                    <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold flex items-center gap-1.5">
-                      <ImageIcon className="w-4 h-4" />
-                      <span>Extracted Document Diagrams ({extractedImages.length})</span>
-                    </h4>
+                <div className="mt-4 p-4 bg-black/80 border border-brand-border rounded-xl shrink-0">
+                  <div className="flex justify-between items-center mb-3 border-b border-brand-border/40 pb-2">
+                    <div>
+                      <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold flex items-center gap-1.5">
+                        <ImageIcon className="w-4 h-4" />
+                        <span>Extracted Document Diagrams ({extractedImages.length})</span>
+                      </h4>
+                      <p className="text-[10px] text-zinc-400 mt-0.5">Large view for easy viewing & copying. Click "Copy Image" to copy to clipboard.</p>
+                    </div>
                     <button
                       onClick={() => setExtractedImages([])}
                       className="text-xs text-red-400 hover:text-red-300 font-bold border-0 bg-transparent cursor-pointer"
                     >
-                      Clear
+                      Clear Gallery
                     </button>
                   </div>
-                  <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin max-w-full">
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto p-1 scrollbar-thin">
                     {extractedImages.map((img, idx) => (
-                      <div key={idx} className="shrink-0 flex flex-col items-center bg-zinc-900 border border-brand-border/60 p-2 rounded-lg gap-2 group relative">
-                        <img src={img.url} alt={img.name} className="h-20 w-auto rounded object-contain bg-white" />
-                        <span className="text-[9px] text-zinc-400 max-w-[80px] truncate">{img.name}</span>
-                        
-                        {/* Hover Overlay Menu */}
-                        <div className="absolute inset-0 bg-black/90 opacity-0 group-hover:opacity-100 flex flex-col justify-center items-center gap-1 transition rounded-lg p-1">
-                          <span className="text-[8px] text-brand-gold font-bold mb-0.5">Attach to:</span>
-                          <div className="grid grid-cols-2 gap-1 w-full text-[8px]">
+                      <div key={idx} className="flex flex-col bg-zinc-950 border border-brand-border/70 rounded-xl p-3 space-y-3 hover:border-brand-gold/40 transition shadow-lg">
+                        {/* Image Container - BIG AND LARGE */}
+                        <div className="relative bg-white/95 rounded-lg p-2 flex items-center justify-center h-[180px] overflow-hidden border border-zinc-200">
+                          <img
+                            src={img.url}
+                            alt={img.name}
+                            className="max-h-[170px] w-auto object-contain cursor-pointer transition transform hover:scale-[1.02]"
+                            onClick={() => setZoomedImage(img)}
+                          />
+                          <button
+                            onClick={() => setZoomedImage(img)}
+                            className="absolute top-2 right-2 bg-black/75 hover:bg-black text-white p-1.5 rounded-md text-xs flex items-center gap-1 border-0 cursor-pointer"
+                            title="Zoom image"
+                          >
+                            <Maximize2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Action Toolbar */}
+                        <div className="flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] text-zinc-300 font-semibold truncate max-w-[140px]">{img.name}</span>
                             <button
-                              onClick={() => handleAttachExtractedImage(img.url, 'QUESTION')}
-                              className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold"
+                              onClick={() => handleCopyExtractedImage(img.url)}
+                              className="flex items-center gap-1 bg-brand-gold hover:bg-brand-gold-hover text-black px-2.5 py-1 rounded text-xs font-bold transition border-0 cursor-pointer shadow"
+                              title="Copy image to clipboard"
                             >
-                              Question
+                              <Copy className="w-3.5 h-3.5" />
+                              <span>Copy Image</span>
                             </button>
-                            <button
-                              onClick={() => handleAttachExtractedImage(img.url, 'SOLUTION')}
-                              className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold"
-                            >
-                              Solution
-                            </button>
-                            <button
-                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_A')}
-                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
-                            >
-                              Opt A
-                            </button>
-                            <button
-                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_B')}
-                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
-                            >
-                              Opt B
-                            </button>
-                            <button
-                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_C')}
-                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
-                            >
-                              Opt C
-                            </button>
-                            <button
-                              onClick={() => handleAttachExtractedImage(img.url, 'OPTION_D')}
-                              className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer"
-                            >
-                              Opt D
-                            </button>
+                          </div>
+
+                          {/* Quick Attach Toolbar */}
+                          <div className="bg-black/60 p-2 rounded-lg border border-brand-border/30">
+                            <span className="text-[9px] text-brand-gold font-bold uppercase tracking-wider block mb-1">Quick Attach To Form:</span>
+                            <div className="grid grid-cols-3 gap-1 text-[9px]">
+                              <button
+                                onClick={() => handleAttachExtractedImage(img.url, 'QUESTION')}
+                                className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold text-center"
+                              >
+                                Question
+                              </button>
+                              <button
+                                onClick={() => handleAttachExtractedImage(img.url, 'SOLUTION')}
+                                className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold text-center"
+                              >
+                                Solution
+                              </button>
+                              <button
+                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_A')}
+                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                              >
+                                Opt A
+                              </button>
+                              <button
+                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_B')}
+                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                              >
+                                Opt B
+                              </button>
+                              <button
+                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_C')}
+                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                              >
+                                Opt C
+                              </button>
+                              <button
+                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_D')}
+                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                              >
+                                Opt D
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1569,6 +1758,80 @@ export default function DailyTasksPage() {
                   <span>Save Draft (Ctrl+Enter)</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Zoomed Image Lightbox Modal */}
+      {zoomedImage && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="max-w-4xl w-full bg-zinc-950 border border-brand-border rounded-2xl p-4 flex flex-col gap-4 max-h-[90vh]">
+            <div className="flex justify-between items-center border-b border-brand-border/40 pb-2">
+              <span className="text-sm font-bold text-white truncate">{zoomedImage.name}</span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleCopyExtractedImage(zoomedImage.url)}
+                  className="flex items-center gap-1.5 bg-brand-gold hover:bg-brand-gold-hover text-black px-3 py-1.5 rounded text-xs font-bold transition border-0 cursor-pointer"
+                >
+                  <Copy className="w-4 h-4" /> Copy Image
+                </button>
+                <button
+                  onClick={() => setZoomedImage(null)}
+                  className="text-zinc-400 hover:text-white p-1 rounded border-0 bg-transparent cursor-pointer"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center bg-white rounded-xl p-4">
+              <img src={zoomedImage.url} alt={zoomedImage.name} className="max-h-[70vh] w-auto object-contain" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Document Lightbox Modal */}
+      {fullscreenDoc && (
+        <div className="fixed inset-0 bg-black/95 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in">
+          <div className="w-full h-full max-w-6xl bg-zinc-950 border border-brand-border rounded-2xl p-4 flex flex-col gap-3">
+            <div className="flex justify-between items-center border-b border-brand-border/40 pb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileText className="w-5 h-5 text-brand-gold shrink-0" />
+                <span className="text-base font-bold text-white truncate max-w-xl">{fullscreenDoc.name}</span>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <a
+                  href={fullscreenDoc.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                >
+                  <ExternalLink className="w-4 h-4" /> Open in Browser Tab
+                </a>
+                <a
+                  href={fullscreenDoc.url}
+                  download
+                  className="flex items-center gap-1.5 bg-brand-gold hover:bg-brand-gold-hover text-black px-3 py-1.5 rounded-lg text-xs font-bold transition"
+                >
+                  <Download className="w-4 h-4" /> Download
+                </a>
+                <button
+                  onClick={() => setFullscreenDoc(null)}
+                  className="text-zinc-400 hover:text-white p-1 rounded-lg border-0 bg-transparent cursor-pointer"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 bg-white rounded-xl overflow-hidden min-h-0">
+              {fullscreenDoc.isPdf ? (
+                <object data={fullscreenDoc.url} type="application/pdf" className="w-full h-full">
+                  <iframe src={`https://docs.google.com/gview?url=${encodeURIComponent(fullscreenDoc.url)}&embedded=true`} className="w-full h-full" />
+                </object>
+              ) : (
+                <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullscreenDoc.url)}`} className="w-full h-full" />
+              )}
             </div>
           </div>
         </div>

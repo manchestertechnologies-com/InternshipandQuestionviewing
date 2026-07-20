@@ -100,6 +100,61 @@ export default function TaskAssignmentPage() {
     }
   };
 
+  const uploadFileDirect = async (targetFile: File, folderName: string): Promise<string> => {
+    let lastErrorMsg = '';
+    try {
+      const signRes = await fetch(`/api/cloudinary/sign?folder=${encodeURIComponent(folderName)}`);
+      if (signRes.ok) {
+        const signData = await signRes.json();
+        const { signature, timestamp, folder, apiKey, cloudName } = signData;
+
+        const ext = targetFile.name.split('.').pop()?.toLowerCase() || '';
+        const resourceType = ext === 'pdf' ? 'image' : (ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
+
+        const cloudinaryData = new FormData();
+        cloudinaryData.append('file', targetFile);
+        cloudinaryData.append('api_key', apiKey);
+        cloudinaryData.append('timestamp', timestamp.toString());
+        cloudinaryData.append('signature', signature);
+        cloudinaryData.append('folder', folder);
+
+        const cloudinaryRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+          {
+            method: 'POST',
+            body: cloudinaryData,
+          }
+        );
+
+        if (cloudinaryRes.ok) {
+          const uploadResult = await cloudinaryRes.json();
+          return uploadResult.secure_url;
+        } else {
+          const errResult = await cloudinaryRes.json().catch(() => ({}));
+          lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
+          console.warn('Cloudinary upload direct failed, falling back to local upload:', lastErrorMsg);
+        }
+      }
+    } catch (e: any) {
+      lastErrorMsg = e.message || String(e);
+      console.warn('Cloudinary upload threw error, falling back to local upload:', e);
+    }
+
+    // Local upload fallback
+    const localFormData = new FormData();
+    localFormData.append('file', targetFile);
+    const localRes = await fetch('/api/upload', {
+      method: 'POST',
+      body: localFormData,
+    });
+    if (!localRes.ok) {
+      const errData = await localRes.json().catch(() => ({}));
+      throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
+    }
+    const localResult = await localRes.json();
+    return localResult.secure_url;
+  };
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -113,76 +168,14 @@ export default function TaskAssignmentPage() {
       let fileUrl: string | null = null;
       let fileName: string | null = null;
 
-      // 1. Upload files to Cloudinary from client side if selected
+      // 1. Upload files (PDF, DOCX, etc.) concurrently / sequentially with helper
       if (files.length > 0) {
         setUploadingFile(true);
         try {
           const uploadedList = [];
           for (const currentFile of files) {
-            let uploaded = false;
-            let lastErrorMsg = '';
-            let fileUrlLocal = '';
-            let fileNameLocal = '';
-
-            try {
-              const signRes = await fetch('/api/cloudinary/sign?folder=manchester-tech/tasks');
-              if (!signRes.ok) {
-                const errData = await signRes.json().catch(() => ({}));
-                throw new Error(errData.error || 'Failed to generate upload signature');
-              }
-              const signData = await signRes.json();
-              const { signature, timestamp, folder, apiKey, cloudName } = signData;
-
-              const ext = currentFile.name.split('.').pop()?.toLowerCase() || '';
-              const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc') ? 'raw' : 'auto';
-
-              const cloudinaryData = new FormData();
-              cloudinaryData.append('file', currentFile);
-              cloudinaryData.append('api_key', apiKey);
-              cloudinaryData.append('timestamp', timestamp.toString());
-              cloudinaryData.append('signature', signature);
-              cloudinaryData.append('folder', folder);
-
-              const cloudinaryRes = await fetch(
-                `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-                {
-                  method: 'POST',
-                  body: cloudinaryData,
-                }
-              );
-
-              if (cloudinaryRes.ok) {
-                const uploadResult = await cloudinaryRes.json();
-                fileUrlLocal = uploadResult.secure_url;
-                fileNameLocal = currentFile.name;
-                uploaded = true;
-              } else {
-                const errResult = await cloudinaryRes.json().catch(() => ({}));
-                lastErrorMsg = errResult.error?.message || 'Cloudinary responded with error';
-                console.warn('Cloudinary responded with error, trying local upload:', lastErrorMsg);
-              }
-            } catch (e: any) {
-              lastErrorMsg = e.message || String(e);
-              console.warn('Client-side Cloudinary upload failed, attempting local upload:', e);
-            }
-
-            if (!uploaded) {
-              const localFormData = new FormData();
-              localFormData.append('file', currentFile);
-              const localRes = await fetch('/api/upload', {
-                method: 'POST',
-                body: localFormData,
-              });
-              if (!localRes.ok) {
-                const errData = await localRes.json().catch(() => ({}));
-                throw new Error(errData.error || `Upload failed: ${lastErrorMsg || 'Internal server error'}`);
-              }
-              const localResult = await localRes.json();
-              fileUrlLocal = localResult.secure_url;
-              fileNameLocal = currentFile.name;
-            }
-
-            uploadedList.push({ url: fileUrlLocal, name: fileNameLocal });
+            const uploadedUrl = await uploadFileDirect(currentFile, 'manchester-tech/tasks');
+            uploadedList.push({ url: uploadedUrl, name: currentFile.name });
           }
 
           fileUrl = JSON.stringify(uploadedList);
