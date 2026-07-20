@@ -871,15 +871,20 @@ export default function DailyTasksPage() {
 
                   const getSafePdfUrl = (url: string) => {
                     if (!url) return '';
-                    if (url.includes('res.cloudinary.com') && url.includes('/raw/upload/')) {
-                      return url.replace('/raw/upload/', '/image/upload/');
+                    let cleanUrl = url;
+                    if (cleanUrl.includes('res.cloudinary.com')) {
+                      if (cleanUrl.includes('/raw/upload/')) {
+                        cleanUrl = cleanUrl.replace('/raw/upload/', '/image/upload/');
+                      }
+                      if (!cleanUrl.toLowerCase().endsWith('.pdf') && !cleanUrl.includes('?')) {
+                        cleanUrl = `${cleanUrl}.pdf`;
+                      }
                     }
-                    return url;
+                    return cleanUrl;
                   };
 
                   const safePdfUrl = getSafePdfUrl(currentFile.url);
                   const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(safePdfUrl)}&embedded=true`;
-                  const mozillaPdfJsUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(safePdfUrl)}`;
                   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentFile.url || '')}`;
 
                   return (
@@ -961,11 +966,17 @@ export default function DailyTasksPage() {
                       <div className="w-full flex-1 rounded-xl border border-brand-border bg-white overflow-hidden relative min-h-[55vh]">
                         {isPdf ? (
                           pdfEngine === 'NATIVE' ? (
-                            <iframe
-                              src={safePdfUrl}
-                              className="w-full h-full min-h-[55vh] border-0"
-                              title={currentFile.name}
-                            />
+                            <object
+                              data={safePdfUrl}
+                              type="application/pdf"
+                              className="w-full h-full min-h-[55vh]"
+                            >
+                              <iframe
+                                src={safePdfUrl}
+                                className="w-full h-full min-h-[55vh] border-0"
+                                title={currentFile.name}
+                              />
+                            </object>
                           ) : (
                             <iframe
                               src={googleDocsViewerUrl}

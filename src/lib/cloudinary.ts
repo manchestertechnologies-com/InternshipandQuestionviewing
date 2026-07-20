@@ -55,8 +55,21 @@ export async function uploadToCloudinary(
     }
   }
 
-  // Local storage fallback
+  // Local / Data URL fallback for serverless persistence (e.g., Vercel)
   try {
+    const ext = fileName.split('.').pop()?.toLowerCase() ?? '';
+    if (buffer.length < 8 * 1024 * 1024) {
+      const mimeType =
+        ext === 'pdf'
+          ? 'application/pdf'
+          : ext === 'docx'
+          ? 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+          : 'application/octet-stream';
+      const base64 = buffer.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64}`;
+      return { url: dataUrl, publicId: safeName };
+    }
+
     const uploadDir = path.join(process.cwd(), 'public', 'uploads');
     await fs.mkdir(uploadDir, { recursive: true });
 
