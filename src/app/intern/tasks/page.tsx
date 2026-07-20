@@ -75,12 +75,18 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
+  const [viewMode, setViewMode] = useState<'PDF' | 'TEXT'>('PDF');
+  const [extractedPages, setExtractedPages] = useState<string[]>([]);
+  const [extractedFullText, setExtractedFullText] = useState<string>('');
+  const [copied, setCopied] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
     let createdObjectUrl: string | null = null;
     setLoading(true);
     setFetchError(false);
+    setExtractedPages([]);
+    setExtractedFullText('');
 
     if (!url) {
       setLoading(false);
@@ -88,68 +94,87 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
       return;
     }
 
-    if (url.startsWith('data:')) {
+    const loadPdfAndText = async () => {
       try {
-        const base64Parts = url.split(',');
-        const mimeMatch = base64Parts[0].match(/:(.*?);/);
-        const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-        const binaryString = atob(base64Parts[1] || '');
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
+        let arrayBuffer: ArrayBuffer;
+        let finalUrl = url;
+
+        if (url.startsWith('data:')) {
+          const base64Parts = url.split(',');
+          const mimeMatch = base64Parts[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+          const binaryString = atob(base64Parts[1] || '');
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          const blob = new Blob([bytes], { type: mime });
+          arrayBuffer = bytes.buffer;
+          createdObjectUrl = URL.createObjectURL(blob);
+          finalUrl = createdObjectUrl;
+        } else {
+          let cleanUrl = url;
+          if (cleanUrl.includes('res.cloudinary.com')) {
+            if (cleanUrl.includes('/raw/upload/')) {
+              cleanUrl = cleanUrl.replace('/raw/upload/', '/image/upload/');
+            }
+            if (!cleanUrl.toLowerCase().endsWith('.pdf') && !cleanUrl.includes('?')) {
+              cleanUrl = `${cleanUrl}.pdf`;
+            }
+          }
+          const res = await fetch(cleanUrl);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const blob = await res.blob();
+          arrayBuffer = await blob.arrayBuffer();
+          createdObjectUrl = URL.createObjectURL(blob);
+          finalUrl = createdObjectUrl;
         }
-        const blob = new Blob([bytes], { type: mime });
-        createdObjectUrl = URL.createObjectURL(blob);
+
         if (isMounted) {
-          setBlobUrl(createdObjectUrl);
+          setBlobUrl(finalUrl);
+        }
+
+        // Extract text via pdfjs-dist for copy-paste mode
+        try {
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+
+          const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) });
+          const pdfDoc = await loadingTask.promise;
+          const pages: string[] = [];
+
+          for (let i = 1; i <= pdfDoc.numPages; i++) {
+            const page = await pdfDoc.getPage(i);
+            const textContent = await page.getTextContent();
+            const pageStr = textContent.items.map((item: any) => item.str).join(' ');
+            pages.push(pageStr);
+          }
+
+          if (isMounted) {
+            setExtractedPages(pages);
+            setExtractedFullText(pages.join('\n\n--- Page Break ---\n\n'));
+          }
+        } catch (e) {
+          console.warn('PDF text extraction error:', e);
+        }
+
+        if (isMounted) {
           setLoading(false);
         }
-      } catch (e) {
-        console.error('Failed to convert base64 PDF:', e);
+      } catch (err) {
+        console.warn('PDF load failed:', err);
         if (isMounted) {
           setBlobUrl(url);
-          setLoading(false);
-        }
-      }
-      return () => {
-        isMounted = false;
-        if (createdObjectUrl) {
-          URL.revokeObjectURL(createdObjectUrl);
-        }
-      };
-    }
-
-    let cleanUrl = url;
-    if (cleanUrl.includes('res.cloudinary.com')) {
-      if (cleanUrl.includes('/raw/upload/')) {
-        cleanUrl = cleanUrl.replace('/raw/upload/', '/image/upload/');
-      }
-      if (!cleanUrl.toLowerCase().endsWith('.pdf') && !cleanUrl.includes('?')) {
-        cleanUrl = `${cleanUrl}.pdf`;
-      }
-    }
-
-    fetch(cleanUrl)
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const blob = await res.blob();
-        if (isMounted) {
-          createdObjectUrl = URL.createObjectURL(blob);
-          setBlobUrl(createdObjectUrl);
-          setLoading(false);
-        }
-      })
-      .catch((err) => {
-        console.warn('PDF Blob fetch failed:', err);
-        if (isMounted) {
-          setBlobUrl(cleanUrl);
-          if (cleanUrl.startsWith('/uploads/')) {
+          if (url.startsWith('/uploads/')) {
             setFetchError(true);
           }
           setLoading(false);
         }
-      });
+      }
+    };
+
+    loadPdfAndText();
 
     return () => {
       isMounted = false;
@@ -158,6 +183,13 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
       }
     };
   }, [url]);
+
+  const handleCopyText = () => {
+    if (!extractedFullText) return;
+    navigator.clipboard.writeText(extractedFullText);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (loading) {
     return (
@@ -205,8 +237,79 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
 
   return (
     <div className="w-full h-full flex flex-col min-h-[55vh]">
-      <div className="w-full flex-1 relative bg-white min-h-[50vh]">
-        {engine === 'GOOGLE' && !isDataOrBlob ? (
+      {/* Secondary Bar for Mode & Copy */}
+      <div className="bg-zinc-900 border-b border-brand-border/40 p-2 flex items-center justify-between text-xs gap-2 shrink-0">
+        <div className="flex items-center gap-1 bg-black p-0.5 rounded-lg border border-brand-border/40">
+          <button
+            onClick={() => setViewMode('PDF')}
+            className={`px-3 py-1 rounded font-bold transition border-0 cursor-pointer ${
+              viewMode === 'PDF' ? 'bg-brand-gold text-black' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            PDF Page View
+          </button>
+          <button
+            onClick={() => setViewMode('TEXT')}
+            className={`px-3 py-1 rounded font-bold transition border-0 cursor-pointer flex items-center gap-1 ${
+              viewMode === 'TEXT' ? 'bg-brand-gold text-black' : 'text-zinc-400 hover:text-white'
+            }`}
+          >
+            <Copy className="w-3 h-3" /> Selectable Text Mode
+          </button>
+        </div>
+
+        {extractedFullText && (
+          <button
+            onClick={handleCopyText}
+            className="bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold border border-brand-gold/40 px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>{copied ? 'Copied Full Text!' : 'Copy PDF Text'}</span>
+          </button>
+        )}
+      </div>
+
+      <div className="w-full flex-1 relative bg-white min-h-[50vh] overflow-y-auto">
+        {viewMode === 'TEXT' ? (
+          <div className="p-6 bg-zinc-950 text-white min-h-full selection:bg-brand-gold selection:text-black">
+            {extractedPages.length > 0 ? (
+              <div className="max-w-4xl mx-auto space-y-6">
+                <div className="bg-zinc-900/80 border border-brand-border/50 p-3 rounded-xl text-xs text-brand-gold flex items-center justify-between">
+                  <span>💡 Tip: Highlight text with cursor & press <strong>Ctrl + C</strong> to copy questions directly!</span>
+                  <button
+                    onClick={handleCopyText}
+                    className="bg-brand-gold text-black px-2.5 py-1 rounded font-bold hover:bg-brand-gold-hover border-0 cursor-pointer"
+                  >
+                    {copied ? 'Copied!' : 'Copy All'}
+                  </button>
+                </div>
+                {extractedPages.map((pageTxt, idx) => (
+                  <div key={idx} className="bg-zinc-900 border border-brand-border/60 rounded-xl p-5 space-y-2">
+                    <div className="text-[10px] uppercase font-mono text-brand-gold font-bold border-b border-brand-border/40 pb-1 flex justify-between">
+                      <span>Page {idx + 1}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(pageTxt);
+                          alert(`Copied Page ${idx + 1} text!`);
+                        }}
+                        className="text-brand-gold hover:underline bg-transparent border-0 cursor-pointer"
+                      >
+                        Copy Page {idx + 1}
+                      </button>
+                    </div>
+                    <p className="text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed select-text font-sans">
+                      {pageTxt || <span className="italic text-zinc-500">No selectable text found on this page (scanned image).</span>}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-zinc-400 py-12 italic">
+                Extracting selectable text from PDF... If text is not appearing, use PDF Page View.
+              </div>
+            )}
+          </div>
+        ) : engine === 'GOOGLE' && !isDataOrBlob ? (
           <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
         ) : (
           <iframe src={activeUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
