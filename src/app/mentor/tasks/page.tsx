@@ -237,22 +237,42 @@ export default function TaskAssignmentPage() {
                 {task.description}
               </p>
 
-              {task.fileUrl && (
-                <div className="flex items-center gap-2 bg-black/40 border border-brand-border p-3 rounded-xl max-w-sm">
-                  <FileText className="w-5 h-5 text-brand-gold shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs text-white truncate font-medium">{task.fileName || 'worksheets.docx'}</p>
-                    <p className="text-[10px] text-brand-muted">Uploaded Attachment</p>
+              {task.fileUrl && (() => {
+                let parsedFiles: { url: string; name: string }[] = [];
+                if (task.fileUrl.startsWith('[')) {
+                  try {
+                    parsedFiles = JSON.parse(task.fileUrl);
+                  } catch (e) {
+                    parsedFiles = [{ url: task.fileUrl, name: task.fileName || 'worksheet' }];
+                  }
+                } else {
+                  parsedFiles = [{ url: task.fileUrl, name: task.fileName || 'worksheet' }];
+                }
+
+                return (
+                  <div className="flex flex-col gap-2">
+                    {parsedFiles.map((f, fIdx) => (
+                      <div key={fIdx} className="flex items-center gap-2 bg-black/40 border border-brand-border p-3 rounded-xl max-w-sm">
+                        <FileText className="w-5 h-5 text-brand-gold shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs text-white truncate font-medium">{f.name || 'Worksheet'}</p>
+                          <p className="text-[10px] text-brand-muted">Uploaded Attachment #{fIdx + 1}</p>
+                        </div>
+                        <a
+                          href={f.url}
+                          download={f.name || 'worksheet'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 bg-zinc-950 hover:bg-zinc-900 border border-brand-border rounded text-brand-gold cursor-pointer flex items-center justify-center"
+                          title="Download Worksheet"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
+                      </div>
+                    ))}
                   </div>
-                  <a
-                    href={task.fileUrl}
-                    download
-                    className="p-1.5 bg-zinc-950 hover:bg-zinc-900 border border-brand-border rounded text-brand-gold cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Assignees & Status */}
               <div className="border-t border-brand-border pt-4">

@@ -71,14 +71,14 @@ interface TaskAssignment {
   questions: Question[];
 }
 
-function PdfViewerContainer({ url, name }: { url: string; name: string }) {
+function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; name: string; engine?: 'NATIVE' | 'GOOGLE' }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(true);
-  const [viewEngine, setViewEngine] = useState<'NATIVE' | 'MOZILLA' | 'GOOGLE'>('NATIVE');
 
   useEffect(() => {
     let isMounted = true;
+    let createdObjectUrl: string | null = null;
     setLoading(true);
     setFetchError(false);
 
@@ -89,9 +89,35 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
     }
 
     if (url.startsWith('data:')) {
-      setBlobUrl(url);
-      setLoading(false);
-      return;
+      try {
+        const base64Parts = url.split(',');
+        const mimeMatch = base64Parts[0].match(/:(.*?);/);
+        const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
+        const binaryString = atob(base64Parts[1] || '');
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: mime });
+        createdObjectUrl = URL.createObjectURL(blob);
+        if (isMounted) {
+          setBlobUrl(createdObjectUrl);
+          setLoading(false);
+        }
+      } catch (e) {
+        console.error('Failed to convert base64 PDF:', e);
+        if (isMounted) {
+          setBlobUrl(url);
+          setLoading(false);
+        }
+      }
+      return () => {
+        isMounted = false;
+        if (createdObjectUrl) {
+          URL.revokeObjectURL(createdObjectUrl);
+        }
+      };
     }
 
     let cleanUrl = url;
@@ -109,8 +135,8 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (isMounted) {
-          const objectUrl = URL.createObjectURL(blob);
-          setBlobUrl(objectUrl);
+          createdObjectUrl = URL.createObjectURL(blob);
+          setBlobUrl(createdObjectUrl);
           setLoading(false);
         }
       })
@@ -127,6 +153,9 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
 
     return () => {
       isMounted = false;
+      if (createdObjectUrl) {
+        URL.revokeObjectURL(createdObjectUrl);
+      }
     };
   }, [url]);
 
@@ -171,21 +200,111 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
   }
 
   const activeUrl = blobUrl || url;
+  const isDataOrBlob = activeUrl.startsWith('data:') || activeUrl.startsWith('blob:');
   const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
-  const mozillaPdfJsUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(activeUrl)}`;
 
   return (
     <div className="w-full h-full flex flex-col min-h-[55vh]">
       <div className="w-full flex-1 relative bg-white min-h-[50vh]">
-        {viewEngine === 'NATIVE' ? (
-          <object data={activeUrl} type="application/pdf" className="w-full h-full min-h-[50vh]">
-            <iframe src={mozillaPdfJsUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
-          </object>
-        ) : viewEngine === 'MOZILLA' ? (
-          <iframe src={mozillaPdfJsUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
-        ) : (
+        {engine === 'GOOGLE' && !isDataOrBlob ? (
           <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
+        ) : (
+          <iframe src={activeUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
         )}
+      </div>
+    </div>
+  );
+}
+
+function DocxViewerContainer({ url, name }: { url: string; name: string }) {
+  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+
+    const loadDocx = async () => {
+      try {
+        let arrayBuffer: ArrayBuffer;
+        if (url.startsWith('data:')) {
+          const base64Data = url.split(',')[1] || url;
+          const binaryString = atob(base64Data);
+          const len = binaryString.length;
+          const bytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+          }
+          arrayBuffer = bytes.buffer;
+        } else {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          arrayBuffer = await res.arrayBuffer();
+        }
+
+        const mammoth = await import('mammoth');
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        if (isMounted) {
+          setHtmlContent(result.value || '<p class="italic text-zinc-500">Document is empty.</p>');
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error('Docx conversion error:', err);
+        if (isMounted) {
+          setError(err.message || 'Failed to render DOCX file');
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDocx();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [url]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-full min-h-[55vh] flex flex-col items-center justify-center bg-zinc-950 text-white space-y-3">
+        <RefreshCw className="w-8 h-8 text-brand-gold animate-spin" />
+        <p className="text-xs text-brand-muted font-bold">Rendering Word Document...</p>
+      </div>
+    );
+  }
+
+  if (error || !htmlContent) {
+    return (
+      <div className="w-full h-full min-h-[55vh] flex flex-col items-center justify-center p-8 bg-zinc-950 text-center space-y-4">
+        <AlertTriangle className="w-14 h-14 text-amber-400 mx-auto" />
+        <div>
+          <h3 className="text-base font-bold text-white">Word Document (.docx)</h3>
+          <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed mt-1">
+            Could not render file directly inside browser. Please download the document below.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <a
+            href={url}
+            download={name}
+            className="px-4 py-2 bg-brand-gold text-black text-xs font-bold rounded-xl hover:bg-brand-gold-hover transition flex items-center gap-1.5"
+          >
+            <Download className="w-4 h-4" /> Download DOCX
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-full flex flex-col min-h-[55vh] max-h-[75vh] bg-zinc-900 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+      <div className="max-w-4xl mx-auto w-full bg-white text-zinc-900 p-6 sm:p-10 rounded-xl shadow-2xl border border-zinc-300 min-h-[60vh]">
+        <div
+          className="prose max-w-none text-sm leading-relaxed text-zinc-800 font-sans space-y-3 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-black [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-zinc-300 [&_td]:p-2 [&_th]:border [&_th]:border-zinc-300 [&_th]:p-2 [&_th]:bg-zinc-100"
+          dangerouslySetInnerHTML={{ __html: htmlContent }}
+        />
       </div>
     </div>
   );
@@ -743,9 +862,22 @@ export default function DailyTasksPage() {
     setExtracting(fileName);
     setError('');
     try {
-      const res = await fetch(fileUrl);
-      if (!res.ok) throw new Error('Failed to fetch document file');
-      const arrayBuffer = await res.arrayBuffer();
+      let arrayBuffer: ArrayBuffer;
+
+      if (fileUrl.startsWith('data:')) {
+        const base64Data = fileUrl.split(',')[1] || fileUrl;
+        const binaryString = atob(base64Data);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        arrayBuffer = bytes.buffer;
+      } else {
+        const res = await fetch(fileUrl);
+        if (!res.ok) throw new Error('Failed to fetch document file');
+        arrayBuffer = await res.arrayBuffer();
+      }
       
       const JSZip = (await import('jszip')).default;
       const zip = await JSZip.loadAsync(arrayBuffer);
@@ -1085,13 +1217,9 @@ export default function DailyTasksPage() {
                       {/* Main Document Viewer Frame */}
                       <div className="w-full flex-1 rounded-xl border border-brand-border bg-white overflow-hidden relative min-h-[55vh]">
                         {isPdf ? (
-                          <PdfViewerContainer url={currentFile.url} name={currentFile.name} />
+                          <PdfViewerContainer url={currentFile.url} name={currentFile.name} engine={pdfEngine} />
                         ) : isDocx ? (
-                          <iframe
-                            src={officeViewerUrl}
-                            className="w-full h-full min-h-[55vh] border-0"
-                            title={currentFile.name}
-                          />
+                          <DocxViewerContainer url={currentFile.url} name={currentFile.name} />
                         ) : (
                           <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 bg-zinc-950 text-center">
                             <FileText className="w-16 h-16 text-brand-gold mx-auto" />
@@ -1942,9 +2070,9 @@ export default function DailyTasksPage() {
             </div>
             <div className="flex-1 bg-white rounded-xl overflow-hidden min-h-0 relative">
               {fullscreenDoc.isPdf ? (
-                <PdfViewerContainer url={fullscreenDoc.url} name={fullscreenDoc.name} />
+                <PdfViewerContainer url={fullscreenDoc.url} name={fullscreenDoc.name} engine={pdfEngine} />
               ) : (
-                <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullscreenDoc.url)}`} className="w-full h-full border-0" title={fullscreenDoc.name} />
+                <DocxViewerContainer url={fullscreenDoc.url} name={fullscreenDoc.name} />
               )}
             </div>
           </div>
