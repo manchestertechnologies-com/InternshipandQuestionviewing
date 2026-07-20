@@ -236,7 +236,7 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
   const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
 
   return (
-    <div className="w-full h-full flex flex-col min-h-[55vh]">
+    <div className="w-full h-full flex flex-col min-h-0">
       {/* Secondary Bar for Mode & Copy */}
       <div className="bg-zinc-900 border-b border-brand-border/40 p-2 flex items-center justify-between text-xs gap-2 shrink-0">
         <div className="flex items-center gap-1 bg-black p-0.5 rounded-lg border border-brand-border/40">
@@ -269,7 +269,7 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
         )}
       </div>
 
-      <div className="w-full flex-1 relative bg-white min-h-[50vh] overflow-y-auto">
+      <div className="w-full flex-1 min-h-0 relative bg-white overflow-y-auto scrollbar-thin">
         {viewMode === 'TEXT' ? (
           <div className="p-6 bg-zinc-950 text-white min-h-full selection:bg-brand-gold selection:text-black">
             {extractedPages.length > 0 ? (
@@ -310,9 +310,9 @@ function PdfViewerContainer({ url, name, engine = 'NATIVE' }: { url: string; nam
             )}
           </div>
         ) : engine === 'GOOGLE' && !isDataOrBlob ? (
-          <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
+          <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[75vh] border-0 bg-white block" title={name} />
         ) : (
-          <iframe src={activeUrl} className="w-full h-full min-h-[50vh] border-0 bg-white" title={name} />
+          <iframe src={activeUrl} className="w-full h-full min-h-[75vh] border-0 bg-white block" title={name} />
         )}
       </div>
     </div>
@@ -402,7 +402,7 @@ function DocxViewerContainer({ url, name }: { url: string; name: string }) {
   }
 
   return (
-    <div className="w-full h-full flex flex-col min-h-[55vh] max-h-[75vh] bg-zinc-900 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
+    <div className="w-full h-full flex flex-col min-h-0 bg-zinc-900 overflow-y-auto p-4 sm:p-6 scrollbar-thin">
       <div className="max-w-4xl mx-auto w-full bg-white text-zinc-900 p-6 sm:p-10 rounded-xl shadow-2xl border border-zinc-300 min-h-[60vh]">
         <div
           className="prose max-w-none text-sm leading-relaxed text-zinc-800 font-sans space-y-3 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-black [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-zinc-300 [&_td]:p-2 [&_th]:border [&_th]:border-zinc-300 [&_th]:p-2 [&_th]:bg-zinc-100"
@@ -1176,7 +1176,7 @@ export default function DailyTasksPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[60vh]">
           
           {/* LEFT PANEL: Document Viewer with Attachment Tabs */}
-          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden min-h-[75vh]">
+          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[82vh]">
             {/* Header Tabs Navigation */}
             <div className="p-3.5 border-b border-brand-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-black/70 shrink-0">
               <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 scrollbar-thin">
@@ -1215,7 +1215,7 @@ export default function DailyTasksPage() {
             </div>
 
             {/* Active File Content Container - FULL WIDTH & ENLARGED */}
-            <div className="flex-1 p-4 flex flex-col bg-zinc-950/50 space-y-4">
+            <div className="flex-1 min-h-0 p-4 flex flex-col bg-zinc-950/50 space-y-4 overflow-y-auto scrollbar-thin">
               {filesList.length > 0 ? (
                 (() => {
                   const currentFile = filesList[activeFileIndex] || filesList[0];
@@ -1243,7 +1243,7 @@ export default function DailyTasksPage() {
                   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentFile.url || '')}`;
 
                   return (
-                    <div className="w-full flex-1 flex flex-col border border-brand-border/50 rounded-xl bg-black/60 p-3 overflow-hidden min-h-[60vh]">
+                    <div className="w-full flex-1 min-h-0 flex flex-col border border-brand-border/50 rounded-xl bg-black/60 p-3">
                       {/* Active File Header Toolbar */}
                       <div className="text-xs text-white font-semibold mb-3 flex flex-wrap justify-between items-center bg-black/80 p-3 rounded-xl border border-brand-border/40 gap-2 shrink-0">
                         <div className="flex items-center gap-2 min-w-0">
@@ -1318,7 +1318,7 @@ export default function DailyTasksPage() {
                       </div>
 
                       {/* Main Document Viewer Frame */}
-                      <div className="w-full flex-1 rounded-xl border border-brand-border bg-white overflow-hidden relative min-h-[55vh]">
+                      <div className="w-full flex-1 min-h-[65vh] rounded-xl border border-brand-border bg-white overflow-hidden relative">
                         {isPdf ? (
                           <PdfViewerContainer url={currentFile.url} name={currentFile.name} engine={pdfEngine} />
                         ) : isDocx ? (
