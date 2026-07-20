@@ -71,6 +71,111 @@ interface TaskAssignment {
   questions: Question[];
 }
 
+function PdfViewerContainer({ url, name }: { url: string; name: string }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<boolean>(false);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    setLoading(true);
+    setFetchError(false);
+
+    if (!url) {
+      setLoading(false);
+      setFetchError(true);
+      return;
+    }
+
+    if (url.startsWith('data:')) {
+      setBlobUrl(url);
+      setLoading(false);
+      return;
+    }
+
+    let cleanUrl = url;
+    if (cleanUrl.includes('res.cloudinary.com')) {
+      if (cleanUrl.includes('/raw/upload/')) {
+        cleanUrl = cleanUrl.replace('/raw/upload/', '/image/upload/');
+      }
+      if (!cleanUrl.toLowerCase().endsWith('.pdf') && !cleanUrl.includes('?')) {
+        cleanUrl = `${cleanUrl}.pdf`;
+      }
+    }
+
+    fetch(cleanUrl)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (isMounted) {
+          const objectUrl = URL.createObjectURL(blob);
+          setBlobUrl(objectUrl);
+          setLoading(false);
+        }
+      })
+      .catch((err) => {
+        console.warn('PDF Blob fetch failed:', err);
+        if (isMounted) {
+          setBlobUrl(cleanUrl);
+          if (cleanUrl.startsWith('/uploads/')) {
+            setFetchError(true);
+          }
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [url]);
+
+  if (loading) {
+    return (
+      <div className="w-full h-full min-h-[55vh] flex flex-col items-center justify-center bg-zinc-950 text-white space-y-3">
+        <RefreshCw className="w-8 h-8 text-brand-gold animate-spin" />
+        <p className="text-xs text-brand-muted font-bold">Loading PDF Document...</p>
+      </div>
+    );
+  }
+
+  if (fetchError && (!blobUrl || blobUrl.startsWith('/uploads/'))) {
+    return (
+      <div className="w-full h-full min-h-[55vh] flex flex-col items-center justify-center p-8 bg-zinc-950 text-center space-y-4">
+        <AlertTriangle className="w-14 h-14 text-amber-400 mx-auto" />
+        <div className="space-y-1">
+          <h3 className="text-base font-bold text-white">PDF Document Not Found on Server</h3>
+          <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed">
+            This worksheet (<span className="text-brand-gold font-mono">{name}</span>) was uploaded to temporary serverless storage on Vercel before Cloudinary was enabled.
+          </p>
+        </div>
+        <div className="flex gap-3">
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-4 py-2 bg-brand-gold text-black text-xs font-bold rounded-xl hover:bg-brand-gold-hover transition flex items-center gap-1.5"
+          >
+            <ExternalLink className="w-4 h-4" /> Open File Link
+          </a>
+          <a
+            href={url}
+            download
+            className="px-4 py-2 bg-zinc-800 text-white text-xs font-bold rounded-xl hover:bg-zinc-700 transition flex items-center gap-1.5"
+          >
+            <Download className="w-4 h-4" /> Download
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <object data={blobUrl || url} type="application/pdf" className="w-full h-full min-h-[55vh]">
+      <iframe src={blobUrl || url} className="w-full h-full min-h-[55vh] border-0" title={name} />
+    </object>
+  );
+}
+
 export default function DailyTasksPage() {
   const [assignments, setAssignments] = useState<TaskAssignment[]>([]);
   const [selectedAsg, setSelectedAsg] = useState<TaskAssignment | null>(null);
@@ -965,25 +1070,7 @@ export default function DailyTasksPage() {
                       {/* Main Document Viewer Frame */}
                       <div className="w-full flex-1 rounded-xl border border-brand-border bg-white overflow-hidden relative min-h-[55vh]">
                         {isPdf ? (
-                          pdfEngine === 'NATIVE' ? (
-                            <object
-                              data={safePdfUrl}
-                              type="application/pdf"
-                              className="w-full h-full min-h-[55vh]"
-                            >
-                              <iframe
-                                src={safePdfUrl}
-                                className="w-full h-full min-h-[55vh] border-0"
-                                title={currentFile.name}
-                              />
-                            </object>
-                          ) : (
-                            <iframe
-                              src={googleDocsViewerUrl}
-                              className="w-full h-full min-h-[55vh] border-0"
-                              title={currentFile.name}
-                            />
-                          )
+                          <PdfViewerContainer url={currentFile.url} name={currentFile.name} />
                         ) : isDocx ? (
                           <iframe
                             src={officeViewerUrl}
@@ -1840,22 +1927,7 @@ export default function DailyTasksPage() {
             </div>
             <div className="flex-1 bg-white rounded-xl overflow-hidden min-h-0 relative">
               {fullscreenDoc.isPdf ? (
-                (() => {
-                  let modalPdfUrl = fullscreenDoc.url;
-                  if (modalPdfUrl.includes('res.cloudinary.com')) {
-                    if (modalPdfUrl.includes('/raw/upload/')) {
-                      modalPdfUrl = modalPdfUrl.replace('/raw/upload/', '/image/upload/');
-                    }
-                    if (!modalPdfUrl.toLowerCase().endsWith('.pdf') && !modalPdfUrl.includes('?')) {
-                      modalPdfUrl = `${modalPdfUrl}.pdf`;
-                    }
-                  }
-                  return (
-                    <object data={modalPdfUrl} type="application/pdf" className="w-full h-full min-h-[70vh]">
-                      <iframe src={modalPdfUrl} className="w-full h-full border-0 min-h-[70vh]" title={fullscreenDoc.name} />
-                    </object>
-                  );
-                })()
+                <PdfViewerContainer url={fullscreenDoc.url} name={fullscreenDoc.name} />
               ) : (
                 <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(fullscreenDoc.url)}`} className="w-full h-full border-0" title={fullscreenDoc.name} />
               )}
