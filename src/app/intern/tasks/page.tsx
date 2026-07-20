@@ -821,12 +821,12 @@ export default function DailyTasksPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[60vh]">
           
           {/* LEFT PANEL: Document Viewer with Attachment Tabs */}
-          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[82vh] lg:h-auto">
-            {/* Header Tabs */}
-            <div className="p-3 border-b border-brand-border flex flex-wrap items-center justify-between gap-2 bg-black/60 shrink-0">
+          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden min-h-[75vh]">
+            {/* Header Tabs Navigation */}
+            <div className="p-3.5 border-b border-brand-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-black/70 shrink-0">
               <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 scrollbar-thin">
                 <span className="text-xs font-bold text-brand-gold uppercase tracking-wider flex items-center gap-1.5 shrink-0 mr-1">
-                  <FileText className="w-4 h-4" />
+                  <FileText className="w-4 h-4 text-brand-gold" />
                   <span>Worksheets ({filesList.length}):</span>
                 </span>
 
@@ -840,14 +840,17 @@ export default function DailyTasksPage() {
                     <button
                       key={idx}
                       onClick={() => setActiveFileIndex(idx)}
-                      className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition border flex items-center gap-1.5 shrink-0 cursor-pointer ${
+                      className={`px-3.5 py-2 text-xs font-bold rounded-xl transition border flex items-center gap-2 shrink-0 cursor-pointer ${
                         activeFileIndex === idx
-                          ? 'bg-brand-gold text-black border-brand-gold font-bold shadow-md'
-                          : 'bg-zinc-900 text-zinc-300 border-brand-border/60 hover:border-brand-gold/50'
+                          ? 'bg-brand-gold text-black border-brand-gold shadow-lg shadow-brand-gold/20 scale-[1.02]'
+                          : 'bg-zinc-900 text-zinc-300 border-brand-border/60 hover:border-brand-gold/50 hover:text-white'
                       }`}
                     >
-                      <span className="truncate max-w-[150px]">{file.name}</span>
-                      <span className="text-[9px] opacity-75 uppercase px-1 py-0.2 rounded bg-black/20 font-mono">
+                      <FileText className="w-3.5 h-3.5" />
+                      <span className="truncate max-w-[180px]">{file.name}</span>
+                      <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono font-bold ${
+                        activeFileIndex === idx ? 'bg-black/20 text-black' : 'bg-black/50 text-brand-gold'
+                      }`}>
                         {isPdf ? 'PDF' : isDocx ? 'DOCX' : 'FILE'}
                       </span>
                     </button>
@@ -857,7 +860,7 @@ export default function DailyTasksPage() {
             </div>
 
             {/* Active File Content Container - FULL WIDTH & ENLARGED */}
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col bg-zinc-950/40 space-y-4">
+            <div className="flex-1 p-4 flex flex-col bg-zinc-950/50 space-y-4">
               {filesList.length > 0 ? (
                 (() => {
                   const currentFile = filesList[activeFileIndex] || filesList[0];
@@ -876,15 +879,16 @@ export default function DailyTasksPage() {
 
                   const safePdfUrl = getSafePdfUrl(currentFile.url);
                   const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(safePdfUrl)}&embedded=true`;
+                  const mozillaPdfJsUrl = `https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(safePdfUrl)}`;
                   const officeViewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(currentFile.url || '')}`;
 
                   return (
-                    <div className="w-full flex-1 flex flex-col border border-brand-border/40 rounded-xl bg-black/40 p-3 overflow-hidden min-h-[58vh]">
+                    <div className="w-full flex-1 flex flex-col border border-brand-border/50 rounded-xl bg-black/60 p-3 overflow-hidden min-h-[60vh]">
                       {/* Active File Header Toolbar */}
-                      <div className="text-xs text-white font-semibold mb-3 flex flex-wrap justify-between items-center bg-black/60 p-2.5 rounded border border-brand-border/30 gap-2 shrink-0">
+                      <div className="text-xs text-white font-semibold mb-3 flex flex-wrap justify-between items-center bg-black/80 p-3 rounded-xl border border-brand-border/40 gap-2 shrink-0">
                         <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-4 h-4 text-brand-gold shrink-0" />
-                          <span className="truncate max-w-[200px] text-xs font-bold text-white">{currentFile.name}</span>
+                          <FileText className="w-4.5 h-4.5 text-brand-gold shrink-0" />
+                          <span className="truncate max-w-[220px] text-xs font-bold text-white">{currentFile.name}</span>
                         </div>
 
                         <div className="flex items-center gap-2 flex-wrap">
@@ -892,29 +896,29 @@ export default function DailyTasksPage() {
                             <button
                               onClick={() => handleExtractImages(currentFile.url, currentFile.name)}
                               disabled={extracting === currentFile.name}
-                              className="text-xs bg-brand-gold text-black px-3 py-1 rounded font-bold hover:bg-brand-gold-hover border-0 cursor-pointer disabled:opacity-50 transition shadow"
+                              className="text-xs bg-brand-gold text-black px-3.5 py-1.5 rounded-lg font-bold hover:bg-brand-gold-hover border-0 cursor-pointer disabled:opacity-50 transition shadow"
                             >
                               {extracting === currentFile.name ? 'Extracting...' : 'Extract Images'}
                             </button>
                           )}
 
                           {isPdf && (
-                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded border border-brand-border/40">
+                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-brand-border/40">
                               <button
                                 onClick={() => setPdfEngine('NATIVE')}
-                                className={`text-[10px] px-2 py-0.5 rounded font-bold transition border-0 cursor-pointer ${
+                                className={`text-[10px] px-2.5 py-1 rounded-md font-bold transition border-0 cursor-pointer ${
                                   pdfEngine === 'NATIVE' ? 'bg-brand-gold text-black' : 'text-zinc-400 hover:text-white'
                                 }`}
-                                title="Use Browser Native PDF Viewer"
+                                title="Browser Direct Native PDF Engine"
                               >
-                                Native PDF
+                                Direct Viewer
                               </button>
                               <button
                                 onClick={() => setPdfEngine('GOOGLE')}
-                                className={`text-[10px] px-2 py-0.5 rounded font-bold transition border-0 cursor-pointer ${
+                                className={`text-[10px] px-2.5 py-1 rounded-md font-bold transition border-0 cursor-pointer ${
                                   pdfEngine === 'GOOGLE' ? 'bg-brand-gold text-black' : 'text-zinc-400 hover:text-white'
                                 }`}
-                                title="Use Google Docs Viewer Engine"
+                                title="Google Docs Viewer Engine"
                               >
                                 Google Engine
                               </button>
@@ -923,10 +927,10 @@ export default function DailyTasksPage() {
 
                           <button
                             onClick={() => setFullscreenDoc({ url: safePdfUrl, name: currentFile.name, isPdf })}
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shrink-0 border-0 cursor-pointer"
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 shrink-0 border-0 cursor-pointer"
                             title="Enlarge Fullscreen"
                           >
-                            <Maximize2 className="w-3.5 h-3.5" />
+                            <Maximize2 className="w-3.5 h-3.5 text-brand-gold" />
                             <span>Enlarge</span>
                           </button>
 
@@ -934,8 +938,8 @@ export default function DailyTasksPage() {
                             href={safePdfUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-white px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shrink-0"
-                            title="Open in New Browser Tab"
+                            className="text-xs bg-brand-gold/15 hover:bg-brand-gold/25 text-brand-gold border border-brand-gold/30 px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0"
+                            title="Open PDF in Browser Tab"
                           >
                             <ExternalLink className="w-3.5 h-3.5" />
                             <span>Open Tab</span>
@@ -944,7 +948,7 @@ export default function DailyTasksPage() {
                           <a
                             href={currentFile.url}
                             download
-                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-brand-gold px-2.5 py-1 rounded font-semibold transition flex items-center gap-1 shrink-0"
+                            className="text-xs bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 shrink-0"
                             title="Download File"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -954,44 +958,43 @@ export default function DailyTasksPage() {
                       </div>
 
                       {/* Main Document Viewer Frame */}
-                      <div className="w-full flex-1 rounded-lg border border-brand-border bg-white overflow-hidden relative min-h-[50vh]">
+                      <div className="w-full flex-1 rounded-xl border border-brand-border bg-white overflow-hidden relative min-h-[55vh]">
                         {isPdf ? (
                           pdfEngine === 'NATIVE' ? (
-                            <object
-                              data={safePdfUrl}
-                              type="application/pdf"
-                              className="w-full h-full min-h-[50vh]"
-                            >
-                              <iframe
-                                src={googleDocsViewerUrl}
-                                className="w-full h-full min-h-[50vh]"
-                              />
-                            </object>
+                            <iframe
+                              src={safePdfUrl}
+                              className="w-full h-full min-h-[55vh] border-0"
+                              title={currentFile.name}
+                            />
                           ) : (
                             <iframe
                               src={googleDocsViewerUrl}
-                              className="w-full h-full min-h-[50vh]"
+                              className="w-full h-full min-h-[55vh] border-0"
+                              title={currentFile.name}
                             />
                           )
                         ) : isDocx ? (
                           <iframe
                             src={officeViewerUrl}
-                            className="w-full h-full min-h-[50vh]"
+                            className="w-full h-full min-h-[55vh] border-0"
+                            title={currentFile.name}
                           />
                         ) : (
-                          <div className="h-full flex flex-col items-center justify-center p-6 space-y-4 bg-zinc-950 text-center">
-                            <FileText className="w-16 h-16 text-brand-gold" />
-                            <p className="text-xs text-brand-muted leading-relaxed">
-                              Format not previewable inline.
+                          <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 bg-zinc-950 text-center">
+                            <FileText className="w-16 h-16 text-brand-gold mx-auto" />
+                            <p className="text-sm text-zinc-300 font-medium max-w-sm leading-relaxed">
+                              This file format cannot be rendered inline.
                             </p>
-                            <a
-                              href={currentFile.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 bg-brand-gold text-black px-4 py-2 rounded-lg font-bold hover:bg-brand-gold-hover transition"
-                            >
-                              <ExternalLink className="w-4 h-4" /> Open File in Browser Tab
-                            </a>
+                            <div className="flex gap-3">
+                              <a
+                                href={currentFile.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 bg-brand-gold text-black px-4 py-2 rounded-xl font-bold hover:bg-brand-gold-hover transition"
+                              >
+                                <ExternalLink className="w-4 h-4" /> Open File in Browser Tab
+                              </a>
+                            </div>
                           </div>
                         )}
                       </div>
