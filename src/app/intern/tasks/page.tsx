@@ -171,7 +171,11 @@ function PdfViewerContainer({ url, name }: { url: string; name: string }) {
 
   return (
     <object data={blobUrl || url} type="application/pdf" className="w-full h-full min-h-[55vh]">
-      <iframe src={blobUrl || url} className="w-full h-full min-h-[55vh] border-0" title={name} />
+      <iframe
+        src={`https://mozilla.github.io/pdf.js/web/viewer.html?file=${encodeURIComponent(blobUrl || url)}`}
+        className="w-full h-full min-h-[55vh] border-0 bg-white"
+        title={name}
+      />
     </object>
   );
 }

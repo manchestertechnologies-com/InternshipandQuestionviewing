@@ -109,7 +109,7 @@ export default function TaskAssignmentPage() {
         const { signature, timestamp, folder, apiKey, cloudName } = signData;
 
         const ext = targetFile.name.split('.').pop()?.toLowerCase() || '';
-        const resourceType = ext === 'pdf' ? 'image' : (ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
+        const resourceType = 'auto';
 
         const cloudinaryData = new FormData();
         cloudinaryData.append('file', targetFile);
