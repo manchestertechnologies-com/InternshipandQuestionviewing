@@ -30,6 +30,20 @@ export default async function InternLayout({ children }: { children: React.React
   const completedTasks = await prisma.taskAssignment.count({ where: { internId: profile.id, status: 'COMPLETED' } });
   const progressPercent = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
+  // Calculate real-time dynamic global rank based on total points
+  const higherScoringCount = await prisma.internProfile.count({
+    where: { totalPoints: { gt: profile.totalPoints } },
+  });
+  const dynamicRank = higherScoringCount + 1;
+
+  // Keep profile.rank field in database in sync
+  if (profile.rank !== dynamicRank) {
+    prisma.internProfile.update({
+      where: { id: profile.id },
+      data: { rank: dynamicRank },
+    }).catch(() => {});
+  }
+
   return (
     <div className="flex h-screen bg-black text-white overflow-hidden">
       {/* Left Sidebar Menu */}
@@ -71,7 +85,7 @@ export default async function InternLayout({ children }: { children: React.React
 
       {/* Right Sidebar Metrics */}
       <RightSidebar
-        rank={profile.rank}
+        rank={dynamicRank}
         totalPoints={profile.totalPoints}
         mentorScore={profile.mentorScore}
         progressPercent={progressPercent}

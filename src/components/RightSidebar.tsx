@@ -34,7 +34,7 @@ export default function RightSidebar({ rank, totalPoints, mentorScore, progressP
           </div>
           <div>
             <p className="text-xs text-brand-muted uppercase font-bold">Global Rank</p>
-            <p className="text-xl font-bold text-white mt-0.5">#{rank || '-'}</p>
+            <p className="text-xl font-bold text-white mt-0.5">#{rank || 1}</p>
           </div>
         </div>
 
