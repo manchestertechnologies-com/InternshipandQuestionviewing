@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import prisma from '@/lib/prisma';
+import fs from 'fs';
+import path from 'path';
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
@@ -41,7 +43,11 @@ export async function GET(request: Request) {
         const mentorProfile = await prisma.mentorProfile.findUnique({
           where: { userId: session.user.id },
         });
-        if (!mentorProfile || submission.intern.group !== mentorProfile.group) {
+        if (
+          !mentorProfile ||
+          (submission.intern.group !== mentorProfile.group &&
+            submission.intern.mentorId !== mentorProfile.id)
+        ) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
       }
@@ -54,7 +60,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'File URL parameter is required' }, { status: 400 });
     }
 
-    // Ensure filename has clean extension
+    // Ensure clean MIME type
     let mimeType = 'application/octet-stream';
     const ext = filename.split('.').pop()?.toLowerCase() || '';
 
@@ -72,7 +78,10 @@ export async function GET(request: Request) {
       mimeType = 'image/jpeg';
     }
 
-    // Handle Base64 Data URL
+    const safeFilename = filename.replace(/["\r\n]/g, '_');
+    const encodedFilename = encodeURIComponent(filename);
+
+    // 1. Handle Base64 Data URL
     if (fileUrl.startsWith('data:')) {
       const matches = fileUrl.match(/^data:([^;]+);base64,(.+)$/);
       if (!matches || matches.length !== 3) {
@@ -85,7 +94,7 @@ export async function GET(request: Request) {
 
       const headers = new Headers();
       headers.set('Content-Type', detectedMime || mimeType);
-      headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      headers.set('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
       headers.set('Content-Length', buffer.length.toString());
 
       return new NextResponse(buffer, {
@@ -94,9 +103,29 @@ export async function GET(request: Request) {
       });
     }
 
-    // Handle Remote HTTP/HTTPS URL
+    // 2. Handle Local relative path (e.g. /uploads/...)
+    if (fileUrl.startsWith('/') || !fileUrl.startsWith('http')) {
+      const relativePath = fileUrl.startsWith('/') ? fileUrl.substring(1) : fileUrl;
+      const localFilePath = path.join(process.cwd(), 'public', relativePath);
+
+      if (fs.existsSync(localFilePath)) {
+        const fileBuffer = fs.readFileSync(localFilePath);
+        const headers = new Headers();
+        headers.set('Content-Type', mimeType);
+        headers.set('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+        headers.set('Content-Length', fileBuffer.length.toString());
+        return new NextResponse(fileBuffer, { status: 200, headers });
+      }
+    }
+
+    // 3. Handle Remote HTTP/HTTPS URL
     if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      const response = await fetch(fileUrl);
+      const response = await fetch(fileUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        },
+      });
+
       if (!response.ok) {
         return NextResponse.json({ error: `Failed to fetch file: ${response.statusText}` }, { status: response.status });
       }
@@ -106,8 +135,8 @@ export async function GET(request: Request) {
       const serverMime = response.headers.get('content-type') || mimeType;
 
       const headers = new Headers();
-      headers.set('Content-Type', serverMime);
-      headers.set('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+      headers.set('Content-Type', serverMime.includes('application/octet-stream') ? mimeType : serverMime);
+      headers.set('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
       headers.set('Content-Length', buffer.length.toString());
 
       return new NextResponse(buffer, {

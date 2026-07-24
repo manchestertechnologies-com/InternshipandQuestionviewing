@@ -19,11 +19,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Mentor profile not found' }, { status: 404 });
     }
 
-    // Fetch all submissions from interns in the mentor's group
+    // Fetch all weekly submissions from interns in the mentor's group or assigned directly
     const submissions = await prisma.weeklySubmission.findMany({
       where: {
-        intern: { group: mentorProfile.group },
-        domainProjectAssignmentId: { not: null },
+        OR: [
+          { intern: { group: mentorProfile.group } },
+          { intern: { mentorId: mentorProfile.id } },
+        ],
       },
       include: {
         intern: true,
@@ -71,7 +73,7 @@ export async function PATCH(request: Request) {
     await prisma.notification.create({
       data: {
         userId: updatedSubmission.intern.userId,
-        content: `Your mentor reviewed your Week ${updatedSubmission.weekNumber} submission for "${updatedSubmission.projectTitle || 'Project'}". Status: ${status}.`,
+        content: `Your mentor reviewed your Week ${updatedSubmission.weekNumber || ''} submission for "${updatedSubmission.projectTitle || 'Weekly Report'}". Status: ${status}.`,
         type: 'FEEDBACK',
       },
     });

@@ -130,9 +130,6 @@ function PdfViewerContainer({
         } else {
           let cleanUrl = url;
           if (cleanUrl.includes('res.cloudinary.com')) {
-            if (cleanUrl.includes('/raw/upload/')) {
-              cleanUrl = cleanUrl.replace('/raw/upload/', '/image/upload/');
-            }
             if (!cleanUrl.toLowerCase().endsWith('.pdf') && !cleanUrl.includes('?')) {
               cleanUrl = `${cleanUrl}.pdf`;
             }
@@ -151,7 +148,7 @@ function PdfViewerContainer({
 
         try {
           const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
           const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) });
           const pdfDoc = await loadingTask.promise;
@@ -183,9 +180,11 @@ function PdfViewerContainer({
                 const canvas = canvasRefs.current[i];
                 if (canvas) {
                   const context = canvas.getContext('2d');
+                  if (context) {
                     canvas.height = viewport.height;
                     canvas.width = viewport.width;
                     await page.render({ canvasContext: context, viewport, canvas } as any).promise;
+                  }
                 }
               } catch (err) {
                 console.warn(`Error rendering PDF page ${i}:`, err);
@@ -202,9 +201,6 @@ function PdfViewerContainer({
         console.warn('PDF load failed:', err);
         if (isMounted) {
           setBlobUrl(url);
-          if (url.startsWith('/uploads/')) {
-            setFetchError(true);
-          }
           setLoading(false);
         }
       }

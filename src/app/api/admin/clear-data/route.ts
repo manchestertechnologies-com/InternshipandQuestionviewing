@@ -19,16 +19,24 @@ export async function POST() {
     const taCount = await prisma.taskAssignment.deleteMany({});
     const tCount = await prisma.task.deleteMany({});
 
-    // 3. Delete weekly submissions and problem statements
+    // 3. Delete weekly submissions, domain project assignments, domain projects
     const wsCount = await prisma.weeklySubmission.deleteMany({});
+    const dpaCount = await prisma.domainProjectAssignment.deleteMany({});
+    const dpCount = await prisma.domainProject.deleteMany({});
+
+    // 4. Delete meetings and meeting targets
+    const mtCount = await prisma.meetingTarget.deleteMany({});
+    const mCount = await prisma.meeting.deleteMany({});
+
+    // 5. Delete problem statements
     const psCount = await prisma.problemStatement.deleteMany({});
 
-    // 4. Delete communications & notifications
+    // 6. Delete communications & notifications
     const msgCount = await prisma.message.deleteMany({});
     const notifCount = await prisma.notification.deleteMany({});
     const annCount = await prisma.announcement.deleteMany({});
 
-    // 5. Reset all intern profiles performance metrics
+    // 7. Reset all intern profiles performance metrics
     const resetInterns = await prisma.internProfile.updateMany({
       data: {
         totalPoints: 0,
@@ -46,6 +54,10 @@ export async function POST() {
         taskAssignments: taCount.count,
         tasks: tCount.count,
         weeklySubmissions: wsCount.count,
+        domainProjectAssignments: dpaCount.count,
+        domainProjects: dpCount.count,
+        meetingTargets: mtCount.count,
+        meetings: mCount.count,
         problemStatements: psCount.count,
         messages: msgCount.count,
         notifications: notifCount.count,
