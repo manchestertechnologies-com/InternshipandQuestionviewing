@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     let fileUrl = searchParams.get('url');
     let filename = searchParams.get('filename') || 'download';
     const submissionId = searchParams.get('submissionId');
+    const isInline = searchParams.get('inline') === 'true';
 
     // If submissionId is provided, lookup in database and check authorization
     if (submissionId) {
@@ -64,7 +65,7 @@ export async function GET(request: Request) {
     let mimeType = 'application/octet-stream';
     const ext = filename.split('.').pop()?.toLowerCase() || '';
 
-    if (ext === 'pdf') {
+    if (ext === 'pdf' || fileUrl.toLowerCase().includes('.pdf')) {
       mimeType = 'application/pdf';
     } else if (ext === 'docx') {
       mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -80,6 +81,8 @@ export async function GET(request: Request) {
 
     const safeFilename = filename.replace(/["\r\n]/g, '_');
     const encodedFilename = encodeURIComponent(filename);
+    const dispositionType = isInline ? 'inline' : 'attachment';
+    const dispositionHeader = `${dispositionType}; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`;
 
     // 1. Handle Base64 Data URL
     if (fileUrl.startsWith('data:')) {
@@ -93,8 +96,8 @@ export async function GET(request: Request) {
       const buffer = Buffer.from(base64Data, 'base64');
 
       const headers = new Headers();
-      headers.set('Content-Type', detectedMime || mimeType);
-      headers.set('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+      headers.set('Content-Type', (isInline && ext === 'pdf') ? 'application/pdf' : (detectedMime || mimeType));
+      headers.set('Content-Disposition', dispositionHeader);
       headers.set('Content-Length', buffer.length.toString());
 
       return new NextResponse(buffer, {
@@ -112,7 +115,7 @@ export async function GET(request: Request) {
         const fileBuffer = fs.readFileSync(localFilePath);
         const headers = new Headers();
         headers.set('Content-Type', mimeType);
-        headers.set('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+        headers.set('Content-Disposition', dispositionHeader);
         headers.set('Content-Length', fileBuffer.length.toString());
         return new NextResponse(fileBuffer, { status: 200, headers });
       }
@@ -135,8 +138,8 @@ export async function GET(request: Request) {
       const serverMime = response.headers.get('content-type') || mimeType;
 
       const headers = new Headers();
-      headers.set('Content-Type', serverMime.includes('application/octet-stream') ? mimeType : serverMime);
-      headers.set('Content-Disposition', `attachment; filename="${safeFilename}"; filename*=UTF-8''${encodedFilename}`);
+      headers.set('Content-Type', (isInline && ext === 'pdf') ? 'application/pdf' : (serverMime.includes('application/octet-stream') ? mimeType : serverMime));
+      headers.set('Content-Disposition', dispositionHeader);
       headers.set('Content-Length', buffer.length.toString());
 
       return new NextResponse(buffer, {

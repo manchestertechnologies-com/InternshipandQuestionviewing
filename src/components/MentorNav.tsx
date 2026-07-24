@@ -17,7 +17,11 @@ import {
   Trophy
 } from 'lucide-react';
 
-export default function MentorNav() {
+interface MentorNavProps {
+  onNavigate?: () => void;
+}
+
+export default function MentorNav({ onNavigate }: MentorNavProps) {
   const pathname = usePathname();
 
   const links = [
@@ -42,6 +46,7 @@ export default function MentorNav() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={() => onNavigate?.()}
               className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
                 isActive
                   ? 'bg-brand-gold text-black font-semibold shadow shadow-brand-gold/20'
@@ -56,7 +61,10 @@ export default function MentorNav() {
       </nav>
 
       <button
-        onClick={() => signOut({ callbackUrl: '/' })}
+        onClick={() => {
+          onNavigate?.();
+          signOut({ callbackUrl: '/' });
+        }}
         className="flex items-center gap-3 w-full px-4 py-3 mt-4 rounded-lg text-sm font-medium text-red-400 hover:bg-red-950/20 hover:text-red-300 transition-colors cursor-pointer border-0 text-left shrink-0"
       >
         <LogOut className="w-5 h-5 shrink-0" />

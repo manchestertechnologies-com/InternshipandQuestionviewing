@@ -20,7 +20,7 @@ export default function RightSidebar({ rank, totalPoints, mentorScore, progressP
   }
 
   return (
-    <aside className="w-80 glass-panel border-l border-brand-border flex flex-col h-full shrink-0 p-6 space-y-8 bg-black/40">
+    <aside className="hidden lg:flex w-80 glass-panel border-l border-brand-border flex-col h-full shrink-0 p-6 space-y-8 bg-black/40">
       <div className="border-b border-brand-border pb-4">
         <h2 className="font-bold text-sm uppercase tracking-widest text-brand-gold">My Performance</h2>
         <p className="text-[10px] text-brand-muted mt-1 uppercase font-semibold">Real-Time Metrics</p>

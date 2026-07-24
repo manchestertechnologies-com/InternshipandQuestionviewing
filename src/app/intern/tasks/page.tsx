@@ -110,7 +110,7 @@ function PdfViewerContainer({
 
     const loadPdfAndRender = async () => {
       try {
-        let arrayBuffer: ArrayBuffer;
+        let arrayBuffer: ArrayBuffer | null = null;
         let finalUrl = url;
 
         if (url.startsWith('data:')) {
@@ -134,16 +134,39 @@ function PdfViewerContainer({
               cleanUrl = `${cleanUrl}.pdf`;
             }
           }
-          const res = await fetch(cleanUrl);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          const blob = await res.blob();
-          arrayBuffer = await blob.arrayBuffer();
-          createdObjectUrl = URL.createObjectURL(blob);
-          finalUrl = createdObjectUrl;
+          try {
+            const res = await fetch(cleanUrl);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const rawBlob = await res.blob();
+            arrayBuffer = await rawBlob.arrayBuffer();
+            const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+            createdObjectUrl = URL.createObjectURL(pdfBlob);
+            finalUrl = createdObjectUrl;
+          } catch (fetchErr) {
+            console.warn('Direct PDF fetch failed, attempting inline proxy API:', fetchErr);
+            finalUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`;
+            try {
+              const proxyRes = await fetch(finalUrl);
+              if (proxyRes.ok) {
+                const proxyBlob = await proxyRes.blob();
+                arrayBuffer = await proxyBlob.arrayBuffer();
+                const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
+                createdObjectUrl = URL.createObjectURL(pdfBlob);
+                finalUrl = createdObjectUrl;
+              }
+            } catch (proxyErr) {
+              console.warn('Proxy fetch warning:', proxyErr);
+            }
+          }
         }
 
         if (isMounted) {
           setBlobUrl(finalUrl);
+        }
+
+        if (!arrayBuffer) {
+          if (isMounted) setLoading(false);
+          return;
         }
 
         try {
@@ -356,7 +379,11 @@ function PdfViewerContainer({
         ) : engine === 'GOOGLE' && !isDataOrBlob ? (
           <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[500px] border-0 bg-white block" title={name} />
         ) : (
-          <iframe src={activeUrl} className="w-full h-full min-h-[500px] border-0 bg-white block" title={name} />
+          <iframe
+            src={isDataOrBlob ? activeUrl : `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`}
+            className="w-full h-full min-h-[500px] sm:min-h-[600px] border-0 bg-white block rounded-xl shadow-lg"
+            title={name}
+          />
         )}
       </div>
     </div>
