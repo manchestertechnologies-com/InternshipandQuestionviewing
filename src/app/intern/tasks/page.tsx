@@ -128,34 +128,32 @@ function PdfViewerContainer({
           createdObjectUrl = URL.createObjectURL(blob);
           finalUrl = createdObjectUrl;
         } else {
-          let cleanUrl = url;
-          if (cleanUrl.includes('res.cloudinary.com')) {
-            if (!cleanUrl.toLowerCase().endsWith('.pdf') && !cleanUrl.includes('?')) {
-              cleanUrl = `${cleanUrl}.pdf`;
-            }
-          }
+          // Always use same-origin download proxy first to bypass CORS and Cloudinary header restrictions
+          const inlineProxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`;
           try {
-            const res = await fetch(cleanUrl);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const rawBlob = await res.blob();
+            const proxyRes = await fetch(inlineProxyUrl);
+            if (!proxyRes.ok) throw new Error(`Proxy HTTP ${proxyRes.status}`);
+            const rawBlob = await proxyRes.blob();
             arrayBuffer = await rawBlob.arrayBuffer();
             const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
             createdObjectUrl = URL.createObjectURL(pdfBlob);
             finalUrl = createdObjectUrl;
-          } catch (fetchErr) {
-            console.warn('Direct PDF fetch failed, attempting inline proxy API:', fetchErr);
-            finalUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`;
+          } catch (proxyErr) {
+            console.warn('Proxy fetch failed, attempting direct fetch:', proxyErr);
             try {
-              const proxyRes = await fetch(finalUrl);
-              if (proxyRes.ok) {
-                const proxyBlob = await proxyRes.blob();
-                arrayBuffer = await proxyBlob.arrayBuffer();
+              const res = await fetch(url);
+              if (res.ok) {
+                const rawBlob = await res.blob();
+                arrayBuffer = await rawBlob.arrayBuffer();
                 const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
                 createdObjectUrl = URL.createObjectURL(pdfBlob);
                 finalUrl = createdObjectUrl;
+              } else {
+                finalUrl = inlineProxyUrl;
               }
-            } catch (proxyErr) {
-              console.warn('Proxy fetch warning:', proxyErr);
+            } catch (directErr) {
+              console.warn('Direct fetch failed as well:', directErr);
+              finalUrl = inlineProxyUrl;
             }
           }
         }

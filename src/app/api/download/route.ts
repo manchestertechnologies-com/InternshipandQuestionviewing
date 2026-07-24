@@ -61,11 +61,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'File URL parameter is required' }, { status: 400 });
     }
 
+    const ext = filename.split('.').pop()?.toLowerCase() || '';
+    const isPdf = ext === 'pdf' || fileUrl.toLowerCase().includes('.pdf') || filename.toLowerCase().includes('.pdf');
+
     // Ensure clean MIME type
     let mimeType = 'application/octet-stream';
-    const ext = filename.split('.').pop()?.toLowerCase() || '';
-
-    if (ext === 'pdf' || fileUrl.toLowerCase().includes('.pdf')) {
+    if (isPdf) {
       mimeType = 'application/pdf';
     } else if (ext === 'docx') {
       mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
@@ -96,7 +97,7 @@ export async function GET(request: Request) {
       const buffer = Buffer.from(base64Data, 'base64');
 
       const headers = new Headers();
-      headers.set('Content-Type', (isInline && ext === 'pdf') ? 'application/pdf' : (detectedMime || mimeType));
+      headers.set('Content-Type', isPdf ? 'application/pdf' : (detectedMime || mimeType));
       headers.set('Content-Disposition', dispositionHeader);
       headers.set('Content-Length', buffer.length.toString());
 
@@ -114,7 +115,7 @@ export async function GET(request: Request) {
       if (fs.existsSync(localFilePath)) {
         const fileBuffer = fs.readFileSync(localFilePath);
         const headers = new Headers();
-        headers.set('Content-Type', mimeType);
+        headers.set('Content-Type', isPdf ? 'application/pdf' : mimeType);
         headers.set('Content-Disposition', dispositionHeader);
         headers.set('Content-Length', fileBuffer.length.toString());
         return new NextResponse(fileBuffer, { status: 200, headers });
@@ -138,7 +139,10 @@ export async function GET(request: Request) {
       const serverMime = response.headers.get('content-type') || mimeType;
 
       const headers = new Headers();
-      headers.set('Content-Type', (isInline && ext === 'pdf') ? 'application/pdf' : (serverMime.includes('application/octet-stream') ? mimeType : serverMime));
+      headers.set(
+        'Content-Type',
+        isPdf ? 'application/pdf' : (serverMime.includes('application/octet-stream') ? mimeType : serverMime)
+      );
       headers.set('Content-Disposition', dispositionHeader);
       headers.set('Content-Length', buffer.length.toString());
 
