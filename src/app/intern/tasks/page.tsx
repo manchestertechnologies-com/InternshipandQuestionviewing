@@ -71,6 +71,21 @@ interface TaskAssignment {
   questions: Question[];
 }
 
+function triggerFileDownload(fileUrl: string, fileName: string) {
+  if (!fileUrl) return;
+  if (fileUrl.startsWith('data:') || fileUrl.startsWith('blob:')) {
+    const link = document.createElement('a');
+    link.href = fileUrl;
+    link.download = fileName || 'document.pdf';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } else {
+    const downloadApiUrl = `/api/download?url=${encodeURIComponent(fileUrl)}&filename=${encodeURIComponent(fileName || 'download')}`;
+    window.open(downloadApiUrl, '_blank');
+  }
+}
+
 function PdfViewerContainer({
   url,
   name,
@@ -284,7 +299,7 @@ function PdfViewerContainer({
   return (
     <div className="w-full h-full flex flex-col min-h-0 bg-zinc-950">
       {/* Secondary Bar for Mode & Copy */}
-      <div className="bg-zinc-900 border-b border-brand-border/40 p-2 flex items-center justify-between text-xs gap-2 shrink-0">
+      <div className="bg-zinc-900 border-b border-brand-border/40 p-2 flex items-center justify-between text-xs gap-2 shrink-0 flex-wrap">
         <div className="flex items-center gap-1 bg-black p-0.5 rounded-lg border border-brand-border/40">
           <button
             onClick={() => setViewMode('PDF')}
@@ -304,15 +319,26 @@ function PdfViewerContainer({
           </button>
         </div>
 
-        {extractedFullText && (
+        <div className="flex items-center gap-2">
           <button
-            onClick={handleCopyText}
-            className="bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold border border-brand-gold/40 px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
+            onClick={() => triggerFileDownload(url, name)}
+            className="bg-brand-gold text-black hover:bg-brand-gold-hover px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs border-0 shadow"
+            title="Download Document File"
           >
-            <Copy className="w-3.5 h-3.5" />
-            <span>{copied ? 'Copied Full Text!' : 'Copy PDF Text'}</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>Download File</span>
           </button>
-        )}
+
+          {extractedFullText && (
+            <button
+              onClick={handleCopyText}
+              className="bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold border border-brand-gold/40 px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
+            >
+              <Copy className="w-3.5 h-3.5" />
+              <span>{copied ? 'Copied Full Text!' : 'Copy PDF Text'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="w-full flex-1 min-h-0 relative bg-zinc-950 overflow-y-auto scrollbar-thin p-4">
@@ -1349,16 +1375,14 @@ export default function DailyTasksPage() {
                             </div>
                           )}
 
-                          <a
-                            href={downloadApiUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                          <button
+                            onClick={() => triggerFileDownload(currentFile.url, currentFile.name)}
                             className="text-xs bg-brand-gold hover:bg-brand-gold-hover text-black px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 border-0 shadow cursor-pointer"
                             title="Download Original Document"
                           >
                             <Download className="w-3.5 h-3.5" />
                             <span>DOWNLOAD DOCUMENT</span>
-                          </a>
+                          </button>
                         </div>
                       </div>
 
