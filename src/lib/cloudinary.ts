@@ -48,7 +48,7 @@ export async function uploadToCloudinary(
   // Try Cloudinary upload if config exists
   if (cloudName && apiKey && apiSecret) {
     try {
-      const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
+      const resourceType = (ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
       const base64String = `data:${mimeType};base64,${buffer.toString('base64')}`;
       
       const uploadResult = await cloudinary.uploader.upload(base64String, {
