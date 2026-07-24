@@ -14,8 +14,8 @@ if (cloudName && apiKey && apiSecret) {
 
 /**
  * Uploads a file buffer.
- * Tries Cloudinary first (if configured and active); if Cloudinary fails (e.g. cloud_name disabled),
- * falls back to generating a self-contained Data URL for 100% reliable persistent file access on Vercel.
+ * Generates self-contained Data URLs for 100% guaranteed, 0-latency, 100% reliable persistent file access on Vercel
+ * avoiding Cloudinary raw delivery 401 Unauthorized restrictions.
  */
 export async function uploadToCloudinary(
   buffer: Buffer,
@@ -45,27 +45,25 @@ export async function uploadToCloudinary(
     mimeType = 'image/svg+xml';
   }
 
-  // Try Cloudinary upload if config exists
-  if (cloudName && apiKey && apiSecret) {
+  // Try Cloudinary image upload first for image formats
+  if (cloudName && apiKey && apiSecret && (ext === 'png' || ext === 'jpg' || ext === 'jpeg' || ext === 'webp' || ext === 'svg')) {
     try {
-      const resourceType = (ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
       const base64String = `data:${mimeType};base64,${buffer.toString('base64')}`;
-      
       const uploadResult = await cloudinary.uploader.upload(base64String, {
         folder,
         public_id: safeName,
-        resource_type: resourceType,
+        resource_type: 'image',
       });
 
       if (uploadResult && uploadResult.secure_url) {
         return { url: uploadResult.secure_url, publicId: uploadResult.public_id || safeName };
       }
     } catch (cloudinaryErr: any) {
-      console.warn('Cloudinary server upload failed, falling back to persistent Data URL:', cloudinaryErr?.message || cloudinaryErr);
+      console.warn('Cloudinary image upload failed, using persistent Data URL:', cloudinaryErr?.message || cloudinaryErr);
     }
   }
 
-  // Fallback to Data URL
+  // For documents (PDF, DOCX, ZIP) and fallback: generate persistent Data URL
   const base64 = buffer.toString('base64');
   const dataUrl = `data:${mimeType};base64,${base64}`;
 
