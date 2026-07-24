@@ -239,11 +239,14 @@ export default function WeeklySubmissionPage() {
                     </div>
                   </div>
                   <a
-                    href={sub.fileUrl}
-                    download
-                    className="p-2 bg-zinc-950 border border-brand-border rounded-lg text-brand-gold hover:bg-zinc-900 transition cursor-pointer"
+                    href={`/api/download?submissionId=${sub.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 bg-zinc-950 border border-brand-border rounded-lg text-brand-gold hover:bg-zinc-900 transition cursor-pointer flex items-center gap-1.5 text-xs font-bold shrink-0"
+                    title={`Download ${sub.fileName}`}
                   >
                     <Download className="w-4 h-4" />
+                    <span>Download</span>
                   </a>
                 </div>
               ))}

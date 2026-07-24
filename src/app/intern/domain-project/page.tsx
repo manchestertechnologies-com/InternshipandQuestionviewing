@@ -626,11 +626,11 @@ export default function DomainProjectPage() {
                         <span className="text-zinc-300 font-mono truncate text-[10px]">{sub.fileName}</span>
                       </div>
                       <a
-                        href={sub.fileUrl}
-                        download
+                        href={`/api/download?submissionId=${sub.id}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-brand-gold hover:text-white transition font-bold shrink-0 text-[10px] flex items-center gap-1 hover:underline ml-2"
+                        title={`Download ${sub.fileName}`}
                       >
                         <Download className="w-3.5 h-3.5" />
                         <span>Download</span>
@@ -740,11 +740,11 @@ export default function DomainProjectPage() {
                           </div>
                         </div>
                         <a
-                          href={file.url}
-                          download
+                          href={`/api/download?url=${encodeURIComponent(file.url)}&filename=${encodeURIComponent(file.name)}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="p-2 bg-zinc-950 hover:bg-zinc-900 border border-brand-border rounded-lg text-brand-gold cursor-pointer ml-4 transition"
+                          title={`Download ${file.name}`}
                         >
                           <Download className="w-4 h-4" />
                         </a>

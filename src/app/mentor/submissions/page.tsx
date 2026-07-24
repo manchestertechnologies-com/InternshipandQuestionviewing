@@ -165,11 +165,11 @@ export default function MentorSubmissionsPage() {
                     <td className="py-4 text-right space-y-1">
                       <div className="flex justify-end gap-2">
                         <a
-                          href={sub.fileUrl}
-                          download
+                          href={`/api/download?submissionId=${sub.id}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-zinc-950 border border-brand-border hover:bg-zinc-900 rounded text-xs font-semibold text-brand-gold transition cursor-pointer"
+                          title={`Download ${sub.fileName}`}
                         >
                           <Download className="w-3.5 h-3.5" />
                           <span>Download</span>
@@ -228,7 +228,7 @@ export default function MentorSubmissionsPage() {
                 <p className="text-zinc-400">Intern: <strong className="text-white">{selectedSub.studentName} (Roll #{selectedSub.rollNumber})</strong></p>
                 <p className="text-zinc-400">Project: <strong className="text-white">{selectedSub.projectTitle}</strong></p>
                 <p className="text-zinc-400">Week: <strong className="text-white">Week {selectedSub.weekNumber}</strong></p>
-                <p className="text-zinc-400">File: <a href={selectedSub.fileUrl} download target="_blank" rel="noopener noreferrer" className="text-brand-gold font-semibold underline hover:text-brand-gold-hover truncate block mt-1">{selectedSub.fileName}</a></p>
+                <p className="text-zinc-400">File: <a href={`/api/download?submissionId=${selectedSub.id}`} target="_blank" rel="noopener noreferrer" className="text-brand-gold font-semibold underline hover:text-brand-gold-hover truncate block mt-1">{selectedSub.fileName}</a></p>
               </div>
 
               <div>
