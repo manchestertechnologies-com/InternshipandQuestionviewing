@@ -385,16 +385,36 @@ function PdfViewerContainer({
           <div className="flex flex-col items-center space-y-6 max-w-4xl mx-auto py-2">
             {Array.from({ length: numPages }).map((_, index) => {
               const pageNum = index + 1;
+              const pageText = extractedPages[index] || '';
               return (
                 <div key={pageNum} className="flex flex-col items-center space-y-2 w-full">
-                  <div className="text-[10px] font-mono text-brand-gold uppercase font-bold bg-zinc-900 border border-brand-border px-3 py-0.5 rounded-full">
-                    Page {pageNum} of {numPages}
+                  <div className="text-[10px] font-mono text-brand-gold uppercase font-bold bg-zinc-900 border border-brand-border px-3 py-1 rounded-full flex items-center justify-between w-full max-w-4xl">
+                    <span>Page {pageNum} of {numPages}</span>
+                    {pageText && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(pageText);
+                          alert(`Copied Page ${pageNum} text to clipboard!`);
+                        }}
+                        className="text-[10px] text-brand-gold hover:underline font-bold bg-transparent border-0 cursor-pointer flex items-center gap-1"
+                      >
+                        <Copy className="w-3 h-3" />
+                        <span>Copy Page {pageNum} Text</span>
+                      </button>
+                    )}
                   </div>
-                  <div className="bg-white rounded-xl shadow-2xl overflow-hidden border border-zinc-300 max-w-full">
+                  <div className="bg-white rounded-xl shadow-2xl overflow-hidden border border-zinc-300 max-w-full relative group">
                     <canvas
                       ref={(el) => { canvasRefs.current[pageNum] = el; }}
                       className="block max-w-full h-auto mx-auto"
                     />
+                    {/* Selectable Text Overlay Layer for Mouse Copying */}
+                    <div
+                      className="absolute inset-0 p-4 select-text cursor-text pointer-events-auto overflow-y-auto opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity bg-white/10 selection:bg-brand-gold selection:text-black font-sans text-sm text-zinc-900 leading-relaxed whitespace-pre-wrap"
+                      title="Select & copy text with mouse"
+                    >
+                      {pageText}
+                    </div>
                   </div>
                 </div>
               );
@@ -405,7 +425,7 @@ function PdfViewerContainer({
         ) : (
           <iframe
             src={isDataOrBlob ? activeUrl : `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`}
-            className="w-full h-full min-h-[500px] sm:min-h-[600px] border-0 bg-white block rounded-xl shadow-lg"
+            className="w-full h-full min-h-[500px] sm:min-h-[600px] border-0 bg-white block rounded-xl shadow-lg select-text"
             title={name}
           />
         )}
@@ -416,8 +436,10 @@ function PdfViewerContainer({
 
 function DocxViewerContainer({ url, name }: { url: string; name: string }) {
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [extractedText, setExtractedText] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -444,8 +466,11 @@ function DocxViewerContainer({ url, name }: { url: string; name: string }) {
 
         const mammoth = await import('mammoth');
         const result = await mammoth.convertToHtml({ arrayBuffer });
+        const textResult = await mammoth.extractRawText({ arrayBuffer }).catch(() => ({ value: '' }));
+
         if (isMounted) {
           setHtmlContent(result.value || '<p class="italic text-zinc-500">Document is empty.</p>');
+          setExtractedText(textResult.value || '');
           setLoading(false);
         }
       } catch (err: any) {
@@ -463,6 +488,14 @@ function DocxViewerContainer({ url, name }: { url: string; name: string }) {
       isMounted = false;
     };
   }, [url]);
+
+  const handleCopyWordText = () => {
+    if (!extractedText && !htmlContent) return;
+    const textToCopy = extractedText || document.getElementById('docx-content-area')?.innerText || '';
+    navigator.clipboard.writeText(textToCopy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   if (loading) {
     return (
@@ -498,12 +531,41 @@ function DocxViewerContainer({ url, name }: { url: string; name: string }) {
   }
 
   return (
-    <div className="w-full min-h-full bg-zinc-900 p-4 sm:p-6">
-      <div className="max-w-4xl mx-auto w-full bg-white text-zinc-900 p-6 sm:p-10 rounded-xl shadow-2xl border border-zinc-300">
-        <div
-          className="prose max-w-none text-sm leading-relaxed text-zinc-800 font-sans space-y-3 [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-black [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_p]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-zinc-300 [&_td]:p-2 [&_th]:border [&_th]:border-zinc-300 [&_th]:p-2 [&_th]:bg-zinc-100"
-          dangerouslySetInnerHTML={{ __html: htmlContent }}
-        />
+    <div className="w-full h-full flex flex-col min-h-0 bg-zinc-950">
+      {/* Secondary Bar for Mode & Copy */}
+      <div className="bg-zinc-900 border-b border-brand-border/40 p-2 flex items-center justify-between text-xs gap-2 shrink-0 flex-wrap">
+        <div className="flex items-center gap-2">
+          <span className="text-zinc-400 font-bold px-2 text-xs">Word Document (.docx)</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => triggerFileDownload(url, name)}
+            className="bg-brand-gold text-black hover:bg-brand-gold-hover px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs border-0 shadow"
+            title="Download Word File"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>Download File</span>
+          </button>
+
+          <button
+            onClick={handleCopyWordText}
+            className="bg-brand-gold/20 hover:bg-brand-gold/30 text-brand-gold border border-brand-gold/40 px-3 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs"
+          >
+            <Copy className="w-3.5 h-3.5" />
+            <span>{copied ? 'Copied Full Text!' : 'Copy Word Text'}</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="w-full flex-1 min-h-0 relative bg-zinc-900 overflow-y-auto scrollbar-thin p-4 sm:p-6 select-text">
+        <div className="max-w-4xl mx-auto w-full bg-white text-zinc-900 p-6 sm:p-10 rounded-xl shadow-2xl border border-zinc-300 select-text selection:bg-brand-gold selection:text-black">
+          <div
+            id="docx-content-area"
+            className="prose max-w-none text-sm leading-relaxed text-zinc-800 font-sans space-y-3 select-text cursor-text [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-black [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_p]:my-2 [&_p]:select-text [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-zinc-300 [&_td]:p-2 [&_th]:border [&_th]:border-zinc-300 [&_th]:p-2 [&_th]:bg-zinc-100"
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
+          />
+        </div>
       </div>
     </div>
   );

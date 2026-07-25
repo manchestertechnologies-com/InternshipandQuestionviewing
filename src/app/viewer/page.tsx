@@ -55,23 +55,6 @@ export default function ViewerDashboard() {
   // Tree expansion state
   const [expandedNodes, setExpandedNodes] = useState<string[]>(['Physics', 'Chemistry', 'Biology', 'Mathematics']);
 
-  useEffect(() => {
-    // Right-click, Copy, Cut, and Selection restrictions for data protection
-    const preventContextMenu = (e: MouseEvent) => e.preventDefault();
-    const preventCopy = (e: ClipboardEvent) => e.preventDefault();
-    const preventCut = (e: ClipboardEvent) => e.preventDefault();
-
-    window.addEventListener('contextmenu', preventContextMenu);
-    window.addEventListener('copy', preventCopy);
-    window.addEventListener('cut', preventCut);
-
-    return () => {
-      window.removeEventListener('contextmenu', preventContextMenu);
-      window.removeEventListener('copy', preventCopy);
-      window.removeEventListener('cut', preventCut);
-    };
-  }, []);
-
   const fetchQuestions = async () => {
     setLoading(true);
     try {
@@ -175,7 +158,7 @@ export default function ViewerDashboard() {
 
   return (
     <div
-      className="p-8 space-y-8 select-none min-h-screen relative"
+      className="p-8 space-y-8 select-text min-h-screen relative"
       style={{
         backgroundImage: `url("${watermarkUrl}")`,
         backgroundRepeat: 'repeat',
