@@ -38,6 +38,12 @@ assert(resultText.includes('S²⁻'), 'S2^-- converted to S²⁻ (clean power/ch
 assert(resultText.includes('Se²⁻'), 'Se2^-- converted to Se²⁻ (clean power/charge superscript)');
 assert(resultText.includes("Electronegativity of central 'C'-atom"), 'Accidental line break central\\n\'C\'-atom joined into single line');
 
+// Additional test for S²^-- input explicitly (where ² was already a superscript character)
+const explicitUnicodeInput = "(iii) Ca²⁺ < Na⁺ < S²^-- < Se²^-- : Ionic radius";
+const explicitResult = formatCleanText(explicitUnicodeInput);
+assert(explicitResult.includes('S²⁻') && !explicitResult.includes('^--'), 'S²^-- cleaned to S²⁻ without caret or double minus');
+assert(explicitResult.includes('Se²⁻') && !explicitResult.includes('^--'), 'Se²^-- cleaned to Se²⁻ without caret or double minus');
+
 console.log('\nFormatted Output:\n----------------------------------------\n' + resultText + '\n----------------------------------------');
 
 console.log('\n====================================================');

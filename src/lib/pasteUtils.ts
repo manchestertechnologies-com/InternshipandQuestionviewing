@@ -74,14 +74,16 @@ export function autoFormatPowersAndCharges(text: string): string {
   if (!text) return '';
   let result = text;
 
-  // 1. Clean up caret power charges like S2^--, Se2^--, S^2--, S2^-, S^2- -> S²⁻, Se²⁻
-  result = result.replace(/([A-Z][a-z]?|\)|\])(\d*)\^?--+/gi, (_, elem, digits) => {
-    const supDigits = digits ? digits.split('').map((d: string) => SUPER_MAP[d] || d).join('') : '²';
-    return elem + supDigits + '⁻';
+  // 1. Clean up caret power charges with existing Unicode superscripts/subscripts or digits:
+  // e.g. S²^--, Se²^--, S2^--, S^2--, S₂^--, S2-- -> S²⁻, Se²⁻
+  result = result.replace(/([A-Z][a-z]?|\)|\])[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉\d]*\^?--+/gi, (match, elem) => {
+    if (match.includes('3') || match.includes('³') || match.includes('₃')) return elem + '³⁻';
+    return elem + '²⁻';
   });
-  result = result.replace(/([A-Z][a-z]?|\)|\])(\d*)\^?\+\++/gi, (_, elem, digits) => {
-    const supDigits = digits ? digits.split('').map((d: string) => SUPER_MAP[d] || d).join('') : '²';
-    return elem + supDigits + '⁺';
+
+  result = result.replace(/([A-Z][a-z]?|\)|\])[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉\d]*\^?\+\++/gi, (match, elem) => {
+    if (match.includes('3') || match.includes('³') || match.includes('₃')) return elem + '³⁺';
+    return elem + '²⁺';
   });
 
   // 2. Format explicitly written caret powers like x^2 -> x², 10^-3 -> 10⁻³, S^2- -> S²⁻
