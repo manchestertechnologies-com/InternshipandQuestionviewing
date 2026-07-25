@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { convertToSubscript, convertToSuperscript, insertTextAtCursor } from '@/lib/pasteUtils';
+import { convertToSubscript, convertToSuperscript, autoFormatChemicalSubscripts, insertTextAtCursor } from '@/lib/pasteUtils';
 
 interface MathToolbarProps {
   targetRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
@@ -11,10 +11,14 @@ interface MathToolbarProps {
 }
 
 export default function MathToolbar({ targetRef, currentValue, onUpdate, className = '' }: MathToolbarProps) {
-  const insertOrFormat = (actionType: 'SUB' | 'SUPER' | 'SYMBOL', symbolValue?: string) => {
+  const insertOrFormat = (actionType: 'SUB' | 'SUPER' | 'SYMBOL' | 'CHEM_AUTO', symbolValue?: string) => {
     const el = targetRef?.current;
     if (!el) {
-      if (symbolValue) onUpdate(currentValue + symbolValue);
+      if (actionType === 'CHEM_AUTO') {
+        onUpdate(autoFormatChemicalSubscripts(currentValue));
+      } else if (symbolValue) {
+        onUpdate(currentValue + symbolValue);
+      }
       return;
     }
 
@@ -22,7 +26,15 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
     const end = el.selectionEnd ?? currentValue.length;
     const selectedText = currentValue.substring(start, end);
 
-    if (actionType === 'SUB') {
+    if (actionType === 'CHEM_AUTO') {
+      if (selectedText) {
+        const formatted = autoFormatChemicalSubscripts(selectedText);
+        insertTextAtCursor(el, formatted, currentValue, onUpdate);
+      } else {
+        const formatted = autoFormatChemicalSubscripts(currentValue);
+        onUpdate(formatted);
+      }
+    } else if (actionType === 'SUB') {
       const formatted = selectedText ? convertToSubscript(selectedText) : '₂';
       insertTextAtCursor(el, formatted, currentValue, onUpdate);
     } else if (actionType === 'SUPER') {
@@ -55,6 +67,18 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
         Format:
       </span>
       
+      {/* Auto Chemical Subscript Converter Button */}
+      <button
+        type="button"
+        onClick={() => insertOrFormat('CHEM_AUTO')}
+        className="px-2 py-0.5 bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold font-extrabold text-[10px] uppercase tracking-wider rounded border border-brand-gold/30 transition cursor-pointer flex items-center gap-1"
+        title="Auto-convert chemical formulas to subscripts (e.g. PCl3 -> PCl₃, H2SO4 -> H₂SO₄)"
+      >
+        <span>🧪 Auto Chem Subscripts</span>
+      </button>
+
+      <div className="h-4 w-px bg-brand-border/60 mx-0.5" />
+
       {/* Subscript Button */}
       <button
         type="button"

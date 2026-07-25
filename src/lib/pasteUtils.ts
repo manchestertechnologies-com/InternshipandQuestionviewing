@@ -43,6 +43,38 @@ export function convertToSuperscript(text: string): string {
 }
 
 /**
+ * Auto-formats chemical formulas, organic chemistry structures, and temperature units
+ * into exact subscript and superscript representations.
+ * e.g. "PCl3, PBr3, PI3" -> "PCl₃, PBr₃, PI₃"
+ * e.g. "SOCl2, PCl5" -> "SOCl₂, PCl₅"
+ * e.g. "H2SO4 /HNO3" -> "H₂SO₄ /HNO₃"
+ * e.g. "(CH3CO)2O /AlCl3" -> "(CH₃CO)₂O /AlCl₃"
+ */
+export function autoFormatChemicalSubscripts(text: string): string {
+  if (!text) return '';
+
+  let result = text;
+
+  // 1. Format temperatures like 0-50C, 0-5^0C, 0-5oC -> 0-5°C
+  result = result.replace(/(\d+)\s*(?:[0o⁰]C|°C|\^0C)/g, '$1°C');
+  result = result.replace(/(\d+)-(\d+)\s*0C/gi, '$1-$2°C');
+
+  // 2. Periodic Table & Group Element Symbols regex
+  // Match Element Symbol (e.g. Fe, Cu, Cl, Br, Na, H, O, C, P, S, N, F, Al, Zn, Hg, Sb, Co, B, I) 
+  // OR closing bracket/parenthesis ')', ']', followed by digits 1-99
+  // Avoid matching Kelvin/Celsius/gram/mL/meter/molar units like 623K, 100g, 50mL
+  const chemicalSubscriptRegex = /([A-Z][a-z]?|\)|\])(\d+)(?![0-9]*[KkgmML])/g;
+
+  result = result.replace(chemicalSubscriptRegex, (match, prefix, numStr) => {
+    // Convert numStr to Unicode subscripts
+    const subDigits = numStr.split('').map((d: string) => SUB_MAP[d] || d).join('');
+    return prefix + subDigits;
+  });
+
+  return result;
+}
+
+/**
  * Parses copied HTML / Rich text content and converts subscripts, superscripts,
  * math entities, chemical formulas, and line breaks into clean Unicode text.
  */
@@ -113,7 +145,7 @@ export function parseRichTextToUnicode(htmlText: string): string {
   // Normalize multiple newlines (max 2 consecutive)
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
 
-  return cleaned.trim();
+  return autoFormatChemicalSubscripts(cleaned.trim());
 }
 
 /**
@@ -139,7 +171,8 @@ export function handleRichPaste(
   const plainData = e.clipboardData?.getData('text/plain');
 
   if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('&') || htmlData.includes('<p>') || htmlData.includes('<math'))) {
-    const formatted = parseRichTextToUnicode(htmlData);
+    let formatted = parseRichTextToUnicode(htmlData);
+    formatted = autoFormatChemicalSubscripts(formatted);
     if (formatted) {
       e.preventDefault();
       insertTextAtCursor(e.currentTarget, formatted, currentValue, setValue);
@@ -147,11 +180,15 @@ export function handleRichPaste(
     }
   }
 
-  if (plainData && (plainData.includes('<sub>') || plainData.includes('<sup>'))) {
-    const formatted = parseRichTextToUnicode(plainData);
-    if (formatted) {
+  if (plainData) {
+    let formatted = plainData;
+    if (plainData.includes('<sub>') || plainData.includes('<sup>')) {
+      formatted = parseRichTextToUnicode(plainData);
+    }
+    const chemFormatted = autoFormatChemicalSubscripts(formatted);
+    if (chemFormatted !== plainData) {
       e.preventDefault();
-      insertTextAtCursor(e.currentTarget, formatted, currentValue, setValue);
+      insertTextAtCursor(e.currentTarget, chemFormatted, currentValue, setValue);
       return true;
     }
   }
