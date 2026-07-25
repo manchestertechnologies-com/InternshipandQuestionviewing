@@ -43,6 +43,52 @@ export function convertToSuperscript(text: string): string {
 }
 
 /**
+ * Auto-formats scientific notation powers and negative exponents:
+ * e.g. "10^-5" -> "10⁻⁵"
+ * e.g. "10^- 5" -> "10⁻⁵"
+ * e.g. "10^- ⁵" -> "10⁻⁵"
+ * e.g. "1.8 x 10^-5" -> "1.8 × 10⁻⁵"
+ * e.g. "Ka" -> "Kₐ"
+ */
+export function autoFormatScientificExponents(text: string): string {
+  if (!text) return '';
+  let result = text;
+
+  // Format Ka, Kb, Ksp constant subscripts
+  result = result.replace(/\bK\s*([ab]|sp)\b/g, (match, sub) => `K${convertToSubscript(sub)}`);
+
+  // 1. Handle caret with optional spaces and minus/plus: e.g. 10^- 5, 10^-5, 10^- ⁵, 10^-⁵ -> 10⁻⁵
+  result = result.replace(/(\d+|[a-zA-Z]|\))\s*\^\s*([+\-–—])?\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)/gi, (_, base, sign, num) => {
+    let supSign = '';
+    if (sign) {
+      supSign = (sign === '+' ? '⁺' : '⁻');
+    }
+    const numDigits = num.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
+      const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
+      return idx !== -1 ? String(idx) : d;
+    });
+    const supDigits = numDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    return base + supSign + supDigits;
+  });
+
+  // 2. Handle 10- 5 or 10- ⁵ or 10-5 right after multiplication:
+  // e.g. 1.8 × 10-5 or 1.8 x 10^-5 -> 1.8 × 10⁻⁵
+  result = result.replace(/(10)\s*[\-\–—]\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)/gi, (_, base, num) => {
+    const numDigits = num.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
+      const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
+      return idx !== -1 ? String(idx) : d;
+    });
+    const supDigits = numDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    return base + '⁻' + supDigits;
+  });
+
+  // 3. Format multiplication sign in scientific notation: 1.8 x 10 -> 1.8 × 10
+  result = result.replace(/(\d)\s*[xX]\s*(10[⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹\^])/g, '$1 × $2');
+
+  return result;
+}
+
+/**
  * Auto-formats chemical formulas, organic chemistry structures, and temperature units
  * into exact subscript and superscript representations.
  */
@@ -130,13 +176,9 @@ export function cleanLineBreaks(text: string): string {
       const prevIndex = cleanedLines.length - 1;
       const prev = cleanedLines[prevIndex];
 
-      // Check if current line is a new numbered/bullet item like (i), (ii), (iii), (iv), (a), (b), 1., 2., Option A:, Assertion, Reason, Statement
       const isNewItemHeader = /^(?:\([iivxlc\d]+\)|\b[iivxlc\d]+\.|\([a-z]\)|[a-z]\.|\d+\.|Option\s+[A-Z]:?|Statement\s+[I|\d]+:?|Assertion|Reason)\b/i.test(current);
-
-      // Check if prev line ended without complete sentence punctuation (. : ; ? !)
       const prevEndsSentence = /[.:;?!]$/.test(prev);
 
-      // If prev line didn't end a sentence AND current line is not a new item header, join them into a single line!
       if (prev && !prevEndsSentence && !isNewItemHeader) {
         cleanedLines[prevIndex] = prev + ' ' + current;
         continue;
@@ -155,6 +197,7 @@ export function cleanLineBreaks(text: string): string {
 export function formatCleanText(text: string): string {
   if (!text) return '';
   let res = cleanLineBreaks(text);
+  res = autoFormatScientificExponents(res);
   res = autoFormatPowersAndCharges(res);
   res = autoFormatChemicalSubscripts(res);
   return res.trim();
