@@ -44,14 +44,14 @@ export function convertToSuperscript(text: string): string {
 
 /**
  * Auto-formats scientific notation powers and negative exponents:
- * e.g. "(1) 10^−³ nm" -> "(1) 10⁻³ nm"
- * e.g. "(2) 10^−¹ nm" -> "(2) 10⁻¹ nm"
- * e.g. "(3) 10^−² nm" -> "(3) 10⁻² nm"
- * e.g. "(4) 10−⁴ nm" -> "(4) 10⁻⁴ nm"
- * e.g. "10^-5" -> "10⁻⁵"
- * e.g. "10^- 5" -> "10⁻⁵"
- * e.g. "1.8 x 10^-5" -> "1.8 × 10⁻⁵"
- * e.g. "Ka" -> "Kₐ"
+ * e.g. "10^-1 nm" -> "10⁻¹ nm"
+ * e.g. "10^-2 nm" -> "10⁻² nm"
+ * e.g. "10^-3 nm" -> "10⁻³ nm"
+ * e.g. "10^-4 pm" -> "10⁻⁴ pm"
+ * e.g. "10^-6 μm" -> "10⁻⁶ μm"
+ * e.g. "10^-10 Å" -> "10⁻¹⁰ Å"
+ * e.g. "5×10^-3 m" -> "5×10⁻³ m"
+ * e.g. "2.5×10^6 kg" -> "2.5×10⁶ kg"
  */
 export function autoFormatScientificExponents(text: string): string {
   if (!text) return '';
@@ -64,7 +64,7 @@ export function autoFormatScientificExponents(text: string): string {
   const minusChars = '[+\\-–—\\u2212\\u2010-\\u2015\\u207B\\u207A]';
 
   // 1. Convert base WITH CARET ^ (with or without minus, spaces, or superscripts)
-  // e.g. 10^-3, 10^ -3, 10^−3, 10^ −³, 10^−³, (2) 10^ −¹ -> 10⁻³, 10⁻³, 10⁻³, 10⁻³, (2) 10⁻¹
+  // e.g. 10^-1, 10^-2, 10^-3, 10^-4, 10^-5, 10^-6, 10^-10, 10^5, 10^6, 5x10^-3, 2.5x10^6
   const caretRegex = new RegExp(`(\\d+|[a-zA-Z]|\\))\\s*\\^\\s*(${minusChars})?\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)`, 'gi');
   result = result.replace(caretRegex, (_, base, sign, numStr) => {
     let supSign = '';
@@ -103,8 +103,35 @@ export function autoFormatScientificExponents(text: string): string {
     return base + supSign + supDigits;
   });
 
-  // 4. Format multiplication sign in scientific notation: 1.8 x 10 -> 1.8 × 10
-  result = result.replace(/(\d)\s*[xX]\s*(10[⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹\^])/g, '$1 × $2');
+  // 4. Format multiplication sign in scientific notation: 1.8 x 10 -> 1.8 × 10, 5x10 -> 5×10
+  result = result.replace(/(\d)\s*[xX*×]\s*(10[⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹\^])/g, '$1×$2');
+
+  return result;
+}
+
+/**
+ * Normalizes spacing between scientific notation / numbers with exponents and units.
+ * Ensures exactly one normal space between scientific notation and supported units.
+ * Supported units: nm, pm, mm, cm, m, km, μm, µm, Å, A°, L, mL, kg, g, mg, mol, M, N, J, Pa, Hz, W, V, A, Ω, K, °C, etc.
+ */
+export function normalizeUnitSpacing(text: string): string {
+  if (!text) return '';
+  let result = text;
+
+  // List of scientific units
+  const unitsRegex = '(?:nm|pm|mm|cm|km|μm|µm|Å|A°|mL|kg|mg|mol|Pa|Hz|°C|Ω)';
+
+  // 1. Fix scientific notation directly attached to unit without space (e.g. 10⁻³nm -> 10⁻³ nm)
+  const attachedUnitRegex = new RegExp(`([0-9⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹]+)(${unitsRegex})(?![a-zA-Z0-9])`, 'g');
+  result = result.replace(attachedUnitRegex, '$1 $2');
+
+  // 2. Fix multiple spaces before unit (e.g. 10⁻³   nm -> 10⁻³ nm)
+  const multiSpaceUnitRegex = new RegExp(`([0-9⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹]+)\\s{2,}(${unitsRegex})(?![a-zA-Z0-9])`, 'g');
+  result = result.replace(multiSpaceUnitRegex, '$1 $2');
+
+  // 3. Fix spaces between base and superscript exponent: e.g. 10 ⁻³ -> 10⁻³, 10⁻ ³ -> 10⁻³
+  result = result.replace(/(\b10|\b[a-zA-Z]|\))\s+([⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, '$1$2');
+  result = result.replace(/([⁻⁺])\s+([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, '$1$2');
 
   return result;
 }
@@ -141,7 +168,28 @@ export function autoFormatPowersAndCharges(text: string): string {
   if (!text) return '';
   let result = text;
 
-  // 1. Clean up caret power charges with existing Unicode superscripts/subscripts or digits:
+  // 1. Polyatomic ion charges with 1 element subscript + charge: e.g. SO42- -> SO₄²⁻, PO43- -> PO₄³⁻
+  result = result.replace(/([A-Z][a-z]?|\)|\])(\d)(\d)([\+\-])(?![a-zA-Z0-9])/g, (_, elem, subDigit, supDigit, sign) => {
+    const sub = SUB_MAP[subDigit] || subDigit;
+    const sup = SUPER_MAP[supDigit] || supDigit;
+    const supSign = sign === '+' ? '⁺' : '⁻';
+    return elem + sub + sup + supSign;
+  });
+
+  // 2. Polyatomic ion charges with 1 element subscript + single charge: e.g. NO3- -> NO₃⁻, NH4+ -> NH₄⁺
+  result = result.replace(/([A-Z][a-z]?)(\d)([\+\-])(?![a-zA-Z0-9])/g, (match, elem, subDigit, sign) => {
+    const monoatomicElements = ['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Mn', 'Cr', 'Ni', 'Co'];
+    if (monoatomicElements.includes(elem)) {
+      const sup = SUPER_MAP[subDigit] || subDigit;
+      const supSign = sign === '+' ? '⁺' : '⁻';
+      return elem + sup + supSign;
+    }
+    const sub = SUB_MAP[subDigit] || subDigit;
+    const supSign = sign === '+' ? '⁺' : '⁻';
+    return elem + sub + supSign;
+  });
+
+  // 3. Clean up caret power charges with existing Unicode superscripts/subscripts or digits:
   // e.g. S²^--, Se²^--, S2^--, S^2--, S₂^--, S2-- -> S²⁻, Se²⁻
   result = result.replace(/([A-Z][a-z]?|\)|\])[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉\d]*\^?--+/gi, (match, elem) => {
     if (match.includes('3') || match.includes('³') || match.includes('₃')) return elem + '³⁻';
@@ -153,12 +201,12 @@ export function autoFormatPowersAndCharges(text: string): string {
     return elem + '²⁺';
   });
 
-  // 2. Format explicitly written caret powers like x^2 -> x², 10^-3 -> 10⁻³, S^2- -> S²⁻
+  // 4. Format explicitly written caret powers like x^2 -> x², 10^-3 -> 10⁻³, S^2- -> S²⁻
   result = result.replace(/\^([0-9\+\-\=\(\)a-z]+)/gi, (_, p1) => {
     return convertToSuperscript(p1);
   });
 
-  // 3. Format ionic charges with digits: Ca2+ -> Ca²⁺, S2- -> S²⁻, Fe3+ -> Fe³⁺
+  // 5. Format ionic charges with digits: Ca2+ -> Ca²⁺, S2- -> S²⁻, Fe3+ -> Fe³⁺
   const chargeRegex = /([A-Z][a-z]?|\)|\]|[₀-₉])(\d+)([\+\-])(?![a-zA-Z0-9])/g;
   result = result.replace(chargeRegex, (match, elem, digits, sign) => {
     const supDigits = digits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
@@ -166,7 +214,7 @@ export function autoFormatPowersAndCharges(text: string): string {
     return elem + supDigits + supSign;
   });
 
-  // 4. Format single ionic charges: Na+ -> Na⁺, Cl- -> Cl⁻
+  // 6. Format single ionic charges: Na+ -> Na⁺, Cl- -> Cl⁻
   const singleChargeRegex = /([A-Z][a-z]?|\)|\]|[₀-₉])([\+\-])(?![a-zA-Z0-9\+\-\=])/g;
   result = result.replace(singleChargeRegex, (match, elem, sign) => {
     const supSign = sign === '+' ? '⁺' : '⁻';
@@ -213,7 +261,7 @@ export function cleanLineBreaks(text: string): string {
 }
 
 /**
- * Main formatting pipeline for copied or typed scientific text
+ * Main centralized formatting pipeline for copied or typed scientific text
  */
 export function formatCleanText(text: string): string {
   if (!text) return '';
@@ -221,6 +269,7 @@ export function formatCleanText(text: string): string {
   res = autoFormatScientificExponents(res);
   res = autoFormatPowersAndCharges(res);
   res = autoFormatChemicalSubscripts(res);
+  res = normalizeUnitSpacing(res);
   return res.trim();
 }
 
