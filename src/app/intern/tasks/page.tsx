@@ -86,386 +86,7 @@ function triggerFileDownload(fileUrl: string, fileName: string) {
   }
 }
 
-function PdfViewerContainer({
-  url,
-  name,
-  scale = 1.0,
-  engine = 'CANVAS'
-}: {
-  url: string;
-  name: string;
-  scale?: number;
-  engine?: 'CANVAS' | 'NATIVE' | 'GOOGLE';
-}) {
-  const [blobUrl, setBlobUrl] = useState<string | null>(null);
-  const [fetchError, setFetchError] = useState<boolean>(false);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [viewMode, setViewMode] = useState<'PDF' | 'TEXT'>('PDF');
-  const [numPages, setNumPages] = useState<number>(0);
-  const [extractedPages, setExtractedPages] = useState<string[]>([]);
-  const [extractedFullText, setExtractedFullText] = useState<string>('');
-  const [copied, setCopied] = useState<boolean>(false);
-  const [pagesRendered, setPagesRendered] = useState<boolean>(false);
-  const canvasRefs = useRef<{ [key: number]: HTMLCanvasElement | null }>({});
 
-  useEffect(() => {
-    let isMounted = true;
-    let createdObjectUrl: string | null = null;
-    setLoading(true);
-    setFetchError(false);
-    setPagesRendered(false);
-    setExtractedPages([]);
-    setExtractedFullText('');
-
-    if (!url) {
-      setLoading(false);
-      setFetchError(true);
-      return;
-    }
-
-    const loadPdfAndRender = async () => {
-      try {
-        let arrayBuffer: ArrayBuffer | null = null;
-        let finalUrl = url;
-
-        if (url.startsWith('data:')) {
-          const base64Parts = url.split(',');
-          const mimeMatch = base64Parts[0].match(/:(.*?);/);
-          const mime = mimeMatch ? mimeMatch[1] : 'application/pdf';
-          const binaryString = atob(base64Parts[1] || '');
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          const blob = new Blob([bytes], { type: mime });
-          arrayBuffer = bytes.buffer;
-          createdObjectUrl = URL.createObjectURL(blob);
-          finalUrl = createdObjectUrl;
-        } else {
-          // Always use same-origin download proxy first to bypass CORS and Cloudinary header restrictions
-          const inlineProxyUrl = `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`;
-          try {
-            const proxyRes = await fetch(inlineProxyUrl);
-            if (!proxyRes.ok) throw new Error(`Proxy HTTP ${proxyRes.status}`);
-            const rawBlob = await proxyRes.blob();
-            arrayBuffer = await rawBlob.arrayBuffer();
-            const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-            createdObjectUrl = URL.createObjectURL(pdfBlob);
-            finalUrl = createdObjectUrl;
-          } catch (proxyErr) {
-            console.warn('Proxy fetch failed, attempting direct fetch:', proxyErr);
-            try {
-              const res = await fetch(url);
-              if (res.ok) {
-                const rawBlob = await res.blob();
-                arrayBuffer = await rawBlob.arrayBuffer();
-                const pdfBlob = new Blob([arrayBuffer], { type: 'application/pdf' });
-                createdObjectUrl = URL.createObjectURL(pdfBlob);
-                finalUrl = createdObjectUrl;
-              } else {
-                finalUrl = inlineProxyUrl;
-              }
-            } catch (directErr) {
-              console.warn('Direct fetch failed as well:', directErr);
-              finalUrl = inlineProxyUrl;
-            }
-          }
-        }
-
-        if (isMounted) {
-          setBlobUrl(finalUrl);
-        }
-
-        if (!arrayBuffer) {
-          if (isMounted) setLoading(false);
-          return;
-        }
-
-        try {
-          const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-
-          const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) });
-          const pdfDoc = await loadingTask.promise;
-
-          if (!isMounted) return;
-          setNumPages(pdfDoc.numPages);
-
-          const pages: string[] = [];
-          for (let i = 1; i <= pdfDoc.numPages; i++) {
-            const page = await pdfDoc.getPage(i);
-            const textContent = await page.getTextContent();
-            const pageStr = textContent.items.map((item: any) => item.str).join(' ');
-            pages.push(pageStr);
-          }
-
-          if (isMounted) {
-            setExtractedPages(pages);
-            setExtractedFullText(pages.join('\n\n--- Page Break ---\n\n'));
-            setLoading(false);
-          }
-
-          // Render canvases after state set
-          setTimeout(async () => {
-            if (!isMounted) return;
-            for (let i = 1; i <= pdfDoc.numPages; i++) {
-              try {
-                const page = await pdfDoc.getPage(i);
-                const viewport = page.getViewport({ scale });
-                const canvas = canvasRefs.current[i];
-                if (canvas) {
-                  const context = canvas.getContext('2d');
-                  if (context) {
-                    canvas.height = viewport.height;
-                    canvas.width = viewport.width;
-                    await page.render({ canvasContext: context, viewport, canvas } as any).promise;
-                  }
-                }
-              } catch (err) {
-                console.warn(`Error rendering PDF page ${i}:`, err);
-              }
-            }
-            if (isMounted) setPagesRendered(true);
-          }, 50);
-
-        } catch (e) {
-          console.warn('PDF load/render warning:', e);
-          if (isMounted) setLoading(false);
-        }
-      } catch (err) {
-        console.warn('PDF load failed:', err);
-        if (isMounted) {
-          setBlobUrl(url);
-          setLoading(false);
-        }
-      }
-    };
-
-    loadPdfAndRender();
-
-    return () => {
-      isMounted = false;
-      if (createdObjectUrl) {
-        URL.revokeObjectURL(createdObjectUrl);
-      }
-    };
-  }, [url, scale]);
-
-  const handleCopyText = () => {
-    if (!extractedFullText) return;
-    navigator.clipboard.writeText(extractedFullText);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  if (loading) {
-    return (
-      <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center bg-zinc-950 text-white space-y-3">
-        <RefreshCw className="w-8 h-8 text-brand-gold animate-spin" />
-        <p className="text-xs text-brand-muted font-bold">Loading PDF Document...</p>
-      </div>
-    );
-  }
-
-  if (fetchError && (!blobUrl || blobUrl.startsWith('/uploads/'))) {
-    return (
-      <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-8 bg-zinc-950 text-center space-y-4">
-        <AlertTriangle className="w-14 h-14 text-amber-400 mx-auto" />
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-white">PDF Document Not Found on Server</h3>
-          <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed">
-            This worksheet (<span className="text-brand-gold font-mono">{name}</span>) was uploaded before persistent storage was enabled.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <a
-            href={`/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 bg-brand-gold text-black text-xs font-bold rounded-xl hover:bg-brand-gold-hover transition flex items-center gap-1.5"
-          >
-            <Download className="w-4 h-4" /> Download PDF
-          </a>
-        </div>
-      </div>
-    );
-  }
-
-  const activeUrl = blobUrl || url;
-  const isDataOrBlob = activeUrl.startsWith('data:') || activeUrl.startsWith('blob:');
-  const googleDocsViewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(url)}&embedded=true`;
-
-  return (
-    <div className="w-full h-full flex flex-col min-h-0 bg-zinc-950">
-      {/* Top Header Bar with Prominent Download File Button */}
-      <div className="bg-zinc-900 border-b border-brand-border/40 p-2.5 flex items-center justify-between text-xs gap-3 shrink-0 flex-wrap">
-        <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-brand-gold" />
-          <span className="text-zinc-200 font-semibold truncate max-w-xs">{name || 'Worksheet Document'}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => triggerFileDownload(url, name)}
-            className="bg-brand-gold text-black hover:bg-brand-gold-hover px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 cursor-pointer text-xs border-0 shadow-md"
-            title="Download Document File to Open in Browser Tab / Device"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download File</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="w-full flex-1 min-h-0 relative bg-zinc-950 overflow-y-auto scrollbar-thin p-4">
-        {engine === 'CANVAS' && numPages > 0 ? (
-          <div className="flex flex-col items-center space-y-6 max-w-4xl mx-auto py-2">
-            {Array.from({ length: numPages }).map((_, index) => {
-              const pageNum = index + 1;
-              return (
-                <div key={pageNum} className="flex flex-col items-center space-y-2 w-full">
-                  <div className="text-[10px] font-mono text-brand-gold uppercase font-bold bg-zinc-900 border border-brand-border px-3 py-1 rounded-full flex items-center justify-between w-full max-w-4xl">
-                    <span>Page {pageNum} of {numPages}</span>
-                  </div>
-                  <div className="bg-white rounded-xl shadow-2xl overflow-hidden border border-zinc-300 max-w-full">
-                    <canvas
-                      ref={(el) => { canvasRefs.current[pageNum] = el; }}
-                      className="block max-w-full h-auto mx-auto"
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : engine === 'GOOGLE' && !isDataOrBlob ? (
-          <iframe src={googleDocsViewerUrl} className="w-full h-full min-h-[500px] border-0 bg-white block" title={name} />
-        ) : (
-          <iframe
-            src={isDataOrBlob ? activeUrl : `/api/download?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(name)}&inline=true`}
-            className="w-full h-full min-h-[500px] sm:min-h-[600px] border-0 bg-white block rounded-xl shadow-lg"
-            title={name}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function DocxViewerContainer({ url, name }: { url: string; name: string }) {
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-    setError(null);
-
-    const loadDocx = async () => {
-      try {
-        let arrayBuffer: ArrayBuffer;
-        if (url.startsWith('data:')) {
-          const base64Data = url.split(',')[1] || url;
-          const binaryString = atob(base64Data);
-          const len = binaryString.length;
-          const bytes = new Uint8Array(len);
-          for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-          }
-          arrayBuffer = bytes.buffer;
-        } else {
-          const res = await fetch(url);
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          arrayBuffer = await res.arrayBuffer();
-        }
-
-        const mammoth = await import('mammoth');
-        const result = await mammoth.convertToHtml({ arrayBuffer });
-
-        if (isMounted) {
-          setHtmlContent(result.value || '<p class="italic text-zinc-500">Document is empty.</p>');
-          setLoading(false);
-        }
-      } catch (err: any) {
-        console.error('Docx conversion error:', err);
-        if (isMounted) {
-          setError(err.message || 'Failed to render DOCX file');
-          setLoading(false);
-        }
-      }
-    };
-
-    loadDocx();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [url]);
-
-  if (loading) {
-    return (
-      <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center bg-zinc-950 text-white space-y-3">
-        <RefreshCw className="w-8 h-8 text-brand-gold animate-spin" />
-        <p className="text-xs text-brand-muted font-bold">Rendering Word Document...</p>
-      </div>
-    );
-  }
-
-  if (error || !htmlContent) {
-    return (
-      <div className="w-full h-full min-h-[300px] flex flex-col items-center justify-center p-8 bg-zinc-950 text-center space-y-4">
-        <AlertTriangle className="w-14 h-14 text-amber-400 mx-auto" />
-        <div>
-          <h3 className="text-base font-bold text-white">Word Document (.docx)</h3>
-          <p className="text-xs text-brand-muted max-w-md mx-auto leading-relaxed mt-1">
-            Could not render file directly inside browser. Please download the document below.
-          </p>
-        </div>
-        <div className="flex gap-3">
-          <button
-            onClick={() => triggerFileDownload(url, name)}
-            className="px-4 py-2 bg-brand-gold text-black text-xs font-bold rounded-xl hover:bg-brand-gold-hover transition flex items-center gap-1.5 cursor-pointer border-0"
-          >
-            <Download className="w-4 h-4" /> Download DOCX
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="w-full h-full flex flex-col min-h-0 bg-zinc-950">
-      {/* Top Header Bar with Prominent Download File Button */}
-      <div className="bg-zinc-900 border-b border-brand-border/40 p-2.5 flex items-center justify-between text-xs gap-3 shrink-0 flex-wrap">
-        <div className="flex items-center gap-2">
-          <FileText className="w-4 h-4 text-brand-gold" />
-          <span className="text-zinc-200 font-semibold truncate max-w-xs">{name || 'Word Document'}</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => triggerFileDownload(url, name)}
-            className="bg-brand-gold text-black hover:bg-brand-gold-hover px-4 py-1.5 rounded-lg font-bold transition flex items-center gap-2 cursor-pointer text-xs border-0 shadow-md"
-            title="Download Word File to Open in Word / New Tab"
-          >
-            <Download className="w-4 h-4" />
-            <span>Download File</span>
-          </button>
-        </div>
-      </div>
-
-      <div className="w-full flex-1 min-h-0 relative bg-zinc-900 overflow-y-auto scrollbar-thin p-4 sm:p-6 select-text">
-        <div className="max-w-4xl mx-auto w-full bg-white text-zinc-900 p-6 sm:p-10 rounded-xl shadow-2xl border border-zinc-300 select-text">
-          <div
-            id="docx-content-area"
-            className="prose max-w-none text-sm leading-relaxed text-zinc-800 font-sans space-y-3 select-text cursor-text [&_h1]:text-xl [&_h1]:font-bold [&_h1]:text-black [&_h2]:text-lg [&_h2]:font-bold [&_h3]:text-base [&_h3]:font-bold [&_p]:my-2 [&_p]:select-text [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:my-3 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-zinc-300 [&_td]:p-2 [&_th]:border [&_th]:border-zinc-300 [&_th]:p-2 [&_th]:bg-zinc-100"
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
-          />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function DailyTasksPage() {
   const [assignments, setAssignments] = useState<TaskAssignment[]>([]);
@@ -1294,81 +915,38 @@ export default function DailyTasksPage() {
                   const downloadApiUrl = `/api/download?url=${encodeURIComponent(currentFile.url)}&filename=${encodeURIComponent(currentFile.name)}`;
 
                   return (
-                    <div className="w-full flex-1 min-h-0 flex flex-col border border-brand-border/50 rounded-xl bg-black/60 p-2 overflow-hidden">
-                      {/* Active File Header Toolbar */}
-                      <div className="text-xs text-white font-semibold mb-2 flex flex-wrap justify-between items-center bg-black/80 p-2.5 rounded-xl border border-brand-border/40 gap-2 shrink-0">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <FileText className="w-4 h-4 text-brand-gold shrink-0" />
-                          <span className="truncate max-w-[180px] text-xs font-bold text-white">{currentFile.name}</span>
-                        </div>
-
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {isDocx && (
-                            <button
-                              onClick={() => handleExtractImages(currentFile.url, currentFile.name)}
-                              disabled={extracting === currentFile.name}
-                              className="text-xs bg-brand-gold text-black px-3 py-1.5 rounded-lg font-bold hover:bg-brand-gold-hover border-0 cursor-pointer disabled:opacity-50 transition shadow"
-                            >
-                              {extracting === currentFile.name ? 'Extracting...' : 'Extract Diagrams'}
-                            </button>
-                          )}
-
-                          {isPdf && (
-                            <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-brand-border/40">
-                              <button
-                                onClick={() => setDocScale(s => Math.max(0.7, s - 0.15))}
-                                className="text-[10px] px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-bold border-0 cursor-pointer"
-                                title="Zoom Out"
-                              >
-                                -
-                              </button>
-                              <span className="text-[10px] text-brand-gold font-mono px-1 font-bold">{Math.round(docScale * 100)}%</span>
-                              <button
-                                onClick={() => setDocScale(s => Math.min(2.0, s + 0.15))}
-                                className="text-[10px] px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded font-bold border-0 cursor-pointer"
-                                title="Zoom In"
-                              >
-                                +
-                              </button>
-                            </div>
-                          )}
-
-                          <button
-                            onClick={() => triggerFileDownload(currentFile.url, currentFile.name)}
-                            className="text-xs bg-brand-gold hover:bg-brand-gold-hover text-black px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 shrink-0 border-0 shadow cursor-pointer"
-                            title="Download Original Document"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                            <span>DOWNLOAD DOCUMENT</span>
-                          </button>
-                        </div>
+                    <div className="w-full flex-1 min-h-[350px] flex flex-col border border-brand-border/50 rounded-xl bg-black/60 p-8 items-center justify-center text-center space-y-5">
+                      <div className="p-4 bg-zinc-900 border border-brand-border rounded-2xl shadow-xl">
+                        <FileText className="w-12 h-12 text-brand-gold mx-auto" />
                       </div>
 
-                      {/* Main Document Viewer Frame - WITH OWN INDEPENDENT SCROLL */}
-                      <div
-                        ref={docViewportRef}
-                        className="w-full flex-1 min-h-0 rounded-xl border border-brand-border bg-zinc-950 overflow-y-auto scrollbar-thin relative"
-                      >
-                        {isPdf ? (
-                          <PdfViewerContainer url={currentFile.url} name={currentFile.name} scale={docScale} />
-                        ) : isDocx ? (
-                          <DocxViewerContainer url={currentFile.url} name={currentFile.name} />
-                        ) : (
-                          <div className="h-full flex flex-col items-center justify-center p-8 space-y-4 bg-zinc-950 text-center">
-                            <FileText className="w-16 h-16 text-brand-gold mx-auto" />
-                            <p className="text-sm text-zinc-300 font-medium max-w-sm leading-relaxed">
-                              This file format cannot be rendered inline.
-                            </p>
-                            <a
-                              href={downloadApiUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 bg-brand-gold text-black px-4 py-2 rounded-xl font-bold hover:bg-brand-gold-hover transition"
-                            >
-                              <Download className="w-4 h-4" /> Download Original File
-                            </a>
-                          </div>
+                      <div className="space-y-1.5 max-w-sm mx-auto">
+                        <h3 className="text-base font-bold text-white truncate">{currentFile.name}</h3>
+                        <p className="text-xs text-brand-muted leading-relaxed">
+                          Worksheet file attached to this task. Click below to download and open the file.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                        {isDocx && (
+                          <button
+                            onClick={() => handleExtractImages(currentFile.url, currentFile.name)}
+                            disabled={extracting === currentFile.name}
+                            className="text-xs bg-zinc-900 border border-brand-border text-brand-gold px-4 py-2 rounded-xl font-bold hover:bg-zinc-800 border-0 cursor-pointer disabled:opacity-50 transition flex items-center gap-2"
+                          >
+                            <ImageIcon className="w-4 h-4" />
+                            <span>{extracting === currentFile.name ? 'Extracting...' : 'Extract Diagrams'}</span>
+                          </button>
                         )}
+
+                        <button
+                          onClick={() => triggerFileDownload(currentFile.url, currentFile.name)}
+                          className="text-xs bg-brand-gold hover:bg-brand-gold-hover text-black px-5 py-2 rounded-xl font-extrabold transition flex items-center gap-2 border-0 shadow-lg cursor-pointer btn-gold"
+                          title="Download Document File"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>DOWNLOAD DOCUMENT</span>
+                        </button>
                       </div>
                     </div>
                   );
@@ -2199,12 +1777,18 @@ export default function DailyTasksPage() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 bg-white rounded-xl overflow-hidden min-h-0 relative">
-              {fullscreenDoc.isPdf ? (
-                <PdfViewerContainer url={fullscreenDoc.url} name={fullscreenDoc.name} engine={pdfEngine} />
-              ) : (
-                <DocxViewerContainer url={fullscreenDoc.url} name={fullscreenDoc.name} />
-              )}
+            <div className="flex-1 bg-zinc-950 text-white rounded-xl overflow-hidden min-h-0 flex flex-col items-center justify-center p-8 text-center space-y-4">
+              <FileText className="w-16 h-16 text-brand-gold mx-auto" />
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold">{fullscreenDoc.name}</h3>
+                <p className="text-xs text-brand-muted">Click below to download the original document file.</p>
+              </div>
+              <button
+                onClick={() => triggerFileDownload(fullscreenDoc.url, fullscreenDoc.name)}
+                className="bg-brand-gold text-black hover:bg-brand-gold-hover px-6 py-2.5 rounded-xl text-sm font-extrabold flex items-center gap-2 border-0 cursor-pointer shadow-lg"
+              >
+                <Download className="w-4 h-4" /> DOWNLOAD DOCUMENT
+              </button>
             </div>
           </div>
         </div>
