@@ -1354,11 +1354,11 @@ export default function DailyTasksPage() {
                   <textarea
                     ref={questionTextareaRef}
                     required
-                    rows={4}
+                    rows={7}
                     value={questionText}
                     onChange={(e) => setQuestionText(e.target.value)}
                     onPaste={(e) => handlePasteImage(e, 'QUESTION')}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                    className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[160px]"
                     placeholder={
                       questionType === 'DIAGRAM' 
                         ? "Type question text referring to the diagram, and attach the diagram image..." 

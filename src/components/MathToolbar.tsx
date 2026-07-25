@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { convertToSubscript, convertToSuperscript, autoFormatChemicalSubscripts, insertTextAtCursor } from '@/lib/pasteUtils';
+import { convertToSubscript, convertToSuperscript, formatCleanText, insertTextAtCursor } from '@/lib/pasteUtils';
 
 interface MathToolbarProps {
   targetRef?: React.RefObject<HTMLTextAreaElement | HTMLInputElement | null>;
@@ -15,7 +15,7 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
     const el = targetRef?.current;
     if (!el) {
       if (actionType === 'CHEM_AUTO') {
-        onUpdate(autoFormatChemicalSubscripts(currentValue));
+        onUpdate(formatCleanText(currentValue));
       } else if (symbolValue) {
         onUpdate(currentValue + symbolValue);
       }
@@ -28,10 +28,10 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
 
     if (actionType === 'CHEM_AUTO') {
       if (selectedText) {
-        const formatted = autoFormatChemicalSubscripts(selectedText);
+        const formatted = formatCleanText(selectedText);
         insertTextAtCursor(el, formatted, currentValue, onUpdate);
       } else {
-        const formatted = autoFormatChemicalSubscripts(currentValue);
+        const formatted = formatCleanText(currentValue);
         onUpdate(formatted);
       }
     } else if (actionType === 'SUB') {
@@ -67,14 +67,14 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
         Format:
       </span>
       
-      {/* Auto Chemical Subscript Converter Button */}
+      {/* Auto Chemical & Math Formatter Button */}
       <button
         type="button"
         onClick={() => insertOrFormat('CHEM_AUTO')}
         className="px-2 py-0.5 bg-brand-gold/10 hover:bg-brand-gold/20 text-brand-gold font-extrabold text-[10px] uppercase tracking-wider rounded border border-brand-gold/30 transition cursor-pointer flex items-center gap-1"
-        title="Auto-convert chemical formulas to subscripts (e.g. PCl3 -> PCl₃, H2SO4 -> H₂SO₄)"
+        title="Auto-convert chemical formulas (PCl3 -> PCl₃, Ca2+ -> Ca²⁺, S2- -> S²⁻) and fix accidental line breaks"
       >
-        <span>🧪 Auto Chem Subscripts</span>
+        <span>🧪 Auto Chem & Powers Fix</span>
       </button>
 
       <div className="h-4 w-px bg-brand-border/60 mx-0.5" />
@@ -94,7 +94,7 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
         type="button"
         onClick={() => insertOrFormat('SUPER')}
         className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-brand-gold font-bold text-xs rounded border border-brand-border/80 transition cursor-pointer"
-        title="Superscript (e.g. x², Fe³⁺)"
+        title="Superscript (e.g. x², Fe³⁺, S²⁻)"
       >
         x²
       </button>

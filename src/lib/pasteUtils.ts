@@ -45,10 +45,6 @@ export function convertToSuperscript(text: string): string {
 /**
  * Auto-formats chemical formulas, organic chemistry structures, and temperature units
  * into exact subscript and superscript representations.
- * e.g. "PCl3, PBr3, PI3" -> "PCl₃, PBr₃, PI₃"
- * e.g. "SOCl2, PCl5" -> "SOCl₂, PCl₅"
- * e.g. "H2SO4 /HNO3" -> "H₂SO₄ /HNO₃"
- * e.g. "(CH3CO)2O /AlCl3" -> "(CH₃CO)₂O /AlCl₃"
  */
 export function autoFormatChemicalSubscripts(text: string): string {
   if (!text) return '';
@@ -60,18 +56,106 @@ export function autoFormatChemicalSubscripts(text: string): string {
   result = result.replace(/(\d+)-(\d+)\s*0C/gi, '$1-$2°C');
 
   // 2. Periodic Table & Group Element Symbols regex
-  // Match Element Symbol (e.g. Fe, Cu, Cl, Br, Na, H, O, C, P, S, N, F, Al, Zn, Hg, Sb, Co, B, I) 
-  // OR closing bracket/parenthesis ')', ']', followed by digits 1-99
-  // Avoid matching Kelvin/Celsius/gram/mL/meter/molar units like 623K, 100g, 50mL
   const chemicalSubscriptRegex = /([A-Z][a-z]?|\)|\])(\d+)(?![0-9]*[KkgmML])/g;
 
   result = result.replace(chemicalSubscriptRegex, (match, prefix, numStr) => {
-    // Convert numStr to Unicode subscripts
     const subDigits = numStr.split('').map((d: string) => SUB_MAP[d] || d).join('');
     return prefix + subDigits;
   });
 
   return result;
+}
+
+/**
+ * Auto-formats ionic charges, exponents, powers, and carets
+ * e.g. Ca2+ -> Ca²⁺, Na+ -> Na⁺, S2- / S2^-- -> S²⁻, Se2^-- -> Se²⁻, 10^-3 -> 10⁻³, x^2 -> x²
+ */
+export function autoFormatPowersAndCharges(text: string): string {
+  if (!text) return '';
+  let result = text;
+
+  // 1. Clean up caret power charges like S2^--, Se2^--, S^2--, S2^-, S^2- -> S²⁻, Se²⁻
+  result = result.replace(/([A-Z][a-z]?|\)|\])(\d*)\^?--+/gi, (_, elem, digits) => {
+    const supDigits = digits ? digits.split('').map((d: string) => SUPER_MAP[d] || d).join('') : '²';
+    return elem + supDigits + '⁻';
+  });
+  result = result.replace(/([A-Z][a-z]?|\)|\])(\d*)\^?\+\++/gi, (_, elem, digits) => {
+    const supDigits = digits ? digits.split('').map((d: string) => SUPER_MAP[d] || d).join('') : '²';
+    return elem + supDigits + '⁺';
+  });
+
+  // 2. Format explicitly written caret powers like x^2 -> x², 10^-3 -> 10⁻³, S^2- -> S²⁻
+  result = result.replace(/\^([0-9\+\-\=\(\)a-z]+)/gi, (_, p1) => {
+    return convertToSuperscript(p1);
+  });
+
+  // 3. Format ionic charges with digits: Ca2+ -> Ca²⁺, S2- -> S²⁻, Fe3+ -> Fe³⁺
+  const chargeRegex = /([A-Z][a-z]?|\)|\]|[₀-₉])(\d+)([\+\-])(?![a-zA-Z0-9])/g;
+  result = result.replace(chargeRegex, (match, elem, digits, sign) => {
+    const supDigits = digits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    const supSign = sign === '+' ? '⁺' : '⁻';
+    return elem + supDigits + supSign;
+  });
+
+  // 4. Format single ionic charges: Na+ -> Na⁺, Cl- -> Cl⁻
+  const singleChargeRegex = /([A-Z][a-z]?|\)|\]|[₀-₉])([\+\-])(?![a-zA-Z0-9\+\-\=])/g;
+  result = result.replace(singleChargeRegex, (match, elem, sign) => {
+    const supSign = sign === '+' ? '⁺' : '⁻';
+    return elem + supSign;
+  });
+
+  return result;
+}
+
+/**
+ * Intelligently joins accidental hard line breaks caused by Word/PDF column margins,
+ * keeping real bullet/numbered statement lines separate.
+ */
+export function cleanLineBreaks(text: string): string {
+  if (!text) return '';
+
+  const lines = text.split('\n');
+  const cleanedLines: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const current = lines[i].trim();
+    if (!current) {
+      cleanedLines.push('');
+      continue;
+    }
+
+    if (cleanedLines.length > 0) {
+      const prevIndex = cleanedLines.length - 1;
+      const prev = cleanedLines[prevIndex];
+
+      // Check if current line is a new numbered/bullet item like (i), (ii), (iii), (iv), (a), (b), 1., 2., Option A:, Assertion, Reason, Statement
+      const isNewItemHeader = /^(?:\([iivxlc\d]+\)|\b[iivxlc\d]+\.|\([a-z]\)|[a-z]\.|\d+\.|Option\s+[A-Z]:?|Statement\s+[I|\d]+:?|Assertion|Reason)\b/i.test(current);
+
+      // Check if prev line ended without complete sentence punctuation (. : ; ? !)
+      const prevEndsSentence = /[.:;?!]$/.test(prev);
+
+      // If prev line didn't end a sentence AND current line is not a new item header, join them into a single line!
+      if (prev && !prevEndsSentence && !isNewItemHeader) {
+        cleanedLines[prevIndex] = prev + ' ' + current;
+        continue;
+      }
+    }
+
+    cleanedLines.push(current);
+  }
+
+  return cleanedLines.join('\n').replace(/\n{3,}/g, '\n\n');
+}
+
+/**
+ * Main formatting pipeline for copied or typed scientific text
+ */
+export function formatCleanText(text: string): string {
+  if (!text) return '';
+  let res = cleanLineBreaks(text);
+  res = autoFormatPowersAndCharges(res);
+  res = autoFormatChemicalSubscripts(res);
+  return res.trim();
 }
 
 /**
@@ -155,15 +239,12 @@ export function parseRichTextToUnicode(htmlText: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'");
 
-  // 8. Normalize multiple newlines (max 2 consecutive)
-  cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
-
-  return autoFormatChemicalSubscripts(cleaned.trim());
+  return formatCleanText(cleaned);
 }
 
 /**
  * Enhanced paste handler for input & textarea fields that handles rich text,
- * subscripts, superscripts, math formulas, and images seamlessly.
+ * subscripts, superscripts, math formulas, line breaks, and images seamlessly.
  */
 export function handleRichPaste(
   e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>,
@@ -173,36 +254,31 @@ export function handleRichPaste(
   const htmlData = e.clipboardData?.getData('text/html');
   const plainData = e.clipboardData?.getData('text/plain');
 
-  // If there is actual text content (e.g. from Word, PDF, Web, or Clipboard), handle as text paste!
   const hasTextData = (plainData && plainData.trim().length > 0) || (htmlData && htmlData.trim().length > 0);
 
   if (hasTextData) {
     let rawText = '';
     
-    // If HTML contains sub/sup tags, math, or Word paragraph tags (<p), parse HTML sanitized to strip Word metadata & extract sub/sup
     if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('<math') || htmlData.includes('<p') || htmlData.includes('<div') || htmlData.includes('<xml'))) {
       rawText = parseRichTextToUnicode(htmlData);
     }
 
-    // Fall back to clean plainData if html parsing was empty or plainData is available
     if (!rawText && plainData) {
-      rawText = plainData;
+      rawText = formatCleanText(plainData);
     }
 
     if (rawText) {
-      const chemFormatted = autoFormatChemicalSubscripts(rawText);
       e.preventDefault();
-      insertTextAtCursor(e.currentTarget, chemFormatted, currentValue, setValue);
+      insertTextAtCursor(e.currentTarget, rawText, currentValue, setValue);
       return true;
     }
   }
 
-  // Only if NO text content exists but an image item exists, let caller handle standalone image file paste
   const items = e.clipboardData?.items;
   if (items) {
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf('image') !== -1) {
-        return false; // Handled as standalone image paste
+        return false;
       }
     }
   }
