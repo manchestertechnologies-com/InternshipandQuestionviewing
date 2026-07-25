@@ -102,6 +102,23 @@ export default function DailyTasksPage() {
   const [optionB, setOptionB] = useState('');
   const [optionC, setOptionC] = useState('');
   const [optionD, setOptionD] = useState('');
+  const [extraOptions, setExtraOptions] = useState<string[]>([]); // Options E, F, G...
+
+  const handleAddExtraOption = () => {
+    setExtraOptions((prev) => [...prev, '']);
+  };
+
+  const handleRemoveExtraOption = (index: number) => {
+    setExtraOptions((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleUpdateExtraOption = (index: number, value: string) => {
+    setExtraOptions((prev) => {
+      const updated = [...prev];
+      updated[index] = value;
+      return updated;
+    });
+  };
   const [correctAnswer, setCorrectAnswer] = useState('A');
   const [detailedSolution, setDetailedSolution] = useState('');
   const [subject, setSubject] = useState('');
@@ -252,6 +269,7 @@ export default function DailyTasksPage() {
     setQuestionType(qType);
 
     const extra = (q as any).extraData || {};
+    setExtraOptions(extra.additionalOptions || []);
     if (qType === 'ASSERTION_REASON') {
       setAssertionText(extra.assertionText || '');
       setReasonText(extra.reasonText || '');
@@ -302,6 +320,7 @@ export default function DailyTasksPage() {
     setOptionB('');
     setOptionC('');
     setOptionD('');
+    setExtraOptions([]);
     setCorrectAnswer('A');
     setDetailedSolution('');
     setImages([]);
@@ -526,6 +545,13 @@ export default function DailyTasksPage() {
         setError('Diagram Based Questions require a diagram image to be attached or pasted.');
         return;
       }
+    }
+
+    if (extraOptions.length > 0) {
+      extraData = {
+        ...(extraData || {}),
+        additionalOptions: extraOptions,
+      };
     }
 
     try {
@@ -1526,6 +1552,76 @@ export default function DailyTasksPage() {
                       </div>
                     );
                   })}
+
+                  {/* Dynamic Extra Options (E, F, G...) */}
+                  {extraOptions.map((optVal, idx) => {
+                    const letter = String.fromCharCode(69 + idx);
+                    const fieldName = `OPTION_${letter}`;
+                    return (
+                      <div key={letter} className="space-y-1">
+                        <div className="flex gap-3 items-center">
+                          <span className="w-6 h-6 rounded-full bg-brand-gold/20 border border-brand-gold flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
+                            {letter}
+                          </span>
+
+                          <input
+                            type="text"
+                            required
+                            value={optVal}
+                            onChange={(e) => handleUpdateExtraOption(idx, e.target.value)}
+                            onPaste={(e) => handlePasteImage(e, fieldName)}
+                            className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
+                            placeholder={`Type Option ${letter} text or paste image (Ctrl+V)...`}
+                          />
+
+                          {(questionType === 'MCQ' || questionType === 'DIAGRAM') && (
+                            <label className="p-1.5 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 cursor-pointer">
+                              <Paperclip className="w-3.5 h-3.5" />
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleUploadImageFile(e, fieldName)}
+                                className="hidden"
+                              />
+                            </label>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveExtraOption(idx)}
+                            className="p-1.5 bg-red-950/30 hover:bg-red-950/60 border border-red-900/40 text-red-400 rounded transition cursor-pointer"
+                            title={`Remove Option ${letter}`}
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {uploadingField === fieldName && <p className="text-[10px] text-brand-gold animate-pulse pl-9">Uploading Option {letter} image...</p>}
+
+                        {/* Option image previews */}
+                        {images.filter((img) => img.type === fieldName).map((img, i) => (
+                          <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1 ml-9">
+                            <img src={img.imageUrl} alt={`Option ${letter} Asset`} className="max-h-10 object-contain rounded" />
+                            <button type="button" onClick={() => removeCroppedImage(images.indexOf(img))} className="text-red-400 hover:text-white p-0.5">
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+
+                  {/* Add More Options Button */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={handleAddExtraOption}
+                      className="flex items-center gap-1.5 py-1.5 px-3 bg-zinc-900 hover:bg-zinc-800 text-brand-gold border border-brand-border rounded-lg text-xs font-semibold cursor-pointer transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add Option {String.fromCharCode(69 + extraOptions.length)}</span>
+                    </button>
+                  </div>
                 </div>
               )}
 
@@ -1558,10 +1654,9 @@ export default function DailyTasksPage() {
                     onChange={(e) => setCorrectAnswer(e.target.value)}
                     className="w-full text-xs bg-black border border-brand-border text-white px-2 py-2 rounded-lg focus:outline-none focus:border-brand-gold"
                   >
-                    <option value="A">A</option>
-                    <option value="B">B</option>
-                    <option value="C">C</option>
-                    <option value="D">D</option>
+                    {['A', 'B', 'C', 'D', ...extraOptions.map((_, idx) => String.fromCharCode(69 + idx))].map((opt) => (
+                      <option key={opt} value={opt}>Option {opt}</option>
+                    ))}
                   </select>
                 )}
               </div>

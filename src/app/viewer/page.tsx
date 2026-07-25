@@ -731,7 +731,16 @@ export default function ViewerDashboard() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {(['A', 'B', 'C', 'D'] as const).map((opt) => (
+                  {[
+                    { opt: 'A', text: selectedQuestion.optionA },
+                    { opt: 'B', text: selectedQuestion.optionB },
+                    { opt: 'C', text: selectedQuestion.optionC },
+                    { opt: 'D', text: selectedQuestion.optionD },
+                    ...(((selectedQuestion as any).extraData?.additionalOptions || []) as string[]).map((txt, idx) => ({
+                      opt: String.fromCharCode(69 + idx),
+                      text: txt
+                    }))
+                  ].filter(item => item.text).map(({ opt, text }) => (
                     <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
                       selectedQuestion.correctAnswer === opt
                         ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
@@ -744,7 +753,7 @@ export default function ViewerDashboard() {
                       }`}>
                         {opt}
                       </span>
-                      <div className="whitespace-pre-wrap">{selectedQuestion[`option${opt}`]}</div>
+                      <div className="whitespace-pre-wrap">{text}</div>
                     </div>
                   ))}
                 </div>
