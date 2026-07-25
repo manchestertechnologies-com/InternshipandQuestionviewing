@@ -170,39 +170,41 @@ export function handleRichPaste(
   currentValue: string,
   setValue: (newVal: string) => void
 ): boolean {
-  // If clipboard contains an image file, let the caller handle image paste
-  const items = e.clipboardData?.items;
-  if (items) {
-    for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf('image') !== -1) {
-        return false; // Handled as image paste
-      }
-    }
-  }
-
   const htmlData = e.clipboardData?.getData('text/html');
   const plainData = e.clipboardData?.getData('text/plain');
 
-  // If HTML contains actual sub or sup tags or math, parse HTML sanitized
-  if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('<math'))) {
-    let formatted = parseRichTextToUnicode(htmlData);
-    if (formatted) {
+  // If there is actual text content (e.g. from Word, PDF, Web, or Clipboard), handle as text paste!
+  const hasTextData = (plainData && plainData.trim().length > 0) || (htmlData && htmlData.trim().length > 0);
+
+  if (hasTextData) {
+    let rawText = '';
+    
+    // If HTML contains sub/sup tags, math, or Word paragraph tags (<p), parse HTML sanitized to strip Word metadata & extract sub/sup
+    if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('<math') || htmlData.includes('<p') || htmlData.includes('<div') || htmlData.includes('<xml'))) {
+      rawText = parseRichTextToUnicode(htmlData);
+    }
+
+    // Fall back to clean plainData if html parsing was empty or plainData is available
+    if (!rawText && plainData) {
+      rawText = plainData;
+    }
+
+    if (rawText) {
+      const chemFormatted = autoFormatChemicalSubscripts(rawText);
       e.preventDefault();
-      insertTextAtCursor(e.currentTarget, formatted, currentValue, setValue);
+      insertTextAtCursor(e.currentTarget, chemFormatted, currentValue, setValue);
       return true;
     }
   }
 
-  // Otherwise if plainData is present, use plainData with chemical subscript formatting
-  if (plainData) {
-    let formatted = plainData;
-    if (plainData.includes('<sub>') || plainData.includes('<sup>')) {
-      formatted = parseRichTextToUnicode(plainData);
+  // Only if NO text content exists but an image item exists, let caller handle standalone image file paste
+  const items = e.clipboardData?.items;
+  if (items) {
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image') !== -1) {
+        return false; // Handled as standalone image paste
+      }
     }
-    const chemFormatted = autoFormatChemicalSubscripts(formatted);
-    e.preventDefault();
-    insertTextAtCursor(e.currentTarget, chemFormatted, currentValue, setValue);
-    return true;
   }
 
   return false;
