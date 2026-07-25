@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import ImageCropper from '@/components/ImageCropper';
 import { ACADEMIC_HIERARCHY, getChapters, getConcepts } from '@/lib/academicHierarchy';
+import { handleRichPaste } from '@/lib/pasteUtils';
+import MathToolbar from '@/components/MathToolbar';
 
 interface QuestionImage {
   id?: string;
@@ -161,8 +163,9 @@ export default function DailyTasksPage() {
   const [extractedImages, setExtractedImages] = useState<{ name: string; url: string }[]>([]);
   const [extracting, setExtracting] = useState<string | null>(null);
 
-  // References for autofocus
+  // References for autofocus and formatting toolbar
   const questionTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const solutionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Cropper states (optional helper)
   const [showCropper, setShowCropper] = useState(false);
@@ -406,7 +409,45 @@ export default function DailyTasksPage() {
     }
   };
 
+  const getFieldValue = (type: string): string => {
+    if (type === 'QUESTION') return questionText;
+    if (type === 'SOLUTION') return detailedSolution;
+    if (type === 'OPTION_A') return optionA;
+    if (type === 'OPTION_B') return optionB;
+    if (type === 'OPTION_C') return optionC;
+    if (type === 'OPTION_D') return optionD;
+    if (type.startsWith('OPTION_')) {
+      const letter = type.replace('OPTION_', '');
+      const idx = letter.charCodeAt(0) - 69;
+      if (idx >= 0 && idx < extraOptions.length) return extraOptions[idx];
+    }
+    if (type === 'ASSERTION') return assertionText;
+    if (type === 'REASON') return reasonText;
+    return '';
+  };
+
+  const setFieldValue = (type: string, val: string) => {
+    if (type === 'QUESTION') setQuestionText(val);
+    else if (type === 'SOLUTION') setDetailedSolution(val);
+    else if (type === 'OPTION_A') setOptionA(val);
+    else if (type === 'OPTION_B') setOptionB(val);
+    else if (type === 'OPTION_C') setOptionC(val);
+    else if (type === 'OPTION_D') setOptionD(val);
+    else if (type.startsWith('OPTION_')) {
+      const letter = type.replace('OPTION_', '');
+      const idx = letter.charCodeAt(0) - 69;
+      if (idx >= 0 && idx < extraOptions.length) {
+        handleUpdateExtraOption(idx, val);
+      }
+    }
+    else if (type === 'ASSERTION') setAssertionText(val);
+    else if (type === 'REASON') setReasonText(val);
+  };
+
   const handlePasteImage = async (e: React.ClipboardEvent<HTMLTextAreaElement | HTMLInputElement>, type: string) => {
+    const isRichPasted = handleRichPaste(e, getFieldValue(type), (val) => setFieldValue(type, val));
+    if (isRichPasted) return;
+
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -1313,6 +1354,13 @@ export default function DailyTasksPage() {
                     </div>
                   )}
 
+                  <MathToolbar
+                    targetRef={questionTextareaRef}
+                    currentValue={questionText}
+                    onUpdate={setQuestionText}
+                    className="mb-1.5"
+                  />
+
                   <textarea
                     ref={questionTextareaRef}
                     required
@@ -1676,8 +1724,16 @@ export default function DailyTasksPage() {
                     />
                   </label>
                 </div>
+
+                <MathToolbar
+                  targetRef={solutionTextareaRef}
+                  currentValue={detailedSolution}
+                  onUpdate={setDetailedSolution}
+                  className="mb-1.5"
+                />
                 
                 <textarea
+                  ref={solutionTextareaRef}
                   required
                   rows={4}
                   value={detailedSolution}
