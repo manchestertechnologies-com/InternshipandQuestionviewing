@@ -201,7 +201,7 @@ export function autoFormatScientificExponents(text: string): string {
 
   // 3. Convert 10 or base WITHOUT CARET followed by minus and number (e.g. 10−4, 10-4, 10−⁴, 10- 4, 10− ⁴):
   // e.g. (4) 10−⁴ nm -> (4) 10⁻⁴ nm, 10-5 -> 10⁻⁵
-  const directMinusRegex = new RegExp(`(\\b10|\\b[a-zA-Z])\\s*(${minusChars})\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)(?![a-zA-Z0-9])`, 'gi');
+  const directMinusRegex = new RegExp(`(\\b10)\\s*(${minusChars})\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)(?![a-zA-Z0-9])`, 'gi');
   result = result.replace(directMinusRegex, (_, base, sign, numStr) => {
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
     const cleanDigits = numStr.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
@@ -214,6 +214,69 @@ export function autoFormatScientificExponents(text: string): string {
 
   // 4. Format multiplication sign in scientific notation: 1.8 x 10 -> 1.8 × 10, 5x10 -> 5×10
   result = result.replace(/(\d)\s*[xX*×]\s*(10[⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹\^])/g, '$1×$2');
+
+  return result;
+}
+
+/**
+ * Auto-formats fractions (e.g. 1/2, a/b, (a+b)/(c+d), 10⁻³/10⁻⁵, Na⁺/Cl⁻)
+ * into true stacked Unicode fractions with horizontal bar lines (─).
+ */
+export function autoFormatStackedFractions(text: string): string {
+  if (!text) return '';
+  let result = text;
+
+  // Regex pattern for matching fraction expressions A / B
+  const fractionRegex = /((?:\((?:[^()]|\([^()]*\))*\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\^]+))\s*\/\s*((?:\((?:[^()]|\([^()]*\))*\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\^]+))/g;
+
+  result = result.replace(fractionRegex, (match, rawNum, rawDen, offset, fullStr) => {
+    // Skip URLs, dates (12/05/2026), or option labels like True/False
+    if (/https?:\/\//i.test(fullStr.substring(Math.max(0, offset - 10), offset + match.length)) ||
+        /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(match) ||
+        /\bTrue\/False\b/i.test(match)) {
+      return match;
+    }
+
+    let numStr = rawNum.trim();
+    let denStr = rawDen.trim();
+
+    // Strip outer balanced parentheses for cleaner numerator/denominator presentation
+    if (numStr.startsWith('(') && numStr.endsWith(')')) {
+      let depth = 0;
+      let isOuter = true;
+      for (let i = 0; i < numStr.length - 1; i++) {
+        if (numStr[i] === '(') depth++;
+        else if (numStr[i] === ')') depth--;
+        if (depth === 0 && i > 0) { isOuter = false; break; }
+      }
+      if (isOuter) numStr = numStr.slice(1, -1).trim();
+    }
+
+    if (denStr.startsWith('(') && denStr.endsWith(')')) {
+      let depth = 0;
+      let isOuter = true;
+      for (let i = 0; i < denStr.length - 1; i++) {
+        if (denStr[i] === '(') depth++;
+        else if (denStr[i] === ')') depth--;
+        if (depth === 0 && i > 0) { isOuter = false; break; }
+      }
+      if (isOuter) denStr = denStr.slice(1, -1).trim();
+    }
+
+    const maxLen = Math.max(numStr.length, denStr.length);
+    const barLen = Math.max(3, maxLen + 2);
+    const bar = '─'.repeat(barLen);
+
+    const padNumLeft = Math.floor((barLen - numStr.length) / 2);
+    const padNumRight = barLen - numStr.length - padNumLeft;
+    const numLine = ' '.repeat(padNumLeft) + numStr + ' '.repeat(padNumRight);
+
+    const padDenLeft = Math.floor((barLen - denStr.length) / 2);
+    const padDenRight = barLen - denStr.length - padDenLeft;
+    const denLine = ' '.repeat(padDenLeft) + denStr + ' '.repeat(padDenRight);
+
+    return `\n${numLine}\n${bar}\n${denLine}\n`;
+  });
 
   return result;
 }
@@ -289,6 +352,7 @@ export function formatCleanText(text: string): string {
   let res = cleanLineBreaks(text);
   res = autoFormatIonicChargesAndChemistry(res);
   res = autoFormatScientificExponents(res);
+  res = autoFormatStackedFractions(res);
   res = normalizeUnitSpacing(res);
   return res.trim();
 }

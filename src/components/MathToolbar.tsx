@@ -99,6 +99,16 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
         x²
       </button>
 
+      {/* Fraction Button */}
+      <button
+        type="button"
+        onClick={() => insertOrFormat('SYMBOL', '\n a \n───\n b \n')}
+        className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-brand-gold font-bold text-xs rounded border border-brand-border/80 transition cursor-pointer"
+        title="Insert True Stacked Fraction (Numerator over Denominator)"
+      >
+        ½ Fraction
+      </button>
+
       <div className="h-4 w-px bg-brand-border/60 mx-1" />
 
       {/* Common Math & Scientific Symbols */}
