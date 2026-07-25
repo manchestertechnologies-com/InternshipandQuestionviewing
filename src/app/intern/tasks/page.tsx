@@ -859,216 +859,164 @@ export default function DailyTasksPage() {
         </div>
       )}
 
-      {/* Main Split Screen container */}
-      {selectedAsg && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-[650px] items-start">
-          
-          {/* LEFT PANEL: Document Viewer with Attachment Tabs & Independent Scroll */}
-          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[calc(100vh-140px)] min-h-[600px] sticky top-4">
-            {/* Header Tabs Navigation */}
-            <div className="p-3.5 border-b border-brand-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-black/70 shrink-0">
-              <div className="flex items-center gap-2 overflow-x-auto max-w-full pb-1 scrollbar-thin">
-                <span className="text-xs font-bold text-brand-gold uppercase tracking-wider flex items-center gap-1.5 shrink-0 mr-1">
-                  <FileText className="w-4 h-4 text-brand-gold" />
-                  <span>Worksheets ({filesList.length}):</span>
-                </span>
-
-                {filesList.map((file, idx) => {
-                  const lowerName = (file.name || '').toLowerCase();
-                  const lowerUrl = (file.url || '').toLowerCase();
-                  const isPdf = lowerName.endsWith('.pdf') || lowerUrl.includes('.pdf');
-                  const isDocx = lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerUrl.includes('.docx');
-
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => setActiveFileIndex(idx)}
-                      className={`px-3.5 py-2 text-xs font-bold rounded-xl transition border flex items-center gap-2 shrink-0 cursor-pointer ${
-                        activeFileIndex === idx
-                          ? 'bg-brand-gold text-black border-brand-gold shadow-lg shadow-brand-gold/20 scale-[1.02]'
-                          : 'bg-zinc-900 text-zinc-300 border-brand-border/60 hover:border-brand-gold/50 hover:text-white'
-                      }`}
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span className="truncate max-w-[180px]">{file.name}</span>
-                      <span className={`text-[9px] uppercase px-1.5 py-0.5 rounded font-mono font-bold ${
-                        activeFileIndex === idx ? 'bg-black/20 text-black' : 'bg-black/50 text-brand-gold'
-                      }`}>
-                        {isPdf ? 'PDF' : isDocx ? 'DOCX' : 'FILE'}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Active File Content Container - FULL HEIGHT WITH INDEPENDENT SCROLL */}
-            <div className="flex-1 min-h-0 p-3 flex flex-col bg-zinc-950/50 space-y-3 overflow-hidden">
-              {filesList.length > 0 ? (
-                (() => {
-                  const currentFile = filesList[activeFileIndex] || filesList[0];
-                  const lowerUrl = (currentFile.url || '').toLowerCase();
-                  const lowerName = (currentFile.name || '').toLowerCase();
-                  const isPdf = lowerName.endsWith('.pdf') || lowerUrl.includes('.pdf') || lowerUrl.startsWith('data:application/pdf');
-                  const isDocx = lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerUrl.includes('.docx') || lowerUrl.includes('.doc');
-
-                  const downloadApiUrl = `/api/download?url=${encodeURIComponent(currentFile.url)}&filename=${encodeURIComponent(currentFile.name)}`;
-
-                  return (
-                    <div className="w-full flex-1 min-h-[350px] flex flex-col border border-brand-border/50 rounded-xl bg-black/60 p-8 items-center justify-center text-center space-y-5">
-                      <div className="p-4 bg-zinc-900 border border-brand-border rounded-2xl shadow-xl">
-                        <FileText className="w-12 h-12 text-brand-gold mx-auto" />
-                      </div>
-
-                      <div className="space-y-1.5 max-w-sm mx-auto">
-                        <h3 className="text-base font-bold text-white truncate">{currentFile.name}</h3>
-                        <p className="text-xs text-brand-muted leading-relaxed">
-                          Worksheet file attached to this task. Click below to download and open the file.
-                        </p>
-                      </div>
-
-                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                        {isDocx && (
-                          <button
-                            onClick={() => handleExtractImages(currentFile.url, currentFile.name)}
-                            disabled={extracting === currentFile.name}
-                            className="text-xs bg-zinc-900 border border-brand-border text-brand-gold px-4 py-2 rounded-xl font-bold hover:bg-zinc-800 border-0 cursor-pointer disabled:opacity-50 transition flex items-center gap-2"
-                          >
-                            <ImageIcon className="w-4 h-4" />
-                            <span>{extracting === currentFile.name ? 'Extracting...' : 'Extract Diagrams'}</span>
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => triggerFileDownload(currentFile.url, currentFile.name)}
-                          className="text-xs bg-brand-gold hover:bg-brand-gold-hover text-black px-5 py-2 rounded-xl font-extrabold transition flex items-center gap-2 border-0 shadow-lg cursor-pointer btn-gold"
-                          title="Download Document File"
-                        >
-                          <Download className="w-4 h-4" />
-                          <span>DOWNLOAD DOCUMENT</span>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })()
-              ) : (
-                <div className="my-auto text-center text-brand-muted italic py-12">
-                  No worksheets attached for this task. Please read instructions.
-                </div>
-              )}
-
-              {/* Extracted Images gallery - LARGE & EASY TO COPY */}
-              {extractedImages.length > 0 && (
-                <div className="mt-4 p-4 bg-black/80 border border-brand-border rounded-xl shrink-0">
-                  <div className="flex justify-between items-center mb-3 border-b border-brand-border/40 pb-2">
-                    <div>
-                      <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold flex items-center gap-1.5">
-                        <ImageIcon className="w-4 h-4" />
-                        <span>Extracted Document Diagrams ({extractedImages.length})</span>
-                      </h4>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">Large view for easy viewing & copying. Click "Copy Image" to copy to clipboard.</p>
-                    </div>
-                    <button
-                      onClick={() => setExtractedImages([])}
-                      className="text-xs text-red-400 hover:text-red-300 font-bold border-0 bg-transparent cursor-pointer"
-                    >
-                      Clear Gallery
-                    </button>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto p-1 scrollbar-thin">
-                    {extractedImages.map((img, idx) => (
-                      <div key={idx} className="flex flex-col bg-zinc-950 border border-brand-border/70 rounded-xl p-3 space-y-3 hover:border-brand-gold/40 transition shadow-lg">
-                        {/* Image Container - BIG AND LARGE */}
-                        <div className="relative bg-white/95 rounded-lg p-2 flex items-center justify-center h-[180px] overflow-hidden border border-zinc-200">
-                          <img
-                            src={img.url}
-                            alt={img.name}
-                            className="max-h-[170px] w-auto object-contain cursor-pointer transition transform hover:scale-[1.02]"
-                            onClick={() => setZoomedImage(img)}
-                          />
-                          <button
-                            onClick={() => setZoomedImage(img)}
-                            className="absolute top-2 right-2 bg-black/75 hover:bg-black text-white p-1.5 rounded-md text-xs flex items-center gap-1 border-0 cursor-pointer"
-                            title="Zoom image"
-                          >
-                            <Maximize2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-
-                        {/* Action Toolbar */}
-                        <div className="flex flex-col gap-2">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] text-zinc-300 font-semibold truncate max-w-[140px]">{img.name}</span>
-                            <button
-                              onClick={() => handleCopyExtractedImage(img.url)}
-                              className="flex items-center gap-1 bg-brand-gold hover:bg-brand-gold-hover text-black px-2.5 py-1 rounded text-xs font-bold transition border-0 cursor-pointer shadow"
-                              title="Copy image to clipboard"
-                            >
-                              <Copy className="w-3.5 h-3.5" />
-                              <span>Copy Image</span>
-                            </button>
-                          </div>
-
-                          {/* Quick Attach Toolbar */}
-                          <div className="bg-black/60 p-2 rounded-lg border border-brand-border/30">
-                            <span className="text-[9px] text-brand-gold font-bold uppercase tracking-wider block mb-1">Quick Attach To Form:</span>
-                            <div className="grid grid-cols-3 gap-1 text-[9px]">
-                              <button
-                                onClick={() => handleAttachExtractedImage(img.url, 'QUESTION')}
-                                className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold text-center"
-                              >
-                                Question
-                              </button>
-                              <button
-                                onClick={() => handleAttachExtractedImage(img.url, 'SOLUTION')}
-                                className="bg-brand-gold text-black py-0.5 px-1 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold text-center"
-                              >
-                                Solution
-                              </button>
-                              <button
-                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_A')}
-                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
-                              >
-                                Opt A
-                              </button>
-                              <button
-                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_B')}
-                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
-                              >
-                                Opt B
-                              </button>
-                              <button
-                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_C')}
-                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
-                              >
-                                Opt C
-                              </button>
-                              <button
-                                onClick={() => handleAttachExtractedImage(img.url, 'OPTION_D')}
-                                className="bg-zinc-800 text-white py-0.5 px-1 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
-                              >
-                                Opt D
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Task Details description card */}
-              <div className="mt-4 p-4 bg-black/60 border border-brand-border rounded-xl shrink-0">
-                <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold mb-1.5">Task Instructions</h4>
-                <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{selectedAsg.task.description}</p>
-              </div>
-            </div>
+      {/* Attached Worksheets & Download Bar */}
+      {selectedAsg && filesList.length > 0 && (
+        <div className="glass-panel p-4 rounded-2xl border border-brand-border bg-black/60 space-y-3 shrink-0">
+          <div className="flex items-center justify-between border-b border-brand-border/40 pb-2">
+            <span className="text-xs font-bold text-brand-gold uppercase tracking-wider flex items-center gap-2">
+              <FileText className="w-4 h-4 text-brand-gold" />
+              <span>Assigned Worksheets ({filesList.length})</span>
+            </span>
           </div>
 
-          {/* RIGHT PANEL: Question Form & Submissions list with Independent Scroll */}
-          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 overflow-hidden h-[calc(100vh-140px)] min-h-[600px] p-6 overflow-y-auto scrollbar-thin space-y-6">
+          <div className="flex flex-wrap items-center gap-3">
+            {filesList.map((file, idx) => {
+              const lowerName = (file.name || '').toLowerCase();
+              const lowerUrl = (file.url || '').toLowerCase();
+              const isDocx = lowerName.endsWith('.docx') || lowerName.endsWith('.doc') || lowerUrl.includes('.docx');
+
+              return (
+                <div key={idx} className="bg-zinc-900 border border-brand-border/70 p-3 rounded-xl flex items-center gap-3 shadow-md">
+                  <FileText className="w-5 h-5 text-brand-gold shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate max-w-[240px]">{file.name}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isDocx && (
+                      <button
+                        onClick={() => handleExtractImages(file.url, file.name)}
+                        disabled={extracting === file.name}
+                        className="text-xs bg-zinc-800 hover:bg-zinc-700 text-brand-gold px-3 py-1.5 rounded-lg font-bold border-0 cursor-pointer disabled:opacity-50 transition flex items-center gap-1.5"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        <span>{extracting === file.name ? 'Extracting...' : 'Extract Diagrams'}</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => triggerFileDownload(file.url, file.name)}
+                      className="text-xs bg-brand-gold hover:bg-brand-gold-hover text-black px-4 py-1.5 rounded-lg font-extrabold transition flex items-center gap-1.5 border-0 shadow cursor-pointer btn-gold"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>DOWNLOAD DOCUMENT</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Extracted Images gallery */}
+          {extractedImages.length > 0 && (
+            <div className="mt-3 p-4 bg-black/80 border border-brand-border rounded-xl">
+              <div className="flex justify-between items-center mb-3 border-b border-brand-border/40 pb-2">
+                <div>
+                  <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4" />
+                    <span>Extracted Document Diagrams ({extractedImages.length})</span>
+                  </h4>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">Click "Copy Image" or use quick attach to attach directly to form fields.</p>
+                </div>
+                <button
+                  onClick={() => setExtractedImages([])}
+                  className="text-xs text-red-400 hover:text-red-300 font-bold border-0 bg-transparent cursor-pointer"
+                >
+                  Clear Gallery
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 max-h-[40vh] overflow-y-auto p-1 scrollbar-thin">
+                {extractedImages.map((img, idx) => (
+                  <div key={idx} className="flex flex-col bg-zinc-950 border border-brand-border/70 rounded-xl p-2.5 space-y-2 hover:border-brand-gold/40 transition shadow">
+                    <div className="relative bg-white/95 rounded-lg p-2 flex items-center justify-center h-[140px] overflow-hidden border border-zinc-200">
+                      <img
+                        src={img.url}
+                        alt={img.name}
+                        className="max-h-[130px] w-auto object-contain cursor-pointer transition transform hover:scale-[1.02]"
+                        onClick={() => setZoomedImage(img)}
+                      />
+                      <button
+                        onClick={() => setZoomedImage(img)}
+                        className="absolute top-1.5 right-1.5 bg-black/75 hover:bg-black text-white p-1 rounded text-xs flex items-center border-0 cursor-pointer"
+                        title="Zoom image"
+                      >
+                        <Maximize2 className="w-3 h-3" />
+                      </button>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] text-zinc-300 font-semibold truncate max-w-[100px]">{img.name}</span>
+                        <button
+                          onClick={() => handleCopyExtractedImage(img.url)}
+                          className="flex items-center gap-1 bg-brand-gold hover:bg-brand-gold-hover text-black px-2 py-0.5 rounded text-[10px] font-bold transition border-0 cursor-pointer shadow"
+                          title="Copy image"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </button>
+                      </div>
+
+                      <div className="bg-black/60 p-1.5 rounded border border-brand-border/30">
+                        <span className="text-[8px] text-brand-gold font-bold uppercase tracking-wider block mb-1">Attach To:</span>
+                        <div className="grid grid-cols-3 gap-1 text-[8px]">
+                          <button
+                            onClick={() => handleAttachExtractedImage(img.url, 'QUESTION')}
+                            className="bg-brand-gold text-black py-0.5 px-0.5 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold text-center"
+                          >
+                            Qn
+                          </button>
+                          <button
+                            onClick={() => handleAttachExtractedImage(img.url, 'SOLUTION')}
+                            className="bg-brand-gold text-black py-0.5 px-0.5 rounded hover:bg-brand-gold-hover border-0 cursor-pointer font-bold text-center"
+                          >
+                            Soln
+                          </button>
+                          <button
+                            onClick={() => handleAttachExtractedImage(img.url, 'OPTION_A')}
+                            className="bg-zinc-800 text-white py-0.5 px-0.5 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                          >
+                            Opt A
+                          </button>
+                          <button
+                            onClick={() => handleAttachExtractedImage(img.url, 'OPTION_B')}
+                            className="bg-zinc-800 text-white py-0.5 px-0.5 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                          >
+                            Opt B
+                          </button>
+                          <button
+                            onClick={() => handleAttachExtractedImage(img.url, 'OPTION_C')}
+                            className="bg-zinc-800 text-white py-0.5 px-0.5 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                          >
+                            Opt C
+                          </button>
+                          <button
+                            onClick={() => handleAttachExtractedImage(img.url, 'OPTION_D')}
+                            className="bg-zinc-800 text-white py-0.5 px-0.5 rounded hover:bg-zinc-700 border-0 cursor-pointer text-center"
+                          >
+                            Opt D
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Main Full-Width Question Entry Container */}
+      {selectedAsg && (
+        <div className="w-full flex-1 space-y-6">
+          {/* Task Details description card */}
+          <div className="p-4 bg-black/60 border border-brand-border rounded-xl shrink-0">
+            <h4 className="text-xs uppercase font-extrabold tracking-wider text-brand-gold mb-1.5">Task Instructions</h4>
+            <p className="text-xs text-zinc-300 whitespace-pre-wrap leading-relaxed">{selectedAsg.task.description}</p>
+          </div>
+
+          {/* Question Form & Submissions list */}
+          <div className="glass-panel rounded-2xl border border-brand-border flex flex-col bg-black/40 p-6 space-y-6">
             {/* Drafted list */}
             <div className="glass-panel p-6 rounded-2xl border border-brand-border space-y-4">
               <div className="flex justify-between items-center pb-2 border-b border-brand-border">

@@ -32,6 +32,14 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Submission not found' }, { status: 404 });
       }
 
+      // Populate fileUrl & filename from database if not explicitly set in searchParams
+      if (!fileUrl) {
+        fileUrl = submission.fileUrl;
+      }
+      if (!filename || filename === 'download') {
+        filename = submission.fileName || 'Weekly_Report.pdf';
+      }
+
       // Authorization check
       if (session.user.role === 'INTERN') {
         const internProfile = await prisma.internProfile.findUnique({
@@ -123,48 +131,61 @@ export async function GET(request: Request) {
 
     // 3. Handle Remote HTTP/HTTPS URL
     if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) {
-      let response = await fetch(fileUrl, {
+      const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim().replace(/^["']|["']$/g, '');
+      const apiKey = process.env.CLOUDINARY_API_KEY?.trim().replace(/^["']|["']$/g, '');
+      const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim().replace(/^["']|["']$/g, '');
+
+      let targetUrl = fileUrl;
+
+      // If it is a Cloudinary URL, attempt authenticated private_download_url first
+      if (fileUrl.includes('res.cloudinary.com') && cloudName && apiKey && apiSecret) {
+        try {
+          const { v2: cloudinary } = await import('cloudinary');
+          cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
+
+          const match = fileUrl.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+          if (match && match[1]) {
+            const publicId = match[1];
+            const isRaw = fileUrl.includes('/raw/upload/');
+            const resourceType = isRaw ? 'raw' : 'image';
+            const extMatch = publicId.split('.').pop();
+            const format = (extMatch && extMatch !== publicId) ? extMatch : (isPdf ? 'pdf' : undefined);
+
+            targetUrl = cloudinary.utils.private_download_url(publicId, format || 'pdf', {
+              resource_type: resourceType,
+              type: 'upload',
+            });
+          }
+        } catch (e) {
+          console.warn('Cloudinary signing error:', e);
+        }
+      }
+
+      let response = await fetch(targetUrl, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         },
       });
 
-      // If Cloudinary returned 401/403/404 for a raw upload, attempt fallback variants & signed URLs
+      // If signed target fetch failed, fallback to original fileUrl fetch
+      if (!response.ok && targetUrl !== fileUrl) {
+        response = await fetch(fileUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' },
+        });
+      }
+
+      // If still not ok, try fallback URL variants
       if (!response.ok && fileUrl.includes('res.cloudinary.com')) {
-        console.warn(`Primary Cloudinary fetch returned ${response.status} ${response.statusText}. Attempting fallback variants...`);
         const fallbackUrls: string[] = [];
 
         if (fileUrl.includes('/raw/upload/')) {
           fallbackUrls.push(fileUrl.replace('/raw/upload/', '/image/upload/'));
-          fallbackUrls.push(fileUrl.replace('/raw/upload/', '/upload/'));
         }
         if (fileUrl.includes('/image/upload/')) {
           fallbackUrls.push(fileUrl.replace('/image/upload/', '/raw/upload/'));
         }
         if (!fileUrl.endsWith('.pdf')) {
           fallbackUrls.push(`${fileUrl}.pdf`);
-        }
-
-        const cloudName = process.env.CLOUDINARY_CLOUD_NAME?.trim().replace(/^["']|["']$/g, '');
-        const apiKey = process.env.CLOUDINARY_API_KEY?.trim().replace(/^["']|["']$/g, '');
-        const apiSecret = process.env.CLOUDINARY_API_SECRET?.trim().replace(/^["']|["']$/g, '');
-
-        if (cloudName && apiKey && apiSecret) {
-          try {
-            const { v2: cloudinary } = await import('cloudinary');
-            cloudinary.config({ cloud_name: cloudName, api_key: apiKey, api_secret: apiSecret });
-
-            const match = fileUrl.match(/\/upload\/(?:v\d+\/)?(.+)$/);
-            if (match && match[1]) {
-              const publicId = match[1];
-              const signedRaw = cloudinary.url(publicId, { resource_type: 'raw', sign_url: true, secure: true });
-              const signedImg = cloudinary.url(publicId, { resource_type: 'image', sign_url: true, secure: true, format: 'pdf' });
-              fallbackUrls.unshift(signedRaw);
-              fallbackUrls.unshift(signedImg);
-            }
-          } catch (e) {
-            console.warn('Cloudinary signing error:', e);
-          }
         }
 
         for (const altUrl of fallbackUrls) {
@@ -174,17 +195,13 @@ export async function GET(request: Request) {
             });
             if (altRes.ok) {
               response = altRes;
-              console.log('Successfully fetched file via fallback URL:', altUrl);
               break;
             }
-          } catch (e) {
-            // ignore and try next fallback
-          }
+          } catch (e) {}
         }
       }
 
       if (!response.ok) {
-        // If server-side fetch failed, fallback to 302 redirect directly to the remote URL
         console.warn(`Server fetch failed (${response.status}). Redirecting client directly to remote URL.`);
         return NextResponse.redirect(fileUrl, 302);
       }
