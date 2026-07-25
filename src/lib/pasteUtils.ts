@@ -43,6 +43,115 @@ export function convertToSuperscript(text: string): string {
 }
 
 /**
+ * Auto-formats ionic charges (monoatomic & polyatomic) and chemical formulas:
+ * e.g. S2- / S^2- / S²^- / S²^– -> S²⁻
+ * e.g. Cl- / Cl^- -> Cl⁻
+ * e.g. K+ / K^+ -> K⁺
+ * e.g. Ca2+ / Ca^2+ / Ca²^+ -> Ca²⁺
+ * e.g. Fe3+ -> Fe³⁺, Cu2+ -> Cu²⁺, Al3+ -> Al³⁺
+ * e.g. SO4^2- -> SO₄²⁻, CO3^2- -> CO₃²⁻, NO3^- -> NO₃⁻, NH4^+ -> NH₄⁺, PO4^3- -> PO₄³⁻, HCO3^- -> HCO₃⁻, MnO4^- -> MnO₄⁻, Cr2O7^2- -> Cr₂O₇²⁻
+ */
+export function autoFormatIonicChargesAndChemistry(text: string): string {
+  if (!text) return '';
+  let result = text;
+
+  const minusSet = '[+\\-–—\\u2212\\u2010-\\u2015\\u207B\\u207A]';
+
+  // 1. Format temperatures like 0-50C, 0-5^0C, 0-5oC -> 0-5°C
+  result = result.replace(/(\d+)\s*(?:[0o⁰]C|°C|\^0C)/g, '$1°C');
+  result = result.replace(/(\d+)-(\d+)\s*0C/gi, '$1-$2°C');
+
+  // 2. Clean element with existing superscript digit(s) followed by caret and sign: e.g. S²^-, S²^–, Ca²^+ -> S²⁻, Ca²⁺
+  const superCaretRegex = new RegExp(`([A-Z][a-z]?[⁰¹²³⁴⁵⁶⁷⁸⁹]+)\\s*\\^\\s*(${minusSet})`, 'g');
+  result = result.replace(superCaretRegex, (_, elemSup, sign) => {
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    return elemSup + supSign;
+  });
+
+  // 3. Format polyatomic ions with digit BEFORE caret AND digit AFTER caret:
+  // e.g. SO4^2- -> SO₄²⁻, CO3^2- -> CO₃²⁻, PO4^3- -> PO₄³⁻, Cr2O7^2- -> Cr₂O₇²⁻
+  const polyCaretTwoDigitsRegex = new RegExp(`([A-Z][a-z]?|\\)|\\\])(\\d+)\\s*\\^\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)\\s*(${minusSet})`, 'g');
+  result = result.replace(polyCaretTwoDigitsRegex, (_, elem, subDigit, supDigits, sign) => {
+    const subs = subDigit.split('').map((d: string) => SUB_MAP[d] || d).join('');
+    const cleanDigits = supDigits.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
+      const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
+      return idx !== -1 ? String(idx) : d;
+    });
+    const sups = cleanDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    return elem + subs + sups + supSign;
+  });
+
+  // 4. Format polyatomic / monoatomic ions with digit BEFORE caret AND ONLY SIGN AFTER caret:
+  // e.g. NO3^- -> NO₃⁻, NH4^+ -> NH₄⁺, HCO3^- -> HCO₃⁻, MnO4^- -> MnO₄⁻, S2^- -> S²⁻, Ca2^+ -> Ca²⁺
+  const polyCaretOneDigitRegex = new RegExp(`([A-Z][a-z]?|\\)|\\\])(\\d+)\\s*\\^\\s*(${minusSet})`, 'g');
+  result = result.replace(polyCaretOneDigitRegex, (match, elem, subDigit, sign) => {
+    const monoatomicElements = ['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Cr', 'Ni', 'Co', 'S'];
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    if (monoatomicElements.includes(elem)) {
+      const sups = subDigit.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+      return elem + sups + supSign;
+    }
+    const subs = subDigit.split('').map((d: string) => SUB_MAP[d] || d).join('');
+    return elem + subs + supSign;
+  });
+
+  // 5. Format monoatomic caret charges: e.g. S^2- -> S²⁻, Ca^2+ -> Ca²⁺, Cl^- -> Cl⁻, K^+ -> K⁺
+  const monoCaretRegex = new RegExp(`([A-Z][a-z]?|\\)|\\\])(\\d*)\\s*\\^\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]*)\\s*(${minusSet})`, 'g');
+  result = result.replace(monoCaretRegex, (_, elem, digitBefore, digitAfter, sign) => {
+    const rawDigit = digitBefore || digitAfter;
+    let sups = '';
+    if (rawDigit) {
+      const cleanDigits = rawDigit.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
+        const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
+        return idx !== -1 ? String(idx) : d;
+      });
+      sups = cleanDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    }
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    return elem + sups + supSign;
+  });
+
+  // 6. Polyatomic ions with numbers & charges WITHOUT carets:
+  // e.g. SO42- -> SO₄²⁻, CO32- -> CO₃²⁻, Cr2O72- -> Cr₂O₇²⁻, PO43- -> PO₄³⁻
+  result = result.replace(/([A-Z][a-z]?|\)|\])(\d+)(\d)([\+\-\u2212–—])(?![a-zA-Z0-9])/g, (_, elem, subDigits, supDigit, sign) => {
+    const subs = subDigits.split('').map((d: string) => SUB_MAP[d] || d).join('');
+    const sup = SUPER_MAP[supDigit] || supDigit;
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    return elem + subs + sup + supSign;
+  });
+
+  // 7. Monoatomic / Polyatomic ions with 1 digit + charge WITHOUT carets:
+  // e.g. NO3- -> NO₃⁻, NH4+ -> NH₄⁺, MnO4- -> MnO₄⁻, Fe3+ -> Fe³⁺, Cu2+ -> Cu²⁺, Ca2+ -> Ca²⁺, S2- -> S²⁻, Al3+ -> Al³⁺
+  result = result.replace(/([A-Z][a-z]?)(\d)([\+\-\u2212–—])(?![a-zA-Z0-9])/g, (match, elem, numDigit, sign) => {
+    const sup = SUPER_MAP[numDigit] || numDigit;
+    const sub = SUB_MAP[numDigit] || numDigit;
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+
+    if (['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Cr', 'Ni', 'Co', 'S'].includes(elem)) {
+      return elem + sup + supSign;
+    }
+    return elem + sub + supSign;
+  });
+
+  // 8. Single ionic charges without digits: Cl- -> Cl⁻, K+ -> K⁺
+  result = result.replace(/([A-Z][a-z]?|\)|\]|[₀-₉]|[⁰-⁹])\s*([\+\-\u2212–—])(?![a-zA-Z0-9\+\-\=])/g, (match, elem, sign) => {
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    return elem + supSign;
+  });
+
+  // 9. Periodic Table Chemical Subscripts for neutral molecules: H2O -> H₂O, CO2 -> CO₂, H2SO4 -> H₂SO₄
+  // Exclude numbers immediately followed by ionic charge superscripts ⁻ or ⁺
+  const chemicalSubscriptRegex = /([A-Z][a-z]?|\)|\])(\d+)(?![0-9]*[KkgmML\u207B\u207A⁻⁺])/g;
+  result = result.replace(chemicalSubscriptRegex, (match, prefix, numStr) => {
+    const subDigits = numStr.split('').map((d: string) => SUB_MAP[d] || d).join('');
+    return prefix + subDigits;
+  });
+
+  return result;
+}
+
+/**
  * Auto-formats scientific notation powers and negative exponents:
  * e.g. "10^-1 nm" -> "10⁻¹ nm"
  * e.g. "10^-2 nm" -> "10⁻² nm"
@@ -137,94 +246,6 @@ export function normalizeUnitSpacing(text: string): string {
 }
 
 /**
- * Auto-formats chemical formulas, organic chemistry structures, and temperature units
- * into exact subscript and superscript representations.
- */
-export function autoFormatChemicalSubscripts(text: string): string {
-  if (!text) return '';
-
-  let result = text;
-
-  // 1. Format temperatures like 0-50C, 0-5^0C, 0-5oC -> 0-5°C
-  result = result.replace(/(\d+)\s*(?:[0o⁰]C|°C|\^0C)/g, '$1°C');
-  result = result.replace(/(\d+)-(\d+)\s*0C/gi, '$1-$2°C');
-
-  // 2. Periodic Table & Group Element Symbols regex
-  const chemicalSubscriptRegex = /([A-Z][a-z]?|\)|\])(\d+)(?![0-9]*[KkgmML])/g;
-
-  result = result.replace(chemicalSubscriptRegex, (match, prefix, numStr) => {
-    const subDigits = numStr.split('').map((d: string) => SUB_MAP[d] || d).join('');
-    return prefix + subDigits;
-  });
-
-  return result;
-}
-
-/**
- * Auto-formats ionic charges, exponents, powers, and carets
- * e.g. Ca2+ -> Ca²⁺, Na+ -> Na⁺, S2- / S2^-- -> S²⁻, Se2^-- -> Se²⁻, 10^-3 -> 10⁻³, x^2 -> x²
- */
-export function autoFormatPowersAndCharges(text: string): string {
-  if (!text) return '';
-  let result = text;
-
-  // 1. Polyatomic ion charges with 1 element subscript + charge: e.g. SO42- -> SO₄²⁻, PO43- -> PO₄³⁻
-  result = result.replace(/([A-Z][a-z]?|\)|\])(\d)(\d)([\+\-])(?![a-zA-Z0-9])/g, (_, elem, subDigit, supDigit, sign) => {
-    const sub = SUB_MAP[subDigit] || subDigit;
-    const sup = SUPER_MAP[supDigit] || supDigit;
-    const supSign = sign === '+' ? '⁺' : '⁻';
-    return elem + sub + sup + supSign;
-  });
-
-  // 2. Polyatomic ion charges with 1 element subscript + single charge: e.g. NO3- -> NO₃⁻, NH4+ -> NH₄⁺
-  result = result.replace(/([A-Z][a-z]?)(\d)([\+\-])(?![a-zA-Z0-9])/g, (match, elem, subDigit, sign) => {
-    const monoatomicElements = ['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Mn', 'Cr', 'Ni', 'Co'];
-    if (monoatomicElements.includes(elem)) {
-      const sup = SUPER_MAP[subDigit] || subDigit;
-      const supSign = sign === '+' ? '⁺' : '⁻';
-      return elem + sup + supSign;
-    }
-    const sub = SUB_MAP[subDigit] || subDigit;
-    const supSign = sign === '+' ? '⁺' : '⁻';
-    return elem + sub + supSign;
-  });
-
-  // 3. Clean up caret power charges with existing Unicode superscripts/subscripts or digits:
-  // e.g. S²^--, Se²^--, S2^--, S^2--, S₂^--, S2-- -> S²⁻, Se²⁻
-  result = result.replace(/([A-Z][a-z]?|\)|\])[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉\d]*\^?--+/gi, (match, elem) => {
-    if (match.includes('3') || match.includes('³') || match.includes('₃')) return elem + '³⁻';
-    return elem + '²⁻';
-  });
-
-  result = result.replace(/([A-Z][a-z]?|\)|\])[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉\d]*\^?\+\++/gi, (match, elem) => {
-    if (match.includes('3') || match.includes('³') || match.includes('₃')) return elem + '³⁺';
-    return elem + '²⁺';
-  });
-
-  // 4. Format explicitly written caret powers like x^2 -> x², 10^-3 -> 10⁻³, S^2- -> S²⁻
-  result = result.replace(/\^([0-9\+\-\=\(\)a-z]+)/gi, (_, p1) => {
-    return convertToSuperscript(p1);
-  });
-
-  // 5. Format ionic charges with digits: Ca2+ -> Ca²⁺, S2- -> S²⁻, Fe3+ -> Fe³⁺
-  const chargeRegex = /([A-Z][a-z]?|\)|\]|[₀-₉])(\d+)([\+\-])(?![a-zA-Z0-9])/g;
-  result = result.replace(chargeRegex, (match, elem, digits, sign) => {
-    const supDigits = digits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
-    const supSign = sign === '+' ? '⁺' : '⁻';
-    return elem + supDigits + supSign;
-  });
-
-  // 6. Format single ionic charges: Na+ -> Na⁺, Cl- -> Cl⁻
-  const singleChargeRegex = /([A-Z][a-z]?|\)|\]|[₀-₉])([\+\-])(?![a-zA-Z0-9\+\-\=])/g;
-  result = result.replace(singleChargeRegex, (match, elem, sign) => {
-    const supSign = sign === '+' ? '⁺' : '⁻';
-    return elem + supSign;
-  });
-
-  return result;
-}
-
-/**
  * Intelligently joins accidental hard line breaks caused by Word/PDF column margins,
  * keeping real bullet/numbered statement lines separate.
  */
@@ -266,9 +287,8 @@ export function cleanLineBreaks(text: string): string {
 export function formatCleanText(text: string): string {
   if (!text) return '';
   let res = cleanLineBreaks(text);
+  res = autoFormatIonicChargesAndChemistry(res);
   res = autoFormatScientificExponents(res);
-  res = autoFormatPowersAndCharges(res);
-  res = autoFormatChemicalSubscripts(res);
   res = normalizeUnitSpacing(res);
   return res.trim();
 }
