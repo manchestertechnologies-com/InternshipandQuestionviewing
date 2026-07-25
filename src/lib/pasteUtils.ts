@@ -44,9 +44,10 @@ export function convertToSuperscript(text: string): string {
 
 /**
  * Auto-formats scientific notation powers and negative exponents:
- * e.g. "10^ −³ nm" -> "10⁻³ nm"
- * e.g. "(2) 10^ −¹ nm" -> "(2) 10⁻¹ nm"
- * e.g. "(3) 10^ −² nm" -> "(3) 10⁻² nm"
+ * e.g. "(1) 10^−³ nm" -> "(1) 10⁻³ nm"
+ * e.g. "(2) 10^−¹ nm" -> "(2) 10⁻¹ nm"
+ * e.g. "(3) 10^−² nm" -> "(3) 10⁻² nm"
+ * e.g. "(4) 10−⁴ nm" -> "(4) 10⁻⁴ nm"
  * e.g. "10^-5" -> "10⁻⁵"
  * e.g. "10^- 5" -> "10⁻⁵"
  * e.g. "1.8 x 10^-5" -> "1.8 × 10⁻⁵"
@@ -60,26 +61,26 @@ export function autoFormatScientificExponents(text: string): string {
   result = result.replace(/\bK\s*([ab]|sp)\b/g, (match, sub) => `K${convertToSubscript(sub)}`);
 
   // All minus & dash characters: ASCII hyphen -, Unicode minus − (\u2212), En-dash – (\u2013), Em-dash — (\u2014), Superscript minus ⁻ (\u207B)
-  const minusCharsRegex = '[+\\-–—\\u2212\\u2010-\\u2015\\u207B\\u207A]';
+  const minusChars = '[+\\-–—\\u2212\\u2010-\\u2015\\u207B\\u207A]';
 
-  // 1. Handle caret with optional spaces, any minus/plus sign, and digits/superscripts:
-  // e.g. 10^ −³, 10^ −¹, 10^ −², 10^-5, 10^ -3, 10^- ⁵ -> 10⁻³, 10⁻¹, 10⁻², 10⁻⁵
-  const caretPowerRegex = new RegExp(`(\\d+|[a-zA-Z]|\\))\\s*\\^\\s*(${minusCharsRegex})?\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)`, 'gi');
-  result = result.replace(caretPowerRegex, (_, base, sign, num) => {
+  // 1. Convert base WITH CARET ^ (with or without minus, spaces, or superscripts)
+  // e.g. 10^-3, 10^ -3, 10^−3, 10^ −³, 10^−³, (2) 10^ −¹ -> 10⁻³, 10⁻³, 10⁻³, 10⁻³, (2) 10⁻¹
+  const caretRegex = new RegExp(`(\\d+|[a-zA-Z]|\\))\\s*\\^\\s*(${minusChars})?\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)`, 'gi');
+  result = result.replace(caretRegex, (_, base, sign, numStr) => {
     let supSign = '';
     if (sign) {
       supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
     }
-    const numDigits = num.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
+    const cleanDigits = numStr.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
       const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
       return idx !== -1 ? String(idx) : d;
     });
-    const supDigits = numDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    const supDigits = cleanDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
     return base + (supSign || '') + supDigits;
   });
 
-  // 2. Handle dangling carets before minus/superscript: e.g. 10^ −³, 10^⁻³ -> 10⁻³
-  const danglingCaretRegex = new RegExp(`(\\d+|[a-zA-Z]|\\))\\s*\\^\\s*(${minusCharsRegex})?\\s*([⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹]+)`, 'gi');
+  // 2. Convert base WITH CARET ^ followed by dangling superscript string (e.g. 10^−³, 10^⁻³, 10^³):
+  const danglingCaretRegex = new RegExp(`(\\d+|[a-zA-Z]|\\))\\s*\\^\\s*(${minusChars})?\\s*([⁻⁺⁰¹²³⁴⁵⁶⁷⁸⁹]+)`, 'gi');
   result = result.replace(danglingCaretRegex, (_, base, sign, supStr) => {
     let cleanSup = supStr;
     if (sign && !supStr.startsWith('⁻') && !supStr.startsWith('⁺')) {
@@ -89,16 +90,17 @@ export function autoFormatScientificExponents(text: string): string {
     return base + cleanSup;
   });
 
-  // 3. Handle 10- 5 or 10- ⁵ or 10-5 right after multiplication:
-  // e.g. 1.8 × 10-5 or 1.8 x 10^-5 -> 1.8 × 10⁻⁵
-  const sciMinusRegex = new RegExp(`(10)\\s*${minusCharsRegex}\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)`, 'gi');
-  result = result.replace(sciMinusRegex, (_, base, num) => {
-    const numDigits = num.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
+  // 3. Convert 10 or base WITHOUT CARET followed by minus and number (e.g. 10−4, 10-4, 10−⁴, 10- 4, 10− ⁴):
+  // e.g. (4) 10−⁴ nm -> (4) 10⁻⁴ nm, 10-5 -> 10⁻⁵
+  const directMinusRegex = new RegExp(`(\\b10|\\b[a-zA-Z])\\s*(${minusChars})\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)(?![a-zA-Z0-9])`, 'gi');
+  result = result.replace(directMinusRegex, (_, base, sign, numStr) => {
+    const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
+    const cleanDigits = numStr.replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
       const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
       return idx !== -1 ? String(idx) : d;
     });
-    const supDigits = numDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
-    return base + '⁻' + supDigits;
+    const supDigits = cleanDigits.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    return base + supSign + supDigits;
   });
 
   // 4. Format multiplication sign in scientific notation: 1.8 x 10 -> 1.8 × 10

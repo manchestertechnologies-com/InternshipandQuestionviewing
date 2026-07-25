@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import ImageCropper from '@/components/ImageCropper';
 import { ACADEMIC_HIERARCHY, getChapters, getConcepts } from '@/lib/academicHierarchy';
-import { handleRichPaste } from '@/lib/pasteUtils';
+import { handleRichPaste, formatCleanText } from '@/lib/pasteUtils';
 import MathToolbar from '@/components/MathToolbar';
 
 interface QuestionImage {
@@ -1357,6 +1357,7 @@ export default function DailyTasksPage() {
                     rows={7}
                     value={questionText}
                     onChange={(e) => setQuestionText(e.target.value)}
+                    onBlur={(e) => setQuestionText(formatCleanText(e.target.value))}
                     onPaste={(e) => handlePasteImage(e, 'QUESTION')}
                     className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[160px]"
                     placeholder={
