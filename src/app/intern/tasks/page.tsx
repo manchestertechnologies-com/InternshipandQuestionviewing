@@ -521,20 +521,10 @@ export default function DailyTasksPage() {
       finalOptionD = "A is false but R is true.";
       extraData = { assertionText, reasonText };
     } else if (questionType === 'STATEMENT_BASED') {
-      if (!statement1 || !statement2) {
-        setError('Please fill in at least Statement 1 and Statement 2.');
+      if (!questionText || !optionA || !optionB || !optionC || !optionD) {
+        setError('Please fill in statement question text and all four options.');
         return;
       }
-      if (!optionA || !optionB || !optionC || !optionD) {
-        setError('Please provide options A, B, C, D representing statement combinations.');
-        return;
-      }
-      const statementsList = [statement1, statement2];
-      if (statement3) statementsList.push(statement3);
-      if (statement4) statementsList.push(statement4);
-      
-      finalQuestionText = statementsList.map((st, idx) => `Statement ${idx + 1}: ${st}`).join('\n') + `\n\nChoose the correct answer:`;
-      extraData = { statements: [statement1, statement2, statement3, statement4].filter(Boolean) };
     } else if (questionType === 'TRUE_FALSE') {
       if (!questionText) {
         setError('Please fill in the statement text.');
@@ -1327,8 +1317,8 @@ export default function DailyTasksPage() {
 
               {/* DYNAMIC FIELDS BASE ON QUESTION TYPE */}
 
-              {/* MCQ or DIAGRAM or TRUE_FALSE or NUMERICAL standard text field */}
-              {(questionType === 'MCQ' || questionType === 'DIAGRAM' || questionType === 'TRUE_FALSE' || questionType === 'NUMERICAL') && (
+              {/* MCQ or DIAGRAM or TRUE_FALSE or NUMERICAL or STATEMENT_BASED standard text field */}
+              {(questionType === 'MCQ' || questionType === 'DIAGRAM' || questionType === 'TRUE_FALSE' || questionType === 'NUMERICAL' || questionType === 'STATEMENT_BASED') && (
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">
@@ -1421,43 +1411,6 @@ export default function DailyTasksPage() {
                     <p><strong>C:</strong> A is true but R is false.</p>
                     <p><strong>D:</strong> A is false but R is true.</p>
                   </div>
-                </div>
-              )}
-
-              {/* STATEMENT BASED */}
-              {questionType === 'STATEMENT_BASED' && (
-                <div className="space-y-3">
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Statements *</label>
-                  <input
-                    type="text"
-                    required
-                    value={statement1}
-                    onChange={(e) => setStatement1(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="Statement 1 *"
-                  />
-                  <input
-                    type="text"
-                    required
-                    value={statement2}
-                    onChange={(e) => setStatement2(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="Statement 2 *"
-                  />
-                  <input
-                    type="text"
-                    value={statement3}
-                    onChange={(e) => setStatement3(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="Statement 3 (Optional)"
-                  />
-                  <input
-                    type="text"
-                    value={statement4}
-                    onChange={(e) => setStatement4(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="Statement 4 (Optional)"
-                  />
                 </div>
               )}
 
