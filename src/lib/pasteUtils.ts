@@ -83,19 +83,29 @@ export function parseRichTextToUnicode(htmlText: string): string {
 
   let cleaned = htmlText;
 
-  // Replace <sub>...</sub> tags
+  // 1. Strip Word / HTML metadata tags (head, style, script, xml, comments, meta, link, title)
+  cleaned = cleaned.replace(/<!--[\s\S]*?-->/gi, '');
+  cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  cleaned = cleaned.replace(/<xml[^>]*>[\s\S]*?<\/xml>/gi, '');
+  cleaned = cleaned.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
+  cleaned = cleaned.replace(/<meta[^>]*>/gi, '');
+  cleaned = cleaned.replace(/<link[^>]*>/gi, '');
+  cleaned = cleaned.replace(/<title[^>]*>[\s\S]*?<\/title>/gi, '');
+
+  // 2. Replace <sub>...</sub> tags
   cleaned = cleaned.replace(/<sub[^>]*>(.*?)<\/sub>/gi, (_, content) => {
     const plain = content.replace(/<[^>]+>/g, '');
     return convertToSubscript(plain);
   });
 
-  // Replace <sup>...</sup> tags
+  // 3. Replace <sup>...</sup> tags
   cleaned = cleaned.replace(/<sup[^>]*>(.*?)<\/sup>/gi, (_, content) => {
     const plain = content.replace(/<[^>]+>/g, '');
     return convertToSuperscript(plain);
   });
 
-  // Replace math entities & common symbols
+  // 4. Replace math entities & common symbols
   cleaned = cleaned
     .replace(/&plusmn;/gi, '±')
     .replace(/&times;/gi, '×')
@@ -123,17 +133,18 @@ export function parseRichTextToUnicode(htmlText: string): string {
     .replace(/&harr;/gi, '↔')
     .replace(/&rArr;/gi, '⇒');
 
-  // Convert line breaks and paragraph ends
+  // 5. Convert line breaks and paragraph ends
   cleaned = cleaned
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/p>/gi, '\n')
     .replace(/<\/div>/gi, '\n')
+    .replace(/<\/tr>/gi, '\n')
     .replace(/<\/li>/gi, '\n');
 
-  // Strip remaining HTML tags
+  // 6. Strip remaining HTML tags
   cleaned = cleaned.replace(/<[^>]+>/g, '');
 
-  // Decode common HTML entities
+  // 7. Decode common HTML entities
   cleaned = cleaned
     .replace(/&nbsp;/gi, ' ')
     .replace(/&lt;/gi, '<')
@@ -142,7 +153,7 @@ export function parseRichTextToUnicode(htmlText: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'");
 
-  // Normalize multiple newlines (max 2 consecutive)
+  // 8. Normalize multiple newlines (max 2 consecutive)
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
 
   return autoFormatChemicalSubscripts(cleaned.trim());
@@ -170,9 +181,9 @@ export function handleRichPaste(
   const htmlData = e.clipboardData?.getData('text/html');
   const plainData = e.clipboardData?.getData('text/plain');
 
-  if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('&') || htmlData.includes('<p>') || htmlData.includes('<math'))) {
+  // If HTML contains actual sub or sup tags or math, parse HTML sanitized
+  if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('<math'))) {
     let formatted = parseRichTextToUnicode(htmlData);
-    formatted = autoFormatChemicalSubscripts(formatted);
     if (formatted) {
       e.preventDefault();
       insertTextAtCursor(e.currentTarget, formatted, currentValue, setValue);
@@ -180,17 +191,16 @@ export function handleRichPaste(
     }
   }
 
+  // Otherwise if plainData is present, use plainData with chemical subscript formatting
   if (plainData) {
     let formatted = plainData;
     if (plainData.includes('<sub>') || plainData.includes('<sup>')) {
       formatted = parseRichTextToUnicode(plainData);
     }
     const chemFormatted = autoFormatChemicalSubscripts(formatted);
-    if (chemFormatted !== plainData) {
-      e.preventDefault();
-      insertTextAtCursor(e.currentTarget, chemFormatted, currentValue, setValue);
-      return true;
-    }
+    e.preventDefault();
+    insertTextAtCursor(e.currentTarget, chemFormatted, currentValue, setValue);
+    return true;
   }
 
   return false;
