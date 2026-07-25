@@ -29,11 +29,31 @@ export default function MentorSubmissionsPage() {
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const parseApiResponse = async (res: Response) => {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    }
+    const text = await res.text();
+    if (res.status === 401 || text.toLowerCase().includes('unauthorized')) {
+      throw new Error('Session expired or unauthorized. Please refresh and log in again.');
+    }
+    throw new Error(text || `Server returned HTTP ${res.status}`);
+  };
+
   const fetchSubmissions = async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/mentor/weekly-reports');
-      if (!res.ok) throw new Error('Failed to load submissions');
+      if (!res.ok) {
+        let errMsg = 'Failed to load submissions';
+        try {
+          await parseApiResponse(res);
+        } catch (e: any) {
+          errMsg = e.message;
+        }
+        throw new Error(errMsg);
+      }
       const data = await res.json();
       setSubmissions(data);
     } catch (err: any) {
@@ -64,7 +84,13 @@ export default function MentorSubmissionsPage() {
         }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await parseApiResponse(res);
+      } catch (parseErr: any) {
+        throw new Error(parseErr.message || 'Failed to update submission');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to update submission');
 
       setSuccess(`Weekly submission review saved as ${status}!`);

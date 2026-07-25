@@ -44,17 +44,16 @@ export async function GET(request: Request) {
         const mentorProfile = await prisma.mentorProfile.findUnique({
           where: { userId: session.user.id },
         });
-        if (
-          !mentorProfile ||
-          (submission.intern.group !== mentorProfile.group &&
-            submission.intern.mentorId !== mentorProfile.id)
-        ) {
+        const subGroup = submission.intern.group?.trim().toLowerCase() || '';
+        const mentorGroup = mentorProfile?.group?.trim().toLowerCase() || '';
+        const isGroupMatch = subGroup !== '' && subGroup === mentorGroup;
+        const isMentorMatch = mentorProfile && submission.intern.mentorId === mentorProfile.id;
+
+        if (!mentorProfile || (!isGroupMatch && !isMentorMatch)) {
           return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         }
       }
-
-      fileUrl = submission.fileUrl;
-      filename = submission.fileName || filename;
+      // ADMIN role bypasses authorization check
     }
 
     if (!fileUrl) {
@@ -185,7 +184,9 @@ export async function GET(request: Request) {
       }
 
       if (!response.ok) {
-        return NextResponse.json({ error: `Failed to fetch file: ${response.statusText}` }, { status: response.status });
+        // If server-side fetch failed, fallback to 302 redirect directly to the remote URL
+        console.warn(`Server fetch failed (${response.status}). Redirecting client directly to remote URL.`);
+        return NextResponse.redirect(fileUrl, 302);
       }
 
       const arrayBuffer = await response.arrayBuffer();

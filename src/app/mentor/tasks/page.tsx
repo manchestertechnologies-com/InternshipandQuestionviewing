@@ -48,6 +48,21 @@ export default function TaskAssignmentPage() {
   const [submitting, setSubmitting] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
 
+  const parseApiResponse = async (res: Response) => {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      return await res.json();
+    }
+    const text = await res.text();
+    if (res.status === 413 || text.toLowerCase().includes('request entity too large')) {
+      throw new Error('File or request payload is too large. Please compress file attachments or log in again.');
+    }
+    if (res.status === 401 || text.toLowerCase().includes('unauthorized')) {
+      throw new Error('Session expired or unauthorized. Please refresh the page and log in again.');
+    }
+    throw new Error(text || `Server returned HTTP ${res.status}`);
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -57,7 +72,14 @@ export default function TaskAssignmentPage() {
       ]);
 
       if (!tasksRes.ok || !internsRes.ok) {
-        throw new Error('Failed to load tasks/interns');
+        let errMessage = 'Failed to load tasks/interns';
+        try {
+          if (!tasksRes.ok) await parseApiResponse(tasksRes);
+          if (!internsRes.ok) await parseApiResponse(internsRes);
+        } catch (e: any) {
+          errMessage = e.message;
+        }
+        throw new Error(errMessage);
       }
 
       const tasksData = await tasksRes.json();
@@ -101,16 +123,60 @@ export default function TaskAssignmentPage() {
   };
 
   const uploadFileDirect = async (targetFile: File, folderName: string): Promise<string> => {
+    let lastErrorMsg = '';
+    try {
+      const signRes = await fetch(`/api/cloudinary/sign?folder=${encodeURIComponent(folderName)}`);
+      if (signRes.ok) {
+        const signData = await signRes.json();
+        const { signature, timestamp, folder, apiKey, cloudName } = signData;
+        const ext = targetFile.name.split('.').pop()?.toLowerCase() || '';
+        const resourceType = (ext === 'pdf' || ext === 'docx' || ext === 'doc' || ext === 'zip') ? 'raw' : 'auto';
+
+        const cloudinaryData = new FormData();
+        cloudinaryData.append('file', targetFile);
+        cloudinaryData.append('api_key', apiKey);
+        cloudinaryData.append('timestamp', timestamp.toString());
+        cloudinaryData.append('signature', signature);
+        cloudinaryData.append('folder', folder);
+
+        const cloudinaryRes = await fetch(
+          `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+          {
+            method: 'POST',
+            body: cloudinaryData,
+          }
+        );
+
+        if (cloudinaryRes.ok) {
+          const uploadResult = await cloudinaryRes.json();
+          return uploadResult.secure_url;
+        } else {
+          const errResult = await cloudinaryRes.json().catch(() => ({}));
+          lastErrorMsg = errResult.error?.message || 'Cloudinary upload responded with error';
+        }
+      }
+    } catch (e: any) {
+      lastErrorMsg = e.message || String(e);
+    }
+
     const localFormData = new FormData();
     localFormData.append('file', targetFile);
     const localRes = await fetch('/api/upload', {
       method: 'POST',
       body: localFormData,
     });
+
     if (!localRes.ok) {
-      const errData = await localRes.json().catch(() => ({}));
-      throw new Error(errData.error || 'Upload failed: Internal server error');
+      let errText = 'Upload failed: Internal server error';
+      try {
+        const errData = await parseApiResponse(localRes);
+        errText = errData.error || errText;
+      } catch (err: any) {
+        errText = err.message || errText;
+      }
+      throw new Error(errText);
     }
+
     const localResult = await localRes.json();
     return localResult.secure_url || localResult.url;
   };
@@ -164,7 +230,13 @@ export default function TaskAssignmentPage() {
         }),
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await parseApiResponse(res);
+      } catch (parseErr: any) {
+        throw new Error(parseErr.message || 'Failed to create task');
+      }
+
       if (!res.ok) throw new Error(data.error || 'Failed to create task');
 
       setSuccess('Task assigned successfully!');
