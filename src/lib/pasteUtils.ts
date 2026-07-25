@@ -83,11 +83,13 @@ export function parseRichTextToUnicode(htmlText: string): string {
 
   let cleaned = htmlText;
 
-  // 1. Strip Word / HTML metadata tags (head, style, script, xml, comments, meta, link, title)
+  // 1. Strip Word & Office XML namespace tags (<w:...>, <o:...>, <m:...>, <v:...>), comments, style, script, head, meta
   cleaned = cleaned.replace(/<!--[\s\S]*?-->/gi, '');
   cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
   cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   cleaned = cleaned.replace(/<xml[^>]*>[\s\S]*?<\/xml>/gi, '');
+  cleaned = cleaned.replace(/<[womv]:[^>]*>[\s\S]*?<\/[womv]:[^>]*>/gi, '');
+  cleaned = cleaned.replace(/<[womv]:[^>]*\/>/gi, '');
   cleaned = cleaned.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
   cleaned = cleaned.replace(/<meta[^>]*>/gi, '');
   cleaned = cleaned.replace(/<link[^>]*>/gi, '');

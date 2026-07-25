@@ -1,7 +1,7 @@
 const { parseRichTextToUnicode } = require('../src/lib/pasteUtils');
 
 console.log('====================================================');
-console.log(' VERIFYING WORD METADATA SANITIZATION & PASTE FIX  ');
+console.log(' VERIFYING WORD NAMESPACE METADATA SANITIZATION     ');
 console.log('====================================================\n');
 
 let passCount = 0;
@@ -17,30 +17,29 @@ function assert(condition, testName, details = '') {
   }
 }
 
-// Simulated HTML clipboard payload copied from Microsoft Word containing Document Properties & Style XML
+// Exact Word clipboard payload containing <w:View>Normal</w:View>, <w:Zoom>0</w:Zoom>, <w:TrackMoves>false</w:TrackMoves>, <w:LidThemeOther>EN-IN</w:LidThemeOther>
 const sampleWordHtmlData = `
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">
 <head>
 <meta name="Title" content="">
-<meta name="Keywords" content="">
 <style>
 p.MsoNormal, li.MsoNormal, div.MsoNormal
 	{mso-style-name:Normal;
-	mso-style-parent:"";
-	margin:0in;
-	font-size:12.0pt;
-	font-family:"Times New Roman",serif;}
+	font-size:12.0pt;}
 </style>
 <!--[if gte mso 9]><xml>
+ <w:WordDocument>
+  <w:View>Normal</w:View>
+  <w:Zoom>0</w:Zoom>
+  <w:TrackMoves>false</w:TrackMoves>
+  <w:TrackFormatting>false</w:TrackFormatting>
+  <w:DoNotPromoteKF/>
+  <w:LidThemeOther>EN-IN</w:LidThemeOther>
+ </w:WordDocument>
  <o:DocumentProperties>
   <o:Template>Normal</o:Template>
   <o:Revision>0</o:Revision>
-  <o:HyperlinksChanged>false</o:HyperlinksChanged>
-  <o:Language>EN-IN</o:Language>
  </o:DocumentProperties>
- <o:OfficeDocumentSettings>
-  <o:AllowPNG/>
- </o:OfficeDocumentSettings>
 </xml><![endif]-->
 </head>
 <body>
@@ -53,6 +52,7 @@ p.MsoNormal, li.MsoNormal, div.MsoNormal
 const resultText = parseRichTextToUnicode(sampleWordHtmlData);
 
 assert(!resultText.includes('Normal'), 'Word metadata "Normal" is 100% stripped');
+assert(!resultText.includes('0'), 'Word metadata "0" is 100% stripped');
 assert(!resultText.includes('false'), 'Word metadata "false" is 100% stripped');
 assert(!resultText.includes('EN-IN'), 'Word metadata "EN-IN" is 100% stripped');
 assert(resultText.includes('Statement I: PCl₃ reacts with H₂O to form H₃PO₃.'), 'Clean question text Statement I extracted with subscripts');
