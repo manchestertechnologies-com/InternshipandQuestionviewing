@@ -117,6 +117,61 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
         ½ Fraction
       </button>
 
+      {/* Radical / Square Root Button */}
+      <button
+        type="button"
+        onClick={() => {
+          const el = targetRef?.current;
+          if (el) {
+            const start = el.selectionStart ?? currentValue.length;
+            const end = el.selectionEnd ?? currentValue.length;
+            const selectedText = currentValue.substring(start, end);
+            const template = selectedText ? `√(${selectedText})` : '√(x)';
+            insertTextAtCursor(el, template, currentValue, onUpdate);
+          } else {
+            onUpdate(currentValue + '√(x)');
+          }
+        }}
+        className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-brand-gold font-bold text-xs rounded border border-brand-border/80 transition cursor-pointer"
+        title="Square Root (e.g. √(2x-1))"
+      >
+        √ Root
+      </button>
+
+      {/* Integral Button */}
+      <button
+        type="button"
+        onClick={() => {
+          const el = targetRef?.current;
+          if (el) {
+            insertTextAtCursor(el, '∫₀¹x²dx', currentValue, onUpdate);
+          } else {
+            onUpdate(currentValue + '∫₀¹x²dx');
+          }
+        }}
+        className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-brand-gold font-bold text-xs rounded border border-brand-border/80 transition cursor-pointer"
+        title="Integral with bounds (e.g. ∫₀¹x²dx)"
+      >
+        ∫ Integral
+      </button>
+
+      {/* Summation Button */}
+      <button
+        type="button"
+        onClick={() => {
+          const el = targetRef?.current;
+          if (el) {
+            insertTextAtCursor(el, '∑ᵢ₌₁ⁿi²', currentValue, onUpdate);
+          } else {
+            onUpdate(currentValue + '∑ᵢ₌₁ⁿi²');
+          }
+        }}
+        className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-brand-gold font-bold text-xs rounded border border-brand-border/80 transition cursor-pointer"
+        title="Summation with bounds (e.g. ∑ᵢ₌₁ⁿi²)"
+      >
+        ∑ Sum
+      </button>
+
       <div className="h-4 w-px bg-brand-border/60 mx-1" />
 
       {/* Common Math & Scientific Symbols */}

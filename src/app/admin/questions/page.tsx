@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Filter, Database, Check, X, RefreshCw, AlertCircle, Eye, ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
 import { ACADEMIC_HIERARCHY } from '@/lib/academicHierarchy';
+import MathRenderer from '@/components/MathRenderer';
 
 interface QuestionImage {
   id: string;
@@ -602,9 +603,9 @@ export default function QuestionRepository() {
                       </span>
                     </div>
 
-                    <p className="text-white font-medium text-sm line-clamp-3 leading-relaxed">
-                      {q.questionText}
-                    </p>
+                    <div className="text-white font-medium text-sm line-clamp-3 leading-relaxed">
+                      <MathRenderer text={q.questionText} />
+                    </div>
 
                     <div className="grid grid-cols-2 gap-2 text-xs text-brand-muted bg-black/30 p-3 rounded-lg border border-brand-border/40">
                       <div>Chapter: <span className="text-zinc-300 font-medium">{q.topic}</span></div>
@@ -714,7 +715,7 @@ export default function QuestionRepository() {
                   {((selectedQuestion as any).questionType === 'TRUE_FALSE') ? 'Statement' : 'Question Text'}
                 </h4>
                 <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border text-white text-sm whitespace-pre-wrap leading-relaxed">
-                  {selectedQuestion.questionText}
+                  <MathRenderer text={selectedQuestion.questionText} />
                 </div>
               </div>
 
@@ -747,13 +748,13 @@ export default function QuestionRepository() {
                     <div className="space-y-1">
                       <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column A</p>
                       {(((selectedQuestion as any).extraData as any).matchColumnA || []).map((item: string, idx: number) => (
-                        <div key={idx} className="text-white py-1">{idx + 1}. {item}</div>
+                        <div key={idx} className="text-white py-1">{idx + 1}. <MathRenderer text={item} inline /></div>
                       ))}
                     </div>
                     <div className="space-y-1">
                       <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column B</p>
                       {(((selectedQuestion as any).extraData as any).matchColumnB || []).map((item: string, idx: number) => (
-                        <div key={idx} className="text-white py-1">{String.fromCharCode(65 + idx)}. {item}</div>
+                        <div key={idx} className="text-white py-1">{String.fromCharCode(65 + idx)}. <MathRenderer text={item} inline /></div>
                       ))}
                     </div>
                   </div>
@@ -764,7 +765,7 @@ export default function QuestionRepository() {
               {((selectedQuestion as any).questionType === 'NUMERICAL') ? (
                 <div className="p-4 bg-emerald-950/20 border border-emerald-500/50 rounded-xl flex items-center justify-between text-sm">
                   <span className="font-semibold text-white">Correct Numerical Answer:</span>
-                  <span className="font-mono text-lg font-bold text-emerald-400 bg-black/60 px-4 py-1.5 rounded-lg border border-brand-border">{selectedQuestion.correctAnswer}</span>
+                  <span className="font-mono text-lg font-bold text-emerald-400 bg-black/60 px-4 py-1.5 rounded-lg border border-brand-border"><MathRenderer text={selectedQuestion.correctAnswer} inline /></span>
                 </div>
               ) : ((selectedQuestion as any).questionType === 'TRUE_FALSE') ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -784,7 +785,7 @@ export default function QuestionRepository() {
                       }`}>
                         {opt === 'A' ? 'T' : 'F'}
                       </span>
-                      <div className="whitespace-pre-wrap">{label}</div>
+                      <div className="whitespace-pre-wrap"><MathRenderer text={label} /></div>
                     </div>
                   ))}
                 </div>
@@ -808,7 +809,7 @@ export default function QuestionRepository() {
                       }`}>
                         {opt}
                       </span>
-                      <div className="whitespace-pre-wrap">{label}</div>
+                      <div className="whitespace-pre-wrap"><MathRenderer text={label} /></div>
                     </div>
                   ))}
                 </div>
@@ -836,7 +837,7 @@ export default function QuestionRepository() {
                       }`}>
                         {opt}
                       </span>
-                      <div className="whitespace-pre-wrap">{text}</div>
+                      <div className="whitespace-pre-wrap"><MathRenderer text={text} /></div>
                     </div>
                   ))}
                 </div>
@@ -846,7 +847,7 @@ export default function QuestionRepository() {
               <div className="space-y-2">
                 <h4 className="text-xs uppercase font-bold tracking-wider text-emerald-400">Detailed Solution</h4>
                 <div className="p-4 bg-emerald-950/5 border border-emerald-900/30 rounded-xl text-white text-sm whitespace-pre-wrap leading-relaxed">
-                  {selectedQuestion.detailedSolution}
+                  <MathRenderer text={selectedQuestion.detailedSolution} />
                 </div>
               </div>
 

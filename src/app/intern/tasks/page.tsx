@@ -26,6 +26,7 @@ import ImageCropper from '@/components/ImageCropper';
 import { ACADEMIC_HIERARCHY, getChapters, getConcepts } from '@/lib/academicHierarchy';
 import { handleRichPaste, formatCleanText } from '@/lib/pasteUtils';
 import MathToolbar from '@/components/MathToolbar';
+import MathRenderer from '@/components/MathRenderer';
 
 interface QuestionImage {
   id?: string;
@@ -1335,6 +1336,13 @@ export default function DailyTasksPage() {
                         : "Type question text or paste image (Ctrl+V) directly inside here..."
                     }
                   />
+
+                  {questionText && (
+                    <div className="p-3 bg-black/80 border border-brand-border/60 rounded-lg text-white text-xs mt-1.5 space-y-1">
+                      <span className="text-[9px] font-extrabold text-brand-gold uppercase tracking-wider block">Live Equation Preview (MS Word / LaTeX Typeset):</span>
+                      <MathRenderer text={questionText} />
+                    </div>
+                  )}
                   
                   {uploadingField === 'QUESTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading image...</p>}
                   
