@@ -1356,7 +1356,7 @@ export default function DailyTasksPage() {
                     required
                     rows={7}
                     value={questionText}
-                    onChange={(e) => setQuestionText(e.target.value)}
+                    onChange={(e) => setQuestionText(formatCleanText(e.target.value))}
                     onBlur={(e) => setQuestionText(formatCleanText(e.target.value))}
                     onPaste={(e) => handlePasteImage(e, 'QUESTION')}
                     className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[160px]"
@@ -1389,7 +1389,9 @@ export default function DailyTasksPage() {
                       required
                       rows={2}
                       value={assertionText}
-                      onChange={(e) => setAssertionText(e.target.value)}
+                      onChange={(e) => setAssertionText(formatCleanText(e.target.value))}
+                      onBlur={(e) => setAssertionText(formatCleanText(e.target.value))}
+                      onPaste={(e) => handlePasteImage(e, 'ASSERTION')}
                       className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                       placeholder="Type Assertion (A)..."
                     />
@@ -1400,7 +1402,9 @@ export default function DailyTasksPage() {
                       required
                       rows={2}
                       value={reasonText}
-                      onChange={(e) => setReasonText(e.target.value)}
+                      onChange={(e) => setReasonText(formatCleanText(e.target.value))}
+                      onBlur={(e) => setReasonText(formatCleanText(e.target.value))}
+                      onPaste={(e) => handlePasteImage(e, 'REASON')}
                       className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                       placeholder="Type Reason (R)..."
                     />
@@ -1511,10 +1515,11 @@ export default function DailyTasksPage() {
                             required
                             value={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD}
                             onChange={(e) => {
-                              if (opt === 'A') setOptionA(e.target.value);
-                              else if (opt === 'B') setOptionB(e.target.value);
-                              else if (opt === 'C') setOptionC(e.target.value);
-                              else setOptionD(e.target.value);
+                              const cleaned = formatCleanText(e.target.value);
+                              if (opt === 'A') setOptionA(cleaned);
+                              else if (opt === 'B') setOptionB(cleaned);
+                              else if (opt === 'C') setOptionC(cleaned);
+                              else setOptionD(cleaned);
                             }}
                             onBlur={(e) => {
                               const cleaned = formatCleanText(e.target.value);
@@ -1698,7 +1703,7 @@ export default function DailyTasksPage() {
                   required
                   rows={4}
                   value={detailedSolution}
-                  onChange={(e) => setDetailedSolution(e.target.value)}
+                  onChange={(e) => setDetailedSolution(formatCleanText(e.target.value))}
                   onBlur={(e) => setDetailedSolution(formatCleanText(e.target.value))}
                   onPaste={(e) => handlePasteImage(e, 'SOLUTION')}
                   className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
