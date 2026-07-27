@@ -1236,37 +1236,6 @@ export default function DailyTasksPage() {
                 </div>
               </div>
 
-              {/* Subconcept, Tag, Exam categories, and Question Type */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Concept</label>
-                  <select
-                    value={subConcept}
-                    onChange={(e) => setSubConcept(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    disabled={!concept}
-                  >
-                    <option value="">Select Sub-Concept</option>
-                    {subConcepts.map((sc) => (
-                      <option key={sc} value={sc}>
-                        {sc}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Sub-Topic / Tag</label>
-                  <input
-                    type="text"
-                    value={subTopic}
-                    onChange={(e) => setSubTopic(e.target.value)}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    placeholder="e.g. Free-body diagram"
-                  />
-                </div>
-              </div>
-
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Exam Categories *</label>
