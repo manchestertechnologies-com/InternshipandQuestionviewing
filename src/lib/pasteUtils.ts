@@ -350,37 +350,11 @@ export function convertToLatexFractions(text: string): string {
 
 /**
  * Auto-formats fractions (e.g. 1/2, a/b, (a+b)/(c+d), 10⁻³/10⁻⁵, Na⁺/Cl⁻, \frac{a}{b})
- * into true stacked Unicode fractions with horizontal bar lines (─).
+ * into true stacked LaTeX fractions for professional equation rendering.
  */
 export function autoFormatStackedFractions(text: string): string {
   if (!text) return '';
-  let result = convertToLatexFractions(text);
-
-  // Convert LaTeX \frac{num}{den} into stacked Unicode fractions
-  const latexFracRegex = /\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g;
-  result = result.replace(latexFracRegex, (match, rawNum, rawDen) => {
-    let numStr = stripOuterParens(rawNum);
-    let denStr = stripOuterParens(rawDen);
-
-    const maxLen = Math.max(numStr.length, denStr.length);
-    const barLen = Math.max(3, maxLen + 2);
-    const bar = '─'.repeat(barLen);
-
-    const padNumLeft = Math.floor((barLen - numStr.length) / 2);
-    const padNumRight = barLen - numStr.length - padNumLeft;
-    const numLine = ' '.repeat(padNumLeft) + numStr + ' '.repeat(padNumRight);
-
-    const padDenLeft = Math.floor((barLen - denStr.length) / 2);
-    const padDenRight = barLen - denStr.length - padDenLeft;
-    const denLine = ' '.repeat(padDenLeft) + denStr + ' '.repeat(padDenRight);
-
-    return `\n${numLine}\n${bar}\n${denLine}\n`;
-  });
-
-  // Post-processing for double outer parens around stacked fraction lines
-  result = result.replace(/\(\s*\n([^\n]+)\n(─+)\n([^\n]+)\s*\n\)/g, '\n$1\n$2\n$3\n');
-
-  return result;
+  return convertToLatexFractions(text);
 }
 
 /**

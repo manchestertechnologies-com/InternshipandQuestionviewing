@@ -1338,9 +1338,15 @@ export default function DailyTasksPage() {
                   />
 
                   {questionText && (
-                    <div className="p-3 bg-black/80 border border-brand-border/60 rounded-lg text-white text-xs mt-1.5 space-y-1">
-                      <span className="text-[9px] font-extrabold text-brand-gold uppercase tracking-wider block">Live Equation Preview (MS Word / LaTeX Typeset):</span>
-                      <MathRenderer text={questionText} />
+                    <div className="p-4 bg-zinc-950 border border-brand-gold/40 rounded-xl text-white mt-2 space-y-2 shadow-lg">
+                      <div className="flex justify-between items-center border-b border-brand-border/40 pb-1.5">
+                        <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest flex items-center gap-1.5">
+                          <span>✨ Live Typeset Equation Preview (Word / LaTeX Quality)</span>
+                        </span>
+                      </div>
+                      <div className="text-base sm:text-lg text-white py-2 overflow-x-auto flex justify-center">
+                        <MathRenderer text={questionText} />
+                      </div>
                     </div>
                   )}
                   
