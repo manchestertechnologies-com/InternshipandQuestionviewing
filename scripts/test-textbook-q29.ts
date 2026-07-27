@@ -1,4 +1,4 @@
-import { textToLaTeX } from './src/lib/mathParser';
+import { textToLaTeX } from '../src/lib/mathParser';
 
 const testCases = [
   '1/(2\\pi) \\sqrt{PE/I}',
