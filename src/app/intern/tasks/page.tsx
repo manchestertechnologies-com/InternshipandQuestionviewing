@@ -1476,8 +1476,8 @@ export default function DailyTasksPage() {
                 </div>
               )}
 
-              {/* Option Choice Inputs (shown for MCQ, DIAGRAM, STATEMENT_BASED, MATCH_THE_FOLLOWING) */}
-              {(questionType === 'MCQ' || questionType === 'DIAGRAM' || questionType === 'STATEMENT_BASED' || questionType === 'MATCH_THE_FOLLOWING') && (
+              {/* Option Choice Inputs (shown for all question types EXCEPT Numerical) */}
+              {questionType !== 'NUMERICAL' && (
                 <div className="space-y-3">
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">
                     {questionType === 'STATEMENT_BASED' || questionType === 'MATCH_THE_FOLLOWING' 
@@ -1522,7 +1522,7 @@ export default function DailyTasksPage() {
                             }
                           />
 
-                          {(questionType === 'MCQ' || questionType === 'DIAGRAM') && (
+                          {questionType !== 'NUMERICAL' && (
                             <label className="p-1.5 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 cursor-pointer">
                               <Paperclip className="w-3.5 h-3.5" />
                               <input
@@ -1581,7 +1581,7 @@ export default function DailyTasksPage() {
                             placeholder={`Type Option ${letter} text or paste image (Ctrl+V)...`}
                           />
 
-                          {(questionType === 'MCQ' || questionType === 'DIAGRAM') && (
+                          {questionType !== 'NUMERICAL' && (
                             <label className="p-1.5 bg-zinc-900 border border-brand-border rounded text-brand-gold hover:bg-zinc-800 cursor-pointer">
                               <Paperclip className="w-3.5 h-3.5" />
                               <input
