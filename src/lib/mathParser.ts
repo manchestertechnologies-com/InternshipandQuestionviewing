@@ -197,11 +197,15 @@ export function convertSquareRoots(text: string): string {
     res = res.replace(/(?:√|\\sqrt)\s*\(([^()]+|\((?:[^()]+|\([^()]*\))*\))*\)/g, (match) => {
       const firstParen = match.indexOf('(');
       const inner = match.substring(firstParen + 1, match.lastIndexOf(')'));
-      return `\\sqrt{${inner}}`;
+      const innerFraction = convertFractionsToLaTeX(inner);
+      return `\\sqrt{${innerFraction}}`;
     });
 
-    // 2. √{ ... }
-    res = res.replace(/(?:√|\\sqrt)\s*\{([^{}]+)\}/g, (_, inner) => `\\sqrt{${inner}}`);
+    // 2. √{ ... } or \sqrt{ ... }
+    res = res.replace(/(?:√|\\sqrt)\s*\{([^{}]+)\}/g, (_, inner) => {
+      const innerFraction = convertFractionsToLaTeX(inner);
+      return `\\sqrt{${innerFraction}}`;
+    });
 
     // 3. √word or √number (e.g. √2x, √b²)
     res = res.replace(/(?:√)\s*([a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻^_-]+)/g, (_, inner) => `\\sqrt{${inner}}`);
@@ -271,7 +275,7 @@ export function convertFractionsToLaTeX(text: string): string {
     return `\\frac{${num.trim()}}{${den.trim()}}`;
   });
 
-  const operandPattern = '(?:\\((?:[^()]|\\([^()]*\\))*\\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^\\_\\{\\}\\text\\sqrt\\pm\\times\\div\\le\\ge\\ne\\infty]+(?:[+\\-–—\\u2212\\*×\\^][a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^\\_\\{\\}\\text\\sqrt\\pm\\times\\div\\le\\ge\\ne\\infty]+)*)';
+  const operandPattern = '(?:\\\\sqrt\\{[^{}]+\\}|\\\\frac\\{[^{}]+\\}\\{[^{}]+\\}|\\((?:[^()]|\\([^()]*\\))*\\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^\\_\\pm\\times\\div\\le\\ge\\ne\\infty]+(?:[+\\-–—\\u2212\\*×\\^][a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^\\_\\pm\\times\\div\\le\\ge\\ne\\infty]+)*)';
   const fractionRegex = new RegExp(`(${operandPattern})\\s*\\/\\s*(${operandPattern})`, 'g');
 
   let prev = '';
@@ -389,7 +393,7 @@ export function textToLaTeX(text: string): string {
 export function isMathExpression(text: string): boolean {
   if (!text) return false;
 
-  if (/\\(frac|sqrt|int|sum|pm|times|div|le|ge|ne|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|omega|Delta|Omega|text)/.test(text)) {
+  if (/\\(frac|sqrt|int|sum|pm|times|div|le|ge|ne|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|omega|Delta|Omega|text|vec|bar|hat|ddot|dot|overline|mathbf|mathcal|mathrm)/.test(text)) {
     return true;
   }
   if (/\$|\\\[|\\\(|\^|_|√|∫|∑|±|≤|≥|≠|∞|α|β|θ|π|Δ/.test(text)) {

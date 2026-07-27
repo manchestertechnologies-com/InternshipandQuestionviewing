@@ -14,7 +14,27 @@ interface MathRendererProps {
 export default function MathRenderer({ text, className = '', inline = false }: MathRendererProps) {
   if (!text) return null;
 
-  // Check if text contains math
+  // 1. If text contains inline math delimiters $...$ or \(...\)
+  if (/\$|\\\(/.test(text)) {
+    try {
+      const renderedHtml = text.replace(/\$([^\$]+)\$|\\\((.*?)\\\)/g, (match, math1, math2) => {
+        const expr = (math1 || math2 || '').trim();
+        const latex = textToLaTeX(expr);
+        return katex.renderToString(latex, { displayMode: false, throwOnError: false });
+      });
+
+      return (
+        <span
+          className={`math-renderer inline-block align-middle ${className}`}
+          dangerouslySetInnerHTML={{ __html: renderedHtml }}
+        />
+      );
+    } catch (e) {
+      console.warn('KaTeX mixed inline rendering fallback:', e);
+    }
+  }
+
+  // 2. Check if text contains math
   if (!isMathExpression(text)) {
     return <span className={className}>{text}</span>;
   }

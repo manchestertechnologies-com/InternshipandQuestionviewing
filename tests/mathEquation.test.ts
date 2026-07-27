@@ -95,4 +95,27 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     const html = katex.renderToString(latex, { throwOnError: false });
     assert.strictEqual(html.includes('katex'), true);
   });
+
+  it('Textbook Photo Q29 Options: 1/(2\\pi)\\sqrt{PE/I}, \\pi\\sqrt{I/PE}, \\sqrt{PE/I}, 2\\pi\\sqrt{I/PE}', () => {
+    const opt1 = '1/(2\\pi) \\sqrt{PE/I}';
+    const opt2 = '\\pi \\sqrt{I/PE}';
+    const opt3 = '\\sqrt{PE/I}';
+    const opt4 = '2\\pi \\sqrt{I/PE}';
+
+    assert.strictEqual(textToLaTeX(opt1).includes('\\frac{1}{2\\pi}'), true);
+    assert.strictEqual(textToLaTeX(opt1).includes('\\sqrt{\\frac{PE}{I}}'), true);
+    assert.strictEqual(textToLaTeX(opt2).includes('\\pi') && textToLaTeX(opt2).includes('\\sqrt{\\frac{I}{PE}}'), true);
+    assert.strictEqual(textToLaTeX(opt3).includes('\\sqrt{\\frac{PE}{I}}'), true);
+    assert.strictEqual(textToLaTeX(opt4).includes('2\\pi') && textToLaTeX(opt4).includes('\\sqrt{\\frac{I}{PE}}'), true);
+
+    [opt1, opt2, opt3, opt4].forEach(opt => {
+      const html = katex.renderToString(textToLaTeX(opt), { throwOnError: false });
+      assert.strictEqual(html.includes('katex'), true);
+    });
+  });
+
+  it('Textbook Photo Q29 Question text with \\vec{E}', () => {
+    const qText = 'A dipole of dipole moment P and moment of inertia I is placed in a uniform electric field \\vec{E}.';
+    assert.strictEqual(isMathExpression(qText), true);
+  });
 });
