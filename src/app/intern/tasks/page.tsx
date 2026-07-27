@@ -1537,6 +1537,16 @@ export default function DailyTasksPage() {
 
                         {uploadingField === fieldName && <p className="text-[10px] text-brand-gold animate-pulse pl-9">Uploading Option {opt} image...</p>}
 
+                        {/* Option math preview */}
+                        {(opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD) && (
+                          <div className="ml-9 p-2.5 bg-zinc-950 border border-brand-border/60 rounded-lg text-white text-xs mt-1 space-y-1">
+                            <span className="text-[9px] font-bold text-brand-gold uppercase tracking-wider block">Option {opt} Preview:</span>
+                            <div className="text-xs text-white">
+                              <MathRenderer text={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD} inline />
+                            </div>
+                          </div>
+                        )}
+
                         {/* Option image previews */}
                         {images.filter((img) => img.type === fieldName).map((img, i) => (
                           <div key={i} className="inline-flex items-center gap-2 bg-zinc-900 p-1.5 rounded-lg border border-brand-border mt-1 ml-9">
@@ -1694,6 +1704,19 @@ export default function DailyTasksPage() {
                 />
 
                 {uploadingField === 'SOLUTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading Solution image...</p>}
+
+                {detailedSolution && (
+                  <div className="p-4 bg-zinc-950 border border-brand-gold/40 rounded-xl text-white mt-2 space-y-2 shadow-lg">
+                    <div className="flex justify-between items-center border-b border-brand-border/40 pb-1.5">
+                      <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest flex items-center gap-1.5">
+                        <span>✨ Live Typeset Solution Preview (Word / LaTeX Quality)</span>
+                      </span>
+                    </div>
+                    <div className="text-sm text-white py-1">
+                      <MathRenderer text={detailedSolution} />
+                    </div>
+                  </div>
+                )}
 
                 {/* Solution image previews */}
                 {images.filter((img) => img.type === 'SOLUTION').map((img, i) => (

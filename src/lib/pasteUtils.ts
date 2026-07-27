@@ -332,7 +332,10 @@ export function convertToLatexFractions(text: string): string {
     return `\\frac{${numText}}{${denText}}`;
   });
 
-  const operandPattern = '(?:\\((?:[^()]|\\([^()]*\\))*\\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^]+(?:[+\\-–—\\u2212\\*×\\^][a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^]+)*)';
+  // Auto subscript variables with single digit indices (e.g. x1 -> x_1, x2 -> x_2, y1 -> y_1, y2 -> y_2)
+  result = result.replace(/\b([a-zA-Z])([1-9])\b/g, '$1_$2');
+
+  const operandPattern = '(?:\\((?:[^()]|\\([^()]*\\))*\\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^\\_]+(?:[+\\-–—\\u2212\\*×\\^][a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^\\_]+)*)';
   const fractionRegex = new RegExp(`(${operandPattern})\\s*\\/\\s*(${operandPattern})`, 'g');
 
   result = result.replace(fractionRegex, (match, rawNum, rawDen, offset, fullStr) => {
