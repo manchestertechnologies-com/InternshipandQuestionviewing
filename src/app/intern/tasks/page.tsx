@@ -1516,6 +1516,13 @@ export default function DailyTasksPage() {
                               else if (opt === 'C') setOptionC(e.target.value);
                               else setOptionD(e.target.value);
                             }}
+                            onBlur={(e) => {
+                              const cleaned = formatCleanText(e.target.value);
+                              if (opt === 'A') setOptionA(cleaned);
+                              else if (opt === 'B') setOptionB(cleaned);
+                              else if (opt === 'C') setOptionC(cleaned);
+                              else setOptionD(cleaned);
+                            }}
                             onPaste={(e) => handlePasteImage(e, fieldName)}
                             className="flex-1 px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                             placeholder={
@@ -1692,6 +1699,7 @@ export default function DailyTasksPage() {
                   rows={4}
                   value={detailedSolution}
                   onChange={(e) => setDetailedSolution(e.target.value)}
+                  onBlur={(e) => setDetailedSolution(formatCleanText(e.target.value))}
                   onPaste={(e) => handlePasteImage(e, 'SOLUTION')}
                   className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
                   placeholder="Type step-by-step solution or paste image (Ctrl+V) directly inside..."

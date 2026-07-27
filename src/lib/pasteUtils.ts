@@ -327,7 +327,9 @@ export function autoFormatStackedFractions(text: string): string {
   let result = text;
 
   // Regex pattern for matching fraction expressions A / B
-  const fractionRegex = /((?:\((?:[^()]|\([^()]*\))*\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\^]+))\s*\/\s*((?:\((?:[^()]|\([^()]*\))*\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\^]+))/g;
+  // Operand pattern matches parenthesized expressions OR sequences of terms joined by math operators (+, -, *, ×, ^)
+  const operandPattern = '(?:\\((?:[^()]|\\([^()]*\\))*\\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^]+(?:[+\\-–—\\u2212\\*×\\^][a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^]+)*)';
+  const fractionRegex = new RegExp(`(${operandPattern})\\s*\\/\\s*(${operandPattern})`, 'g');
 
   result = result.replace(fractionRegex, (match, rawNum, rawDen, offset, fullStr) => {
     if (isEnglishOrSlash(rawNum, rawDen, fullStr, offset, match)) {
@@ -542,7 +544,7 @@ export function handleRichPaste(
   if (hasTextData) {
     let rawText = '';
     
-    if (htmlData && (htmlData.includes('<sub') || htmlData.includes('<sup') || htmlData.includes('<math') || htmlData.includes('<p') || htmlData.includes('<div') || htmlData.includes('<xml'))) {
+    if (htmlData && htmlData.trim().length > 0) {
       rawText = parseRichTextToUnicode(htmlData);
     }
 
