@@ -11,7 +11,7 @@ interface MathToolbarProps {
 }
 
 export default function MathToolbar({ targetRef, currentValue, onUpdate, className = '' }: MathToolbarProps) {
-  const insertOrFormat = (actionType: 'SUB' | 'SUPER' | 'SYMBOL' | 'CHEM_AUTO', symbolValue?: string) => {
+  const insertOrFormat = (actionType: 'SUB' | 'SUPER' | 'SYMBOL' | 'CHEM_AUTO' | 'FRACTION', symbolValue?: string) => {
     const el = targetRef?.current;
     if (!el) {
       if (actionType === 'CHEM_AUTO') {
@@ -40,6 +40,14 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
     } else if (actionType === 'SUPER') {
       const formatted = selectedText ? convertToSuperscript(selectedText) : '²';
       insertTextAtCursor(el, formatted, currentValue, onUpdate);
+    } else if (actionType === 'FRACTION') {
+      if (selectedText) {
+        const formatted = formatCleanText(selectedText);
+        insertTextAtCursor(el, formatted, currentValue, onUpdate);
+      } else {
+        const template = formatCleanText('a/b');
+        insertTextAtCursor(el, template, currentValue, onUpdate);
+      }
     } else if (actionType === 'SYMBOL' && symbolValue) {
       insertTextAtCursor(el, symbolValue, currentValue, onUpdate);
     }
@@ -102,9 +110,9 @@ export default function MathToolbar({ targetRef, currentValue, onUpdate, classNa
       {/* Fraction Button */}
       <button
         type="button"
-        onClick={() => insertOrFormat('SYMBOL', '\n a \n───\n b \n')}
+        onClick={() => insertOrFormat('FRACTION')}
         className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-brand-gold font-bold text-xs rounded border border-brand-border/80 transition cursor-pointer"
-        title="Insert True Stacked Fraction (Numerator over Denominator)"
+        title="Insert or Convert to True Stacked Fraction (Numerator over Denominator)"
       >
         ½ Fraction
       </button>

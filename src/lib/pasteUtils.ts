@@ -219,6 +219,106 @@ export function autoFormatScientificExponents(text: string): string {
 }
 
 /**
+ * Helper to strip balanced outer parentheses from an expression.
+ */
+function stripOuterParens(str: string): string {
+  let s = str.trim();
+  while (s.startsWith('(') && s.endsWith(')')) {
+    let depth = 0;
+    let isOuter = true;
+    for (let i = 0; i < s.length - 1; i++) {
+      if (s[i] === '(') depth++;
+      else if (s[i] === ')') depth--;
+      if (depth === 0 && i > 0) { isOuter = false; break; }
+    }
+    if (isOuter) s = s.slice(1, -1).trim();
+    else break;
+  }
+  return s;
+}
+
+/**
+ * Checks if a matched A / B string is an English "or" text slash rather than a mathematical fraction.
+ */
+function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string, offset: number, match: string): boolean {
+  const numClean = stripOuterParens(numStr).trim();
+  const denClean = stripOuterParens(denStr).trim();
+
+  // 1. URL check
+  const checkContext = fullStr.substring(Math.max(0, offset - 15), Math.min(fullStr.length, offset + match.length + 15));
+  if (/https?:\/\//i.test(checkContext) || /www\./i.test(checkContext)) {
+    return true;
+  }
+
+  // 2. Date check (e.g. 12/05/2026, 1/2/2024)
+  if (/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(match) || (/\b\d{1,2}\/\d{1,2}\b/.test(checkContext) && /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(checkContext))) {
+    return true;
+  }
+
+  // 3. Known English text options & slash pairs (case-insensitive)
+  const knownTextSlashPairs = new Set([
+    'and/or', 'true/false', 'yes/no', 'input/output', 'pass/fail', 'male/female',
+    'either/or', 'on/off', 'in/out', 'up/down', 'left/right', 'high/low',
+    'top/bottom', 'front/back', 'increase/decrease', 'positive/negative',
+    'acid/base', 'day/night', 'correct/incorrect', 'even/odd', 'real/imaginary',
+    'open/closed', 'before/after', 'start/stop', 'win/loss', 'read/write',
+    'import/export', 'buy/sell', 'push/pull', 'plus/minus', 'north/south', 'east/west',
+    'or', 'and or'
+  ]);
+  const pairLower = `${numClean.toLowerCase()}/${denClean.toLowerCase()}`;
+  if (knownTextSlashPairs.has(pairLower)) {
+    return true;
+  }
+
+  // 4. Option or Section headers (e.g., Option A/B, Choice A/B, Part A/B, Section A/B)
+  if (/^(Option|Choice|Part|Section|Q|Question|Page)\s+[A-Z0-9]+$/i.test(numClean) || /^(Option|Choice|Part|Section)\s*$/i.test(fullStr.substring(Math.max(0, offset - 10), offset))) {
+    return true;
+  }
+  if (/^[A-Z]$/.test(numClean) && /^[A-Z]$/.test(denClean) && /\b(Option|Choice|Part|Section|select|answer)\b/i.test(fullStr.substring(Math.max(0, offset - 20), offset))) {
+    return true;
+  }
+
+  // 5. Check if both sides are multi-letter pure English words (>= 2 letters) with NO math symbols/digits/functions
+  const isPureWord = (s: string) => /^[a-zA-Z]{2,}$/.test(s);
+  const mathFunctions = new Set([
+    'sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'sinh', 'cosh', 'tanh',
+    'log', 'ln', 'exp', 'lim', 'det', 'max', 'min', 'gcd', 'lcm',
+    'arcsin', 'arccos', 'arctan'
+  ]);
+  const physicsQuantities = new Set([
+    'distance', 'time', 'mass', 'volume', 'work', 'force', 'area',
+    'change', 'velocity', 'speed', 'length', 'width', 'height', 'radius',
+    'charge', 'energy', 'power', 'voltage', 'current', 'pressure',
+    'temperature', 'density', 'frequency', 'wavelength'
+  ]);
+
+  if (isPureWord(numClean) && isPureWord(denClean)) {
+    const numLow = numClean.toLowerCase();
+    const denLow = denClean.toLowerCase();
+
+    // If either word is a trig/math function (e.g. sin, cos), it IS a fraction
+    if (mathFunctions.has(numLow) || mathFunctions.has(denLow)) {
+      return false;
+    }
+
+    // If either word is a physics formula quantity (e.g. distance/time), it IS a fraction
+    if (physicsQuantities.has(numLow) || physicsQuantities.has(denLow)) {
+      return false;
+    }
+
+    // If string contains an equals sign '=' (e.g. Rate = change/time), it IS a fraction formula
+    if (fullStr.includes('=')) {
+      return false;
+    }
+
+    // Otherwise, two plain English words separated by '/' represent English slash "or" (e.g., input/output, pass/fail)
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Auto-formats fractions (e.g. 1/2, a/b, (a+b)/(c+d), 10⁻³/10⁻⁵, Na⁺/Cl⁻)
  * into true stacked Unicode fractions with horizontal bar lines (─).
  */
@@ -230,38 +330,12 @@ export function autoFormatStackedFractions(text: string): string {
   const fractionRegex = /((?:\((?:[^()]|\([^()]*\))*\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\^]+))\s*\/\s*((?:\((?:[^()]|\([^()]*\))*\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\^]+))/g;
 
   result = result.replace(fractionRegex, (match, rawNum, rawDen, offset, fullStr) => {
-    // Skip URLs, dates (12/05/2026), or option labels like True/False
-    if (/https?:\/\//i.test(fullStr.substring(Math.max(0, offset - 10), offset + match.length)) ||
-        /\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(match) ||
-        /\bTrue\/False\b/i.test(match)) {
+    if (isEnglishOrSlash(rawNum, rawDen, fullStr, offset, match)) {
       return match;
     }
 
-    let numStr = rawNum.trim();
-    let denStr = rawDen.trim();
-
-    // Strip outer balanced parentheses for cleaner numerator/denominator presentation
-    if (numStr.startsWith('(') && numStr.endsWith(')')) {
-      let depth = 0;
-      let isOuter = true;
-      for (let i = 0; i < numStr.length - 1; i++) {
-        if (numStr[i] === '(') depth++;
-        else if (numStr[i] === ')') depth--;
-        if (depth === 0 && i > 0) { isOuter = false; break; }
-      }
-      if (isOuter) numStr = numStr.slice(1, -1).trim();
-    }
-
-    if (denStr.startsWith('(') && denStr.endsWith(')')) {
-      let depth = 0;
-      let isOuter = true;
-      for (let i = 0; i < denStr.length - 1; i++) {
-        if (denStr[i] === '(') depth++;
-        else if (denStr[i] === ')') depth--;
-        if (depth === 0 && i > 0) { isOuter = false; break; }
-      }
-      if (isOuter) denStr = denStr.slice(1, -1).trim();
-    }
+    let numStr = stripOuterParens(rawNum);
+    let denStr = stripOuterParens(rawDen);
 
     const maxLen = Math.max(numStr.length, denStr.length);
     const barLen = Math.max(3, maxLen + 2);
@@ -277,6 +351,9 @@ export function autoFormatStackedFractions(text: string): string {
 
     return `\n${numLine}\n${bar}\n${denLine}\n`;
   });
+
+  // Post-processing for double outer parens around stacked fraction lines (e.g. (\n 1 \n───\n 2 \n))
+  result = result.replace(/\(\s*\n([^\n]+)\n(─+)\n([^\n]+)\s*\n\)/g, '\n$1\n$2\n$3\n');
 
   return result;
 }
@@ -366,7 +443,14 @@ export function parseRichTextToUnicode(htmlText: string): string {
 
   let cleaned = htmlText;
 
-  // 1. Strip Word & Office XML namespace tags (<w:...>, <o:...>, <m:...>, <v:...>), comments, style, script, head, meta
+  // 1. Process MS Word Equation OMML tags (<m:f> fraction, <m:num> numerator, <m:den> denominator) before stripping XML
+  cleaned = cleaned.replace(/<m:f[^>]*>[\s\S]*?<m:num[^>]*>([\s\S]*?)<\/m:num>[\s\S]*?<m:den[^>]*>([\s\S]*?)<\/m:den>[\s\S]*?<\/m:f>/gi, (_, numXml, denXml) => {
+    const numText = numXml.replace(/<[^>]+>/g, '').trim();
+    const denText = denXml.replace(/<[^>]+>/g, '').trim();
+    return `(${numText})/(${denText})`;
+  });
+
+  // 1b. Strip Word & Office XML namespace tags (<w:...>, <o:...>, <m:...>, <v:...>), comments, style, script, head, meta
   cleaned = cleaned.replace(/<!--[\s\S]*?-->/gi, '');
   cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
   cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
