@@ -319,15 +319,19 @@ function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string, offse
 }
 
 /**
- * Auto-formats fractions (e.g. 1/2, a/b, (a+b)/(c+d), 10⁻³/10⁻⁵, Na⁺/Cl⁻)
- * into true stacked Unicode fractions with horizontal bar lines (─).
+ * Converts mathematical fractions into internal LaTeX format (\frac{numerator}{denominator}).
  */
-export function autoFormatStackedFractions(text: string): string {
+export function convertToLatexFractions(text: string): string {
   if (!text) return '';
   let result = text;
 
-  // Regex pattern for matching fraction expressions A / B
-  // Operand pattern matches parenthesized expressions OR sequences of terms joined by math operators (+, -, *, ×, ^)
+  // Process Word Equation OMML tags (<m:f>, <m:num>, <m:den>)
+  result = result.replace(/<m:f[^>]*>[\s\S]*?<m:num[^>]*>([\s\S]*?)<\/m:num>[\s\S]*?<m:den[^>]*>([\s\S]*?)<\/m:den>[\s\S]*?<\/m:f>/gi, (_, numXml, denXml) => {
+    const numText = numXml.replace(/<[^>]+>/g, '').trim();
+    const denText = denXml.replace(/<[^>]+>/g, '').trim();
+    return `\\frac{${numText}}{${denText}}`;
+  });
+
   const operandPattern = '(?:\\((?:[^()]|\\([^()]*\\))*\\)|[a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^]+(?:[+\\-–—\\u2212\\*×\\^][a-zA-Z0-9⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻°±α-ωΑ-Ω×÷\\^]+)*)';
   const fractionRegex = new RegExp(`(${operandPattern})\\s*\\/\\s*(${operandPattern})`, 'g');
 
@@ -335,7 +339,26 @@ export function autoFormatStackedFractions(text: string): string {
     if (isEnglishOrSlash(rawNum, rawDen, fullStr, offset, match)) {
       return match;
     }
+    let numStr = stripOuterParens(rawNum);
+    let denStr = stripOuterParens(rawDen);
 
+    return `\\frac{${numStr}}{${denStr}}`;
+  });
+
+  return result;
+}
+
+/**
+ * Auto-formats fractions (e.g. 1/2, a/b, (a+b)/(c+d), 10⁻³/10⁻⁵, Na⁺/Cl⁻, \frac{a}{b})
+ * into true stacked Unicode fractions with horizontal bar lines (─).
+ */
+export function autoFormatStackedFractions(text: string): string {
+  if (!text) return '';
+  let result = convertToLatexFractions(text);
+
+  // Convert LaTeX \frac{num}{den} into stacked Unicode fractions
+  const latexFracRegex = /\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g;
+  result = result.replace(latexFracRegex, (match, rawNum, rawDen) => {
     let numStr = stripOuterParens(rawNum);
     let denStr = stripOuterParens(rawDen);
 
@@ -354,7 +377,7 @@ export function autoFormatStackedFractions(text: string): string {
     return `\n${numLine}\n${bar}\n${denLine}\n`;
   });
 
-  // Post-processing for double outer parens around stacked fraction lines (e.g. (\n 1 \n───\n 2 \n))
+  // Post-processing for double outer parens around stacked fraction lines
   result = result.replace(/\(\s*\n([^\n]+)\n(─+)\n([^\n]+)\s*\n\)/g, '\n$1\n$2\n$3\n');
 
   return result;

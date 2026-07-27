@@ -1,4 +1,4 @@
-import { formatCleanText, parseRichTextToUnicode } from '../src/lib/pasteUtils';
+import { formatCleanText, parseRichTextToUnicode, convertToLatexFractions } from '../src/lib/pasteUtils';
 
 console.log('====================================================');
 console.log(' VERIFYING FRACTION FORMATTER & REGRESSION TESTS    ');
@@ -48,11 +48,19 @@ assert(res9.includes('──────') && res9.includes('10⁻³') && res9.i
 const res10 = formatCleanText('((a+b)/(c+d))');
 assert(res10.includes('─────') && res10.includes('a+b') && res10.includes('c+d') && !res10.includes('(\n'), 'Regression 10: ((a+b)/(c+d)) stacked without orphan parens', res10);
 
-// 2. User Screenshot Case: m=x2-x1/y2-y1
+// 2. Internal LaTeX Conversion Test
+const latexConv = convertToLatexFractions('m=x2-x1/y2-y1');
+assert(latexConv === 'm=\\frac{x2-x1}{y2-y1}', 'Internal LaTeX conversion: m=x2-x1/y2-y1 -> m=\\frac{x2-x1}{y2-y1}', latexConv);
+
+// 3. Direct LaTeX Input Formatting Test
+const latexRes = formatCleanText('m=\\frac{x2-x1}{y2-y1}');
+assert(latexRes.includes('───────') && latexRes.includes('x2-x1') && latexRes.includes('y2-y1'), 'Direct LaTeX Input: m=\\frac{x2-x1}{y2-y1} stacked', latexRes);
+
+// 4. User Screenshot Case: m=x2-x1/y2-y1
 const resUserScreen = formatCleanText('m=x2-x1/y2-y1');
 assert(resUserScreen.includes('───────') && resUserScreen.includes('x2-x1') && resUserScreen.includes('y2-y1'), 'User Screenshot Formula: m=x2-x1/y2-y1 stacked', resUserScreen);
 
-// 3. English "or" vs. Division Disambiguation Tests
+// 5. English "or" vs. Division Disambiguation Tests
 const textOrCases = [
   'and/or',
   'true/false',
@@ -70,7 +78,7 @@ textOrCases.forEach((item) => {
   assert(res === item, `"or" Disambiguation: ${item} preserved inline`, res);
 });
 
-// 4. Word Equation OMML / HTML Import Test
+// 6. Word Equation OMML / HTML Import Test
 const wordEquationHtml = '<m:f><m:num><m:t>x+y</m:t></m:num><m:den><m:t>a+b</m:t></m:den></m:f>';
 const wordRes = parseRichTextToUnicode(wordEquationHtml);
 assert(wordRes.includes('─────') && wordRes.includes('x+y') && wordRes.includes('a+b'), 'Word Equation OMML fraction converted to stacked fraction', wordRes);
