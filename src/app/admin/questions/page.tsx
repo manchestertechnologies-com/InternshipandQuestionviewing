@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Filter, Database, Check, X, RefreshCw, AlertCircle, Eye, ChevronRight, ChevronDown, BookOpen } from 'lucide-react';
+import { Search, Filter, Database, Check, X, RefreshCw, AlertCircle, Eye, ChevronRight, ChevronDown, BookOpen, Edit, Plus, Save } from 'lucide-react';
 import { ACADEMIC_HIERARCHY } from '@/lib/academicHierarchy';
 import MathRenderer from '@/components/MathRenderer';
+import MathToolbar from '@/components/MathToolbar';
 
 interface QuestionImage {
   id: string;
@@ -66,6 +67,85 @@ export default function QuestionRepository() {
   // Review states
   const [feedback, setFeedback] = useState('');
   const [updating, setUpdating] = useState(false);
+
+  // Edit states for modal
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editQuestionText, setEditQuestionText] = useState('');
+  const [editOptionA, setEditOptionA] = useState('');
+  const [editOptionB, setEditOptionB] = useState('');
+  const [editOptionC, setEditOptionC] = useState('');
+  const [editOptionD, setEditOptionD] = useState('');
+  const [editExtraOptions, setEditExtraOptions] = useState<string[]>([]);
+  const [editCorrectAnswer, setEditCorrectAnswer] = useState('A');
+  const [editDetailedSolution, setEditDetailedSolution] = useState('');
+  const [editDifficulty, setEditDifficulty] = useState('Easy');
+  const [editStatus, setEditStatus] = useState('PENDING');
+  const [editQuestionType, setEditQuestionType] = useState('MCQ');
+
+  const editQuestionRef = React.useRef<HTMLTextAreaElement>(null);
+  const editSolutionRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const openQuestionModal = (q: Question) => {
+    setSelectedQuestion(q);
+    setIsEditMode(false);
+    setEditQuestionText(q.questionText || '');
+    setEditOptionA(q.optionA || '');
+    setEditOptionB(q.optionB || '');
+    setEditOptionC(q.optionC || '');
+    setEditOptionD(q.optionD || '');
+    setEditExtraOptions(((q as any).extraData?.additionalOptions || []) as string[]);
+    setEditCorrectAnswer(q.correctAnswer || 'A');
+    setEditDetailedSolution(q.detailedSolution || '');
+    setEditDifficulty(q.difficulty || 'Easy');
+    setEditStatus(q.status || 'PENDING');
+    setEditQuestionType((q as any).questionType || 'MCQ');
+    setFeedback(q.reviewFeedback || '');
+  };
+
+  const handleSaveFullQuestionEdit = async () => {
+    if (!selectedQuestion) return;
+    setUpdating(true);
+    try {
+      const extraData = (selectedQuestion as any).extraData || {};
+      const updatedExtraData = editExtraOptions.length > 0 
+        ? { ...extraData, additionalOptions: editExtraOptions }
+        : { ...extraData, additionalOptions: [] };
+
+      const res = await fetch(`/api/admin/questions/${selectedQuestion.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionText: editQuestionText,
+          optionA: editOptionA,
+          optionB: editOptionB,
+          optionC: editOptionC,
+          optionD: editOptionD,
+          correctAnswer: editCorrectAnswer,
+          detailedSolution: editDetailedSolution,
+          difficulty: editDifficulty,
+          status: editStatus,
+          questionType: editQuestionType,
+          extraData: updatedExtraData,
+          reviewFeedback: feedback
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save question edits');
+      }
+
+      const updated = await res.json();
+      setQuestions(prev => prev.map(q => q.id === updated.id ? { ...q, ...updated } : q));
+      setSelectedQuestion(updated);
+      setIsEditMode(false);
+      alert('Question updated successfully!');
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   const fetchQuestions = async () => {
     setLoading(true);
@@ -666,233 +746,470 @@ export default function QuestionRepository() {
 
       </div>
 
-      {/* Question Review Modal */}
+      {/* Question Review & Edit Modal */}
       {selectedQuestion && (
         <div className="fixed inset-0 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="glass-panel w-full max-w-4xl rounded-2xl border border-brand-border overflow-hidden shadow-2xl my-8 animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
             <div className="p-6 border-b border-brand-border flex justify-between items-center bg-black/40 shrink-0">
               <div>
-                <h2 className="font-bold text-lg text-white">Review Question Details</h2>
+                <h2 className="font-bold text-lg text-white">
+                  {isEditMode ? 'Edit Question & Calibration' : 'Review Question Details'}
+                </h2>
                 <p className="text-xs text-brand-muted mt-1">Submitted by {selectedQuestion.intern.name} (Roll #{selectedQuestion.intern.rollNo})</p>
               </div>
-              <button
-                onClick={() => setSelectedQuestion(null)}
-                className="text-zinc-500 hover:text-white transition cursor-pointer border-0 bg-transparent"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsEditMode(!isEditMode)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                    isEditMode
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-300'
+                      : 'bg-brand-gold/10 border-brand-gold/40 text-brand-gold hover:bg-brand-gold/20'
+                  }`}
+                >
+                  {isEditMode ? <Eye className="w-4 h-4" /> : <Edit className="w-4 h-4" />}
+                  <span>{isEditMode ? 'View Preview Mode' : 'Edit Question'}</span>
+                </button>
+                <button
+                  onClick={() => setSelectedQuestion(null)}
+                  className="text-zinc-500 hover:text-white transition cursor-pointer border-0 bg-transparent"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
-                  <p className="text-[10px] text-brand-muted uppercase font-bold">Subject</p>
-                  <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.subject}</p>
-                </div>
-                <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
-                  <p className="text-[10px] text-brand-muted uppercase font-bold">Class</p>
-                  <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.classVal}</p>
-                </div>
-                <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
-                  <p className="text-[10px] text-brand-muted uppercase font-bold">Exam Type</p>
-                  <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.examType}</p>
-                </div>
-                <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
-                  <p className="text-[10px] text-brand-muted uppercase font-bold">Question Type</p>
-                  <p className="text-sm font-semibold text-brand-gold mt-0.5">{(selectedQuestion as any).questionType || 'MCQ'}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs text-brand-muted border-b border-brand-border pb-4">
-                <div>Topic: <span className="text-zinc-300 font-medium">{selectedQuestion.topic}</span></div>
-                <div>Concept: <span className="text-zinc-300 font-medium">{selectedQuestion.concept}</span></div>
-                <div>Sub Concept: <span className="text-zinc-300 font-medium">{selectedQuestion.subConcept || 'N/A'}</span></div>
-              </div>
-
-              {/* Question Text */}
-              <div className="space-y-2">
-                <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">
-                  {((selectedQuestion as any).questionType === 'TRUE_FALSE') ? 'Statement' : 'Question Text'}
-                </h4>
-                <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border text-white text-sm whitespace-pre-wrap leading-relaxed">
-                  <MathRenderer text={selectedQuestion.questionText} />
-                </div>
-              </div>
-
-              {/* Question Images if any */}
-              {selectedQuestion.images && selectedQuestion.images.length > 0 && (
-                <div className="space-y-2">
-                  <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">Attached Images</h4>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {selectedQuestion.images.map((img) => (
-                      <div key={img.id} className="relative bg-zinc-900 p-2 rounded-lg border border-brand-border flex flex-col items-center">
-                        <img
-                          src={img.imageUrl}
-                          alt="Question asset"
-                          className="max-h-32 object-contain"
-                        />
-                        <span className="text-[9px] uppercase tracking-wider font-bold text-brand-muted mt-2">
-                          {img.type}
-                        </span>
+              {isEditMode ? (
+                /* EDIT MODE FORM */
+                <div className="space-y-6">
+                  {/* Difficulty Calibration & Question Type */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-zinc-950/60 rounded-xl border border-brand-border">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-brand-gold mb-1.5">Difficulty Calibration *</label>
+                      <div className="flex bg-black/60 p-1 rounded-lg border border-brand-border">
+                        {['Easy', 'Medium', 'Hard'].map((lvl) => (
+                          <button
+                            key={lvl}
+                            type="button"
+                            onClick={() => setEditDifficulty(lvl)}
+                            className={`flex-1 py-1.5 rounded-md text-xs font-bold transition border cursor-pointer ${
+                              editDifficulty === lvl
+                                ? lvl === 'Easy' ? 'bg-emerald-500 text-black border-emerald-400 font-bold'
+                                  : lvl === 'Medium' ? 'bg-amber-500 text-black border-amber-400 font-bold'
+                                  : 'bg-red-500 text-black border-red-400 font-bold'
+                                : 'bg-transparent border-transparent text-zinc-400 hover:text-white'
+                            }`}
+                          >
+                            {lvl}
+                          </button>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Match Column Grid */}
-              {((selectedQuestion as any).questionType === 'MATCH_THE_FOLLOWING' && (selectedQuestion as any).extraData) && (
-                <div className="p-4 bg-zinc-950/60 border border-brand-border rounded-xl space-y-3">
-                  <h5 className="text-xs font-bold text-brand-gold uppercase tracking-wider">Columns Match Grid</h5>
-                  <div className="grid grid-cols-2 gap-8 text-sm">
-                    <div className="space-y-1">
-                      <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column A</p>
-                      {(((selectedQuestion as any).extraData as any).matchColumnA || []).map((item: string, idx: number) => (
-                        <div key={idx} className="text-white py-1">{idx + 1}. <MathRenderer text={item} inline /></div>
-                      ))}
                     </div>
-                    <div className="space-y-1">
-                      <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column B</p>
-                      {(((selectedQuestion as any).extraData as any).matchColumnB || []).map((item: string, idx: number) => (
-                        <div key={idx} className="text-white py-1">{String.fromCharCode(65 + idx)}. <MathRenderer text={item} inline /></div>
-                      ))}
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-brand-gold mb-1.5">Question Type</label>
+                      <select
+                        value={editQuestionType}
+                        onChange={(e) => setEditQuestionType(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                      >
+                        <option value="MCQ">Standard MCQ</option>
+                        <option value="ASSERTION_REASON">Assertion & Reason</option>
+                        <option value="STATEMENT_BASED">Statement Based</option>
+                        <option value="TRUE_FALSE">True / False</option>
+                        <option value="MATCH_THE_FOLLOWING">Match the Following</option>
+                        <option value="NUMERICAL">Numerical Answer Type</option>
+                        <option value="DIAGRAM">Diagram Based Question</option>
+                      </select>
                     </div>
                   </div>
-                </div>
-              )}
 
-              {/* Options Dynamic rendering based on type */}
-              {((selectedQuestion as any).questionType === 'NUMERICAL') ? (
-                <div className="p-4 bg-emerald-950/20 border border-emerald-500/50 rounded-xl flex items-center justify-between text-sm">
-                  <span className="font-semibold text-white">Correct Numerical Answer:</span>
-                  <span className="font-mono text-lg font-bold text-emerald-400 bg-black/60 px-4 py-1.5 rounded-lg border border-brand-border"><MathRenderer text={selectedQuestion.correctAnswer} inline /></span>
-                </div>
-              ) : ((selectedQuestion as any).questionType === 'TRUE_FALSE') ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { opt: 'A', label: "True" },
-                    { opt: 'B', label: "False" }
-                  ].map(({ opt, label }) => (
-                    <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
-                      selectedQuestion.correctAnswer === opt
-                        ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
-                        : 'bg-zinc-950/40 border-brand-border text-zinc-300'
-                    }`}>
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedQuestion.correctAnswer === opt
-                          ? 'bg-emerald-500 text-black'
-                          : 'bg-zinc-800 text-zinc-400'
-                      }`}>
-                        {opt === 'A' ? 'T' : 'F'}
-                      </span>
-                      <div className="whitespace-pre-wrap"><MathRenderer text={label} /></div>
+                  {/* Question Text Area */}
+                  <div className="space-y-2">
+                    <label className="block text-xs uppercase font-bold tracking-wider text-brand-gold">
+                      Question Text / Statement (Large Workspace)
+                    </label>
+                    <MathToolbar
+                      targetRef={editQuestionRef}
+                      currentValue={editQuestionText}
+                      onUpdate={setEditQuestionText}
+                      className="mb-1.5"
+                    />
+                    <textarea
+                      ref={editQuestionRef}
+                      rows={8}
+                      value={editQuestionText}
+                      onChange={(e) => setEditQuestionText(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[180px] resize-y font-mono"
+                      placeholder="Type or edit question text..."
+                    />
+                    {editQuestionText && (
+                      <div className="p-3 bg-zinc-950 border border-brand-gold/30 rounded-xl text-white mt-1 space-y-1">
+                        <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest block">✨ Live Typeset Preview:</span>
+                        <div className="text-sm py-1 overflow-x-auto">
+                          <MathRenderer text={editQuestionText} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Options Editor (except for Numerical) */}
+                  {editQuestionType !== 'NUMERICAL' && (
+                    <div className="space-y-3 p-4 bg-zinc-950/60 rounded-xl border border-brand-border">
+                      <label className="block text-xs uppercase font-bold tracking-wider text-brand-gold">
+                        Options & Choices
+                      </label>
+                      {(['A', 'B', 'C', 'D'] as const).map((opt) => {
+                        const val = opt === 'A' ? editOptionA : opt === 'B' ? editOptionB : opt === 'C' ? editOptionC : editOptionD;
+                        const setVal = opt === 'A' ? setEditOptionA : opt === 'B' ? setEditOptionB : opt === 'C' ? setEditOptionC : setEditOptionD;
+                        return (
+                          <div key={opt} className="space-y-1">
+                            <div className="flex gap-2 items-center">
+                              <span className="w-6 h-6 rounded-full bg-zinc-900 border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
+                                {opt}
+                              </span>
+                              <input
+                                type="text"
+                                value={val}
+                                onChange={(e) => setVal(e.target.value)}
+                                className="flex-1 px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                                placeholder={`Option ${opt}...`}
+                              />
+                            </div>
+                            {val && (
+                              <div className="ml-8 p-1.5 bg-black/60 border border-brand-border/40 rounded text-xs text-white">
+                                <MathRenderer text={val} inline />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {editExtraOptions.map((optVal, idx) => {
+                        const letter = String.fromCharCode(69 + idx);
+                        return (
+                          <div key={letter} className="space-y-1">
+                            <div className="flex gap-2 items-center">
+                              <span className="w-6 h-6 rounded-full bg-brand-gold/20 border border-brand-gold flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
+                                {letter}
+                              </span>
+                              <input
+                                type="text"
+                                value={optVal}
+                                onChange={(e) => {
+                                  const updated = [...editExtraOptions];
+                                  updated[idx] = e.target.value;
+                                  setEditExtraOptions(updated);
+                                }}
+                                className="flex-1 px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                                placeholder={`Option ${letter}...`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setEditExtraOptions(editExtraOptions.filter((_, i) => i !== idx))}
+                                className="p-1.5 bg-red-950/40 border border-red-800/40 text-red-400 rounded hover:bg-red-950/80 cursor-pointer"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            {optVal && (
+                              <div className="ml-8 p-1.5 bg-black/60 border border-brand-border/40 rounded text-xs text-white">
+                                <MathRenderer text={optVal} inline />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      <button
+                        type="button"
+                        onClick={() => setEditExtraOptions([...editExtraOptions, ''])}
+                        className="flex items-center gap-1 py-1.5 px-3 bg-zinc-900 hover:bg-zinc-800 text-brand-gold border border-brand-border rounded text-xs font-semibold cursor-pointer"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add Option {String.fromCharCode(69 + editExtraOptions.length)}</span>
+                      </button>
                     </div>
-                  ))}
-                </div>
-              ) : ((selectedQuestion as any).questionType === 'ASSERTION_REASON') ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { opt: 'A', label: "A and R are true and R is the correct explanation." },
-                    { opt: 'B', label: "A and R are true but R is not the correct explanation." },
-                    { opt: 'C', label: "A is true but R is false." },
-                    { opt: 'D', label: "A is false but R is true." }
-                  ].map(({ opt, label }) => (
-                    <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
-                      selectedQuestion.correctAnswer === opt
-                        ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
-                        : 'bg-zinc-950/40 border-brand-border text-zinc-300'
-                    }`}>
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedQuestion.correctAnswer === opt
-                          ? 'bg-emerald-500 text-black'
-                          : 'bg-zinc-800 text-zinc-400'
-                      }`}>
-                        {opt}
-                      </span>
-                      <div className="whitespace-pre-wrap"><MathRenderer text={label} /></div>
-                    </div>
-                  ))}
+                  )}
+
+                  {/* Correct Answer Selection */}
+                  <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border space-y-2">
+                    <label className="block text-xs uppercase font-bold tracking-wider text-emerald-400">
+                      Correct Answer Choice / Value *
+                    </label>
+                    <input
+                      type="text"
+                      value={editCorrectAnswer}
+                      onChange={(e) => setEditCorrectAnswer(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                      placeholder="e.g. A, B, C, D or Numerical value 25.4"
+                    />
+                  </div>
+
+                  {/* Detailed Solution Area */}
+                  <div className="space-y-2">
+                    <label className="block text-xs uppercase font-bold tracking-wider text-emerald-400">
+                      Detailed Solution (Large Workspace)
+                    </label>
+                    <MathToolbar
+                      targetRef={editSolutionRef}
+                      currentValue={editDetailedSolution}
+                      onUpdate={setEditDetailedSolution}
+                      className="mb-1.5"
+                    />
+                    <textarea
+                      ref={editSolutionRef}
+                      rows={6}
+                      value={editDetailedSolution}
+                      onChange={(e) => setEditDetailedSolution(e.target.value)}
+                      className="w-full px-3.5 py-3 rounded-xl border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs sm:text-sm leading-relaxed min-h-[160px] resize-y font-mono"
+                      placeholder="Type or edit detailed step-by-step solution..."
+                    />
+                    {editDetailedSolution && (
+                      <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl text-white mt-1 space-y-1">
+                        <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest block">✨ Solution Live Preview:</span>
+                        <div className="text-xs sm:text-sm py-1 overflow-x-auto">
+                          <MathRenderer text={editDetailedSolution} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Bar */}
+                  <div className="pt-4 border-t border-brand-border flex justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditMode(false)}
+                      className="px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs border border-brand-border transition cursor-pointer"
+                    >
+                      Cancel Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveFullQuestionEdit}
+                      disabled={updating}
+                      className="px-6 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>Save All Changes</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {[
-                    { opt: 'A', text: selectedQuestion.optionA },
-                    { opt: 'B', text: selectedQuestion.optionB },
-                    { opt: 'C', text: selectedQuestion.optionC },
-                    { opt: 'D', text: selectedQuestion.optionD },
-                    ...(((selectedQuestion as any).extraData?.additionalOptions || []) as string[]).map((txt, idx) => ({
-                      opt: String.fromCharCode(69 + idx),
-                      text: txt
-                    }))
-                  ].filter(item => item.text).map(({ opt, text }) => (
-                    <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
-                      selectedQuestion.correctAnswer === opt
-                        ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
-                        : 'bg-zinc-950/40 border-brand-border text-zinc-300'
-                    }`}>
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
-                        selectedQuestion.correctAnswer === opt
-                          ? 'bg-emerald-500 text-black'
-                          : 'bg-zinc-800 text-zinc-400'
-                      }`}>
-                        {opt}
-                      </span>
-                      <div className="whitespace-pre-wrap"><MathRenderer text={text} /></div>
+                /* VIEW & REVIEW MODE */
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                    <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
+                      <p className="text-[10px] text-brand-muted uppercase font-bold">Subject</p>
+                      <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.subject}</p>
                     </div>
-                  ))}
-                </div>
+                    <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
+                      <p className="text-[10px] text-brand-muted uppercase font-bold">Class</p>
+                      <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.classVal}</p>
+                    </div>
+                    <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
+                      <p className="text-[10px] text-brand-muted uppercase font-bold">Exam Type</p>
+                      <p className="text-sm font-semibold text-white mt-0.5">{selectedQuestion.examType}</p>
+                    </div>
+                    <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
+                      <p className="text-[10px] text-brand-muted uppercase font-bold">Question Type</p>
+                      <p className="text-sm font-semibold text-brand-gold mt-0.5">{(selectedQuestion as any).questionType || 'MCQ'}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs text-brand-muted border-b border-brand-border pb-4">
+                    <div>Topic: <span className="text-zinc-300 font-medium">{selectedQuestion.topic}</span></div>
+                    <div>Concept: <span className="text-zinc-300 font-medium">{selectedQuestion.concept}</span></div>
+                    <div>Sub Concept: <span className="text-zinc-300 font-medium">{selectedQuestion.subConcept || 'N/A'}</span></div>
+                  </div>
+
+                  {/* Question Text */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">
+                      {((selectedQuestion as any).questionType === 'TRUE_FALSE') ? 'Statement' : 'Question Text'}
+                    </h4>
+                    <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border text-white text-sm whitespace-pre-wrap leading-relaxed">
+                      <MathRenderer text={selectedQuestion.questionText} />
+                    </div>
+                  </div>
+
+                  {/* Question Images if any */}
+                  {selectedQuestion.images && selectedQuestion.images.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">Attached Images</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        {selectedQuestion.images.map((img) => (
+                          <div key={img.id} className="relative bg-zinc-900 p-2 rounded-lg border border-brand-border flex flex-col items-center">
+                            <img
+                              src={img.imageUrl}
+                              alt="Question asset"
+                              className="max-h-32 object-contain"
+                            />
+                            <span className="text-[9px] uppercase tracking-wider font-bold text-brand-muted mt-2">
+                              {img.type}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Match Column Grid */}
+                  {((selectedQuestion as any).questionType === 'MATCH_THE_FOLLOWING' && (selectedQuestion as any).extraData) && (
+                    <div className="p-4 bg-zinc-950/60 border border-brand-border rounded-xl space-y-3">
+                      <h5 className="text-xs font-bold text-brand-gold uppercase tracking-wider">Columns Match Grid</h5>
+                      <div className="grid grid-cols-2 gap-8 text-sm">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column A</p>
+                          {(((selectedQuestion as any).extraData as any).matchColumnA || []).map((item: string, idx: number) => (
+                            <div key={idx} className="text-white py-1">{idx + 1}. <MathRenderer text={item} inline /></div>
+                          ))}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-semibold text-zinc-400 pb-1 border-b border-brand-border/20">Column B</p>
+                          {(((selectedQuestion as any).extraData as any).matchColumnB || []).map((item: string, idx: number) => (
+                            <div key={idx} className="text-white py-1">{String.fromCharCode(65 + idx)}. <MathRenderer text={item} inline /></div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Options Dynamic rendering based on type */}
+                  {((selectedQuestion as any).questionType === 'NUMERICAL') ? (
+                    <div className="p-4 bg-emerald-950/20 border border-emerald-500/50 rounded-xl flex items-center justify-between text-sm">
+                      <span className="font-semibold text-white">Correct Numerical Answer:</span>
+                      <span className="font-mono text-lg font-bold text-emerald-400 bg-black/60 px-4 py-1.5 rounded-lg border border-brand-border"><MathRenderer text={selectedQuestion.correctAnswer} inline /></span>
+                    </div>
+                  ) : ((selectedQuestion as any).questionType === 'TRUE_FALSE') ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { opt: 'A', label: "True" },
+                        { opt: 'B', label: "False" }
+                      ].map(({ opt, label }) => (
+                        <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
+                          selectedQuestion.correctAnswer === opt
+                            ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                            : 'bg-zinc-950/40 border-brand-border text-zinc-300'
+                        }`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                            selectedQuestion.correctAnswer === opt
+                              ? 'bg-emerald-500 text-black'
+                              : 'bg-zinc-800 text-zinc-400'
+                          }`}>
+                            {opt === 'A' ? 'T' : 'F'}
+                          </span>
+                          <div className="whitespace-pre-wrap"><MathRenderer text={label} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : ((selectedQuestion as any).questionType === 'ASSERTION_REASON') ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { opt: 'A', label: "A and R are true and R is the correct explanation." },
+                        { opt: 'B', label: "A and R are true but R is not the correct explanation." },
+                        { opt: 'C', label: "A is true but R is false." },
+                        { opt: 'D', label: "A is false but R is true." }
+                      ].map(({ opt, label }) => (
+                        <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
+                          selectedQuestion.correctAnswer === opt
+                            ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                            : 'bg-zinc-950/40 border-brand-border text-zinc-300'
+                        }`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                            selectedQuestion.correctAnswer === opt
+                              ? 'bg-emerald-500 text-black'
+                              : 'bg-zinc-800 text-zinc-400'
+                          }`}>
+                            {opt}
+                          </span>
+                          <div className="whitespace-pre-wrap"><MathRenderer text={label} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { opt: 'A', text: selectedQuestion.optionA },
+                        { opt: 'B', text: selectedQuestion.optionB },
+                        { opt: 'C', text: selectedQuestion.optionC },
+                        { opt: 'D', text: selectedQuestion.optionD },
+                        ...(((selectedQuestion as any).extraData?.additionalOptions || []) as string[]).map((txt, idx) => ({
+                          opt: String.fromCharCode(69 + idx),
+                          text: txt
+                        }))
+                      ].filter(item => item.text).map(({ opt, text }) => (
+                        <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
+                          selectedQuestion.correctAnswer === opt
+                            ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                            : 'bg-zinc-950/40 border-brand-border text-zinc-300'
+                        }`}>
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                            selectedQuestion.correctAnswer === opt
+                              ? 'bg-emerald-500 text-black'
+                              : 'bg-zinc-800 text-zinc-400'
+                          }`}>
+                            {opt}
+                          </span>
+                          <div className="whitespace-pre-wrap"><MathRenderer text={text} /></div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Detailed Solution */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs uppercase font-bold tracking-wider text-emerald-400">Detailed Solution</h4>
+                    <div className="p-4 bg-emerald-950/5 border border-emerald-900/30 rounded-xl text-white text-sm whitespace-pre-wrap leading-relaxed">
+                      <MathRenderer text={selectedQuestion.detailedSolution} />
+                    </div>
+                  </div>
+
+                  {/* Review Section */}
+                  <div className="border-t border-brand-border pt-6 space-y-4">
+                    <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">Mentor/Admin Action Room</h4>
+                    
+                    <div>
+                      <label className="block text-xs text-brand-text mb-2 font-medium">Review Comments / Feedback</label>
+                      <textarea
+                        rows={3}
+                        value={feedback}
+                        onChange={(e) => setFeedback(e.target.value)}
+                        className="w-full px-4 py-2.5 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition duration-200 text-sm"
+                        placeholder="Provide correction details or rejection explanation..."
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        onClick={() => handleReview(selectedQuestion.id, 'APPROVED')}
+                        disabled={updating}
+                        className="flex-1 py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-sm transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 border-0"
+                      >
+                        <Check className="w-5 h-5" />
+                        <span>Approve & Award Points</span>
+                      </button>
+                      <button
+                        onClick={() => handleReview(selectedQuestion.id, 'CORRECTION_REQUESTED')}
+                        disabled={updating}
+                        className="flex-1 py-2 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-black font-semibold text-sm transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 border-0"
+                      >
+                        <AlertCircle className="w-5 h-5" />
+                        <span>Request Correction</span>
+                      </button>
+                      <button
+                        onClick={() => handleReview(selectedQuestion.id, 'REJECTED')}
+                        disabled={updating}
+                        className="flex-1 py-2 px-4 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 border-0"
+                      >
+                        <X className="w-5 h-5" />
+                        <span>Reject</span>
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
-
-              {/* Detailed Solution */}
-              <div className="space-y-2">
-                <h4 className="text-xs uppercase font-bold tracking-wider text-emerald-400">Detailed Solution</h4>
-                <div className="p-4 bg-emerald-950/5 border border-emerald-900/30 rounded-xl text-white text-sm whitespace-pre-wrap leading-relaxed">
-                  <MathRenderer text={selectedQuestion.detailedSolution} />
-                </div>
-              </div>
-
-              {/* Review Section */}
-              <div className="border-t border-brand-border pt-6 space-y-4">
-                <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">Mentor/Admin Action Room</h4>
-                
-                <div>
-                  <label className="block text-xs text-brand-text mb-2 font-medium">Review Comments / Feedback</label>
-                  <textarea
-                    rows={3}
-                    value={feedback}
-                    onChange={(e) => setFeedback(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold focus:ring-1 focus:ring-brand-gold transition duration-200 text-sm"
-                    placeholder="Provide correction details or rejection explanation..."
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    onClick={() => handleReview(selectedQuestion.id, 'APPROVED')}
-                    disabled={updating}
-                    className="flex-1 py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-semibold text-sm transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 border-0"
-                  >
-                    <Check className="w-5 h-5" />
-                    <span>Approve & Award Points</span>
-                  </button>
-                  <button
-                    onClick={() => handleReview(selectedQuestion.id, 'CORRECTION_REQUESTED')}
-                    disabled={updating}
-                    className="flex-1 py-2 px-4 rounded-lg bg-amber-500 hover:bg-amber-600 text-black font-semibold text-sm transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 border-0"
-                  >
-                    <AlertCircle className="w-5 h-5" />
-                    <span>Request Correction</span>
-                  </button>
-                  <button
-                    onClick={() => handleReview(selectedQuestion.id, 'REJECTED')}
-                    disabled={updating}
-                    className="flex-1 py-2 px-4 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50 border-0"
-                  >
-                    <X className="w-5 h-5" />
-                    <span>Reject</span>
-                  </button>
-                </div>
-              </div>
             </div>
           </div>
         </div>

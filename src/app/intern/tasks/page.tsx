@@ -1324,12 +1324,12 @@ export default function DailyTasksPage() {
                   <textarea
                     ref={questionTextareaRef}
                     required
-                    rows={7}
+                    rows={9}
                     value={questionText}
                     onChange={(e) => setQuestionText(formatCleanText(e.target.value))}
                     onBlur={(e) => setQuestionText(formatCleanText(e.target.value))}
                     onPaste={(e) => handlePasteImage(e, 'QUESTION')}
-                    className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[160px]"
+                    className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[200px] resize-y font-mono"
                     placeholder={
                       questionType === 'DIAGRAM' 
                         ? "Type question text referring to the diagram, and attach the diagram image..." 
@@ -1694,12 +1694,12 @@ export default function DailyTasksPage() {
                 <textarea
                   ref={solutionTextareaRef}
                   required
-                  rows={4}
+                  rows={8}
                   value={detailedSolution}
                   onChange={(e) => setDetailedSolution(formatCleanText(e.target.value))}
                   onBlur={(e) => setDetailedSolution(formatCleanText(e.target.value))}
                   onPaste={(e) => handlePasteImage(e, 'SOLUTION')}
-                  className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs leading-relaxed"
+                  className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs sm:text-sm leading-relaxed min-h-[180px] resize-y font-mono"
                   placeholder="Type step-by-step solution or paste image (Ctrl+V) directly inside..."
                 />
 

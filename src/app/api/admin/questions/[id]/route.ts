@@ -16,7 +16,27 @@ export async function PATCH(
 
   try {
     const body = await request.json();
-    const { difficulty, status, reviewFeedback } = body;
+    const {
+      difficulty,
+      status,
+      reviewFeedback,
+      questionText,
+      optionA,
+      optionB,
+      optionC,
+      optionD,
+      correctAnswer,
+      detailedSolution,
+      subject,
+      topic,
+      subTopic,
+      concept,
+      subConcept,
+      classVal,
+      examType,
+      questionType,
+      extraData
+    } = body;
 
     // Verify authorized roles
     if (session.user.role !== 'ADMIN' && session.user.role !== 'MENTOR') {
@@ -56,19 +76,19 @@ export async function PATCH(
       
       // Auto-award points to the intern if the status changes to APPROVED
       if (status === 'APPROVED') {
-        const question = await prisma.question.findUnique({
+        const qInfo = await prisma.question.findUnique({
           where: { id },
           select: { internId: true, status: true, difficulty: true },
         });
 
-        if (question && question.status !== 'APPROVED') {
+        if (qInfo && qInfo.status !== 'APPROVED') {
           // Determine points based on difficulty if set, otherwise default 10 pts
           let points = 10;
-          if (question.difficulty === 'Medium') points = 15;
-          else if (question.difficulty === 'Hard') points = 20;
+          if (qInfo.difficulty === 'Medium') points = 15;
+          else if (qInfo.difficulty === 'Hard') points = 20;
 
           await prisma.internProfile.update({
-            where: { id: question.internId },
+            where: { id: qInfo.internId },
             data: {
               totalPoints: { increment: points },
             },
@@ -77,9 +97,23 @@ export async function PATCH(
       }
     }
 
-    if (reviewFeedback !== undefined) {
-      updateData.reviewFeedback = reviewFeedback;
-    }
+    if (reviewFeedback !== undefined) updateData.reviewFeedback = reviewFeedback;
+    if (questionText !== undefined) updateData.questionText = questionText;
+    if (optionA !== undefined) updateData.optionA = optionA;
+    if (optionB !== undefined) updateData.optionB = optionB;
+    if (optionC !== undefined) updateData.optionC = optionC;
+    if (optionD !== undefined) updateData.optionD = optionD;
+    if (correctAnswer !== undefined) updateData.correctAnswer = correctAnswer;
+    if (detailedSolution !== undefined) updateData.detailedSolution = detailedSolution;
+    if (subject !== undefined) updateData.subject = subject;
+    if (topic !== undefined) updateData.topic = topic;
+    if (subTopic !== undefined) updateData.subTopic = subTopic;
+    if (concept !== undefined) updateData.concept = concept;
+    if (subConcept !== undefined) updateData.subConcept = subConcept;
+    if (classVal !== undefined) updateData.classVal = classVal;
+    if (examType !== undefined) updateData.examType = examType;
+    if (questionType !== undefined) updateData.questionType = questionType;
+    if (extraData !== undefined) updateData.extraData = extraData;
 
     const updated = await prisma.question.update({
       where: { id },
