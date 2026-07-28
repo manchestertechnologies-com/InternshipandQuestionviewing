@@ -388,6 +388,23 @@ export function textToLaTeX(text: string): string {
 }
 
 /**
+ * Auto-wraps embedded scientific math terms and electron configurations in mixed paragraph text with $...$ for inline KaTeX rendering.
+ */
+export function autoFormatMixedTextToLaTeX(text: string): string {
+  if (!text) return '';
+  if (/\$|\\\(/.test(text)) return text;
+
+  let result = text;
+
+  // Auto-wrap chemical terms, electron configurations, fractions, vectors, square roots, superscripts/subscripts into $...$
+  result = result.replace(/(\b[A-Za-z0-9_]+\s*\([^)]*[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻^_-]+[^)]*\)|\b[a-zA-Z0-9]+[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻]+\S*|\\(?:vec|bar|hat|overline)\{[^}]+\}|\\sqrt\{[^}]+\}|\((?:[^()]+|\([^()]*\))*\)\/\((?:[^()]+|\([^()]*\))*\))/g, (match) => {
+    return `$${match.trim()}$`;
+  });
+
+  return result;
+}
+
+/**
  * Checks if a string contains mathematical equations or expressions that require KaTeX rendering.
  */
 export function isMathExpression(text: string): boolean {
@@ -396,7 +413,7 @@ export function isMathExpression(text: string): boolean {
   if (/\\(frac|sqrt|int|sum|pm|times|div|le|ge|ne|alpha|beta|gamma|delta|theta|lambda|mu|pi|sigma|omega|Delta|Omega|text|vec|bar|hat|ddot|dot|overline|mathbf|mathcal|mathrm)/.test(text)) {
     return true;
   }
-  if (/\$|\\\[|\\\(|\^|_|√|∫|∑|±|≤|≥|≠|∞|α|β|θ|π|Δ/.test(text)) {
+  if (/\$|\\\[|\\\(|\^|_|√|∫|∑|±|≤|≥|≠|∞|α|β|θ|π|Δ|[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻]/.test(text)) {
     return true;
   }
   if (/\//.test(text) && !isEnglishOrSlash('a', 'b', text, text.indexOf('/'), 'a/b')) {
