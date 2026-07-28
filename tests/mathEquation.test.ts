@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { textToLaTeX, isMathExpression } from '../src/lib/mathParser';
-import { formatCleanText } from '../src/lib/pasteUtils';
+import { formatCleanText, parseRichTextToUnicode } from '../src/lib/pasteUtils';
 import katex from 'katex';
 
 describe('Professional Mathematical Equation Rendering Tests', () => {
@@ -124,5 +124,21 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     const inputWithEnter = 'Question Line 1\nQuestion Line 2\n';
     const formatted = formatCleanText(inputWithEnter);
     assert.strictEqual(formatted, 'Question Line 1\nQuestion Line 2\n', `Expected lines and trailing newline preserved, got: ${JSON.stringify(formatted)}`);
+  });
+
+  it('MS Word Equation OMML/MathML Copy Paste Parsing', () => {
+    const wordHtmlSample = `
+<p class=MsoNormal>The electronic configuration of four atoms are given in brackets :</p>
+<p class=MsoEquation><m:oMathPara><m:oMath><m:r><m:t>P(1s²2s²2p¹); Q(1s²2s²2p⁵)</m:t></m:r></m:oMath></m:oMathPara></p>
+<p class=MsoEquation><m:oMathPara><m:oMath><m:r><m:t>R(1s²2s²2p⁶3s¹); S(1s²2s²2p²)</m:t></m:r></m:oMath></m:oMathPara></p>
+<p class=MsoNormal>The element that would most readily form a diatomic molecule is</p>
+`;
+    const parsed = parseRichTextToUnicode(wordHtmlSample);
+    const formatted = formatCleanText(parsed);
+    assert.strictEqual(formatted.includes('P(1s²2s²2p¹)'), true);
+    assert.strictEqual(formatted.includes('Q(1s²2s²2p⁵)'), true);
+    assert.strictEqual(formatted.includes('R(1s²2s²2p⁶3s¹)'), true);
+    assert.strictEqual(formatted.includes('S(1s²2s²2p²)'), true);
+    assert.strictEqual(formatted.includes('The element that would most readily form a diatomic molecule is'), true);
   });
 });

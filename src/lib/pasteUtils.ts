@@ -452,13 +452,24 @@ export function parseRichTextToUnicode(htmlText: string): string {
     return `(${numText})/(${denText})`;
   });
 
-  // 1b. Strip Word & Office XML namespace tags (<w:...>, <o:...>, <m:...>, <v:...>), comments, style, script, head, meta
+  // 1b. Process OMML superscripts (<m:sSup>) and subscripts (<m:sSub>) before stripping tags
+  cleaned = cleaned.replace(/<m:sSup[^>]*>[\s\S]*?<m:e[^>]*>([\s\S]*?)<\/m:e>[\s\S]*?<m:sup[^>]*>([\s\S]*?)<\/m:sup>[\s\S]*?<\/m:sSup>/gi, (_, baseXml, supXml) => {
+    const baseText = baseXml.replace(/<[^>]+>/g, '').trim();
+    const supText = supXml.replace(/<[^>]+>/g, '').trim();
+    return `${baseText}^${supText}`;
+  });
+
+  cleaned = cleaned.replace(/<m:sSub[^>]*>[\s\S]*?<m:e[^>]*>([\s\S]*?)<\/m:e>[\s\S]*?<m:sub[^>]*>([\s\S]*?)<\/m:sub>[\s\S]*?<\/m:sSub>/gi, (_, baseXml, subXml) => {
+    const baseText = baseXml.replace(/<[^>]+>/g, '').trim();
+    const subText = subXml.replace(/<[^>]+>/g, '').trim();
+    return `${baseText}_${subText}`;
+  });
+
+  // 1c. Strip XML comments, style, script, head, meta, link, title, and xml wrappers without deleting inner text of Word/Office tags
   cleaned = cleaned.replace(/<!--[\s\S]*?-->/gi, '');
   cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
   cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
   cleaned = cleaned.replace(/<xml[^>]*>[\s\S]*?<\/xml>/gi, '');
-  cleaned = cleaned.replace(/<[womv]:[^>]*>[\s\S]*?<\/[womv]:[^>]*>/gi, '');
-  cleaned = cleaned.replace(/<[womv]:[^>]*\/>/gi, '');
   cleaned = cleaned.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
   cleaned = cleaned.replace(/<meta[^>]*>/gi, '');
   cleaned = cleaned.replace(/<link[^>]*>/gi, '');
