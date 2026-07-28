@@ -452,6 +452,9 @@ export function parseRichTextToUnicode(htmlText: string): string {
     return `(${numText})/(${denText})`;
   });
 
+  // 1a. Unwrap MS Word conditional comments (<!--[if ...]>...<![endif]-->) before stripping general comments
+  cleaned = cleaned.replace(/<!--\[if[^\]]*\]>([\s\S]*?)<!\[endif\]-->/gi, '$1');
+
   // 1b. Process OMML superscripts (<m:sSup>) and subscripts (<m:sSub>) before stripping tags
   cleaned = cleaned.replace(/<m:sSup[^>]*>[\s\S]*?<m:e[^>]*>([\s\S]*?)<\/m:e>[\s\S]*?<m:sup[^>]*>([\s\S]*?)<\/m:sup>[\s\S]*?<\/m:sSup>/gi, (_, baseXml, supXml) => {
     const baseText = baseXml.replace(/<[^>]+>/g, '').trim();
@@ -465,11 +468,10 @@ export function parseRichTextToUnicode(htmlText: string): string {
     return `${baseText}_${subText}`;
   });
 
-  // 1c. Strip XML comments, style, script, head, meta, link, title, and xml wrappers without deleting inner text of Word/Office tags
+  // 1c. Strip XML comments, style, script, head, meta, link, title wrappers without deleting inner text of Word/Office/xml tags
   cleaned = cleaned.replace(/<!--[\s\S]*?-->/gi, '');
   cleaned = cleaned.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
   cleaned = cleaned.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-  cleaned = cleaned.replace(/<xml[^>]*>[\s\S]*?<\/xml>/gi, '');
   cleaned = cleaned.replace(/<head[^>]*>[\s\S]*?<\/head>/gi, '');
   cleaned = cleaned.replace(/<meta[^>]*>/gi, '');
   cleaned = cleaned.replace(/<link[^>]*>/gi, '');
@@ -559,8 +561,11 @@ export function handleRichPaste(
       rawText = parseRichTextToUnicode(htmlData);
     }
 
-    if (!rawText && plainData) {
-      rawText = formatCleanText(plainData);
+    if (plainData) {
+      const cleanPlain = formatCleanText(plainData);
+      if (!rawText || cleanPlain.length > rawText.length * 1.15 || (cleanPlain.includes('\n') && !rawText.includes('\n'))) {
+        rawText = cleanPlain;
+      }
     }
 
     if (rawText) {
