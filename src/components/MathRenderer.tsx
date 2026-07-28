@@ -70,7 +70,7 @@ export default function MathRenderer({ text, className = '', inline = false }: M
           {lines.map((line, lIdx) => {
             const latex = textToLaTeX(line);
             const html = katex.renderToString(latex, {
-              displayMode: !inline,
+              displayMode: false,
               throwOnError: false,
               output: 'html',
             });
@@ -87,7 +87,7 @@ export default function MathRenderer({ text, className = '', inline = false }: M
 
     const latex = textToLaTeX(text);
     const html = katex.renderToString(latex, {
-      displayMode: !inline,
+      displayMode: inline,
       throwOnError: false,
       output: 'html',
     });

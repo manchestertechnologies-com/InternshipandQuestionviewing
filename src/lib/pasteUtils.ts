@@ -537,6 +537,14 @@ export function parseRichTextToUnicode(htmlText: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'");
 
+  // 8. Collapse excessive blank newlines caused by Word XML tag structures
+  cleaned = cleaned
+    .split('\n')
+    .map(line => line.trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
   return formatCleanText(cleaned);
 }
 
