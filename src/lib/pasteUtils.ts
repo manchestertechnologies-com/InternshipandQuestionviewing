@@ -148,6 +148,18 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
     return prefix + subDigits;
   });
 
+  // 10. Underscore chemical & variable subscripts: H_2SO_4 -> H₂SO₄, P_2Q_3 -> P₂Q₃, PQ_2 -> PQ₂
+  result = result.replace(/([A-Za-z0-9\)\}])_([0-9]+|[a-zA-Z])/g, (match, base, subStr) => {
+    const subDigits = subStr.split('').map((d: string) => SUB_MAP[d] || SUB_MAP[d.toLowerCase()] || d).join('');
+    return base + subDigits;
+  });
+
+  // 11. Orbital subshell superscripts: e.g. 1s2 -> 1s², 2s2 -> 2s², 2p6 -> 2p⁶, 3s1 -> 3s¹, 3d10 -> 3d¹⁰, 4f14 -> 4f¹⁴
+  result = result.replace(/\b(\d+[spdf])(\d+)\b/gi, (_, subshell, numStr) => {
+    const sups = numStr.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    return subshell + sups;
+  });
+
   return result;
 }
 

@@ -329,7 +329,7 @@ export function convertExponentsAndSubscripts(text: string): string {
     return `${base}^{${clean}}`;
   });
 
-  // 3. Unicode subscripts: H₂O -> H_2O, x₁ -> x_1 (skip if already in \text{...})
+  // 3. Unicode subscripts: H₂O -> H_{2}O, x₁ -> x_{1}
   res = res.replace(/([a-zA-Z0-9\)\}])([₀₁₂₃₄₅₆₇₈₉]+)/g, (match, base, subs) => {
     let clean = '';
     for (const ch of subs) {
@@ -344,9 +344,9 @@ export function convertExponentsAndSubscripts(text: string): string {
   res = res.replace(/([a-zA-Z0-9\)\}\]])\s*\^\s*\(([^()]+)\)/g, '$1^{$2}');
   res = res.replace(/([a-zA-Z0-9\)\}\]])\s*\^\s*(-?[a-zA-Z0-9]+)/g, '$1^{$2}');
 
-  // 5. Underscore subscripts: x_1 -> x_{1}, x_(i=1) -> x_{i=1}
+  // 5. Underscore subscripts: H_2SO_4 -> H_{2}SO_{4}, P_2Q_3 -> P_{2}Q_{3}, x_1 -> x_{1}
   res = res.replace(/([a-zA-Z0-9\)\}\]])\s*_\s*\(([^()]+)\)/g, '$1_{$2}');
-  res = res.replace(/([a-zA-Z0-9\)\}\]])\s*_\s*([a-zA-Z0-9]+)/g, '$1_{$2}');
+  res = res.replace(/([a-zA-Z0-9\)\}\]])\s*_\s*([0-9]+|[a-zA-Z])/g, '$1_{$2}');
 
   return res;
 }
@@ -359,7 +359,10 @@ export function textToLaTeX(text: string): string {
 
   let res = text.trim();
 
-  // 1. Convert chemical formulas FIRST before splitting symbols
+  // 0. Replace multiplication asterisks * with \cdot
+  res = res.replace(/([a-zA-Z0-9\)\}\]])\s*\*\s*([a-zA-Z0-9\(\{\\])/g, '$1 \\cdot $2');
+
+  // 1. Convert chemical formulas FIRST
   res = convertChemicalFormulasToLaTeX(res);
 
   // 2. Normalize Unicode symbols (∫, ∑, ±, √, Greek letters, superscripts, subscripts)
@@ -368,14 +371,11 @@ export function textToLaTeX(text: string): string {
   // 3. Convert square roots
   res = convertSquareRoots(res);
 
-  // 4. Convert exponents and subscripts
-  res = convertExponentsAndSubscripts(res);
-
-  // 4. Convert chemical formulas
-  res = convertChemicalFormulasToLaTeX(res);
-
-  // 5. Convert fractions
+  // 4. Convert fractions FIRST before isolated exponents
   res = convertFractionsToLaTeX(res);
+
+  // 5. Convert exponents and subscripts
+  res = convertExponentsAndSubscripts(res);
 
   // Clean up double spaces or double braces
   res = res.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, (match, num, den) => {
