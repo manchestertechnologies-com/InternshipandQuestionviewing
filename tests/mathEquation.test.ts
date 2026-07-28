@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { textToLaTeX, isMathExpression } from '../src/lib/mathParser';
+import { formatCleanText } from '../src/lib/pasteUtils';
 import katex from 'katex';
 
 describe('Professional Mathematical Equation Rendering Tests', () => {
@@ -117,5 +118,11 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
   it('Textbook Photo Q29 Question text with \\vec{E}', () => {
     const qText = 'A dipole of dipole moment P and moment of inertia I is placed in a uniform electric field \\vec{E}.';
     assert.strictEqual(isMathExpression(qText), true);
+  });
+
+  it('Preserves Enter key newlines and multi-line alignment without stripping or merging', () => {
+    const inputWithEnter = 'Question Line 1\nQuestion Line 2\n';
+    const formatted = formatCleanText(inputWithEnter);
+    assert.strictEqual(formatted, 'Question Line 1\nQuestion Line 2\n', `Expected lines and trailing newline preserved, got: ${JSON.stringify(formatted)}`);
   });
 });

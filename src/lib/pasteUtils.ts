@@ -428,12 +428,12 @@ export function cleanLineBreaks(text: string): string {
  */
 export function formatCleanText(text: string): string {
   if (!text) return '';
-  let res = cleanLineBreaks(text);
+  let res = text;
   res = autoFormatIonicChargesAndChemistry(res);
   res = autoFormatScientificExponents(res);
   res = autoFormatStackedFractions(res);
   res = normalizeUnitSpacing(res);
-  return res.trim();
+  return res;
 }
 
 /**
