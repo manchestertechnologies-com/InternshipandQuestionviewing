@@ -36,6 +36,14 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\\l(?![a-zA-Z])/g, '\\lambda');
   res = res.replace(/\\p(?![a-zA-Z])/g, '\\pi');
   res = res.replace(/\\s(?![a-zA-Z])/g, '\\sigma');
+  // Physics shorthand helpers
+  res = res.replace(/\bVrms\b/gi, 'V_{\\text{rms}}');
+  res = res.replace(/\bIrms\b/gi, 'I_{\\text{rms}}');
+  res = res.replace(/\bErms\b/gi, 'E_{\\text{rms}}');
+  res = res.replace(/\bE0\b/g, 'E_0');
+  res = res.replace(/\bI0\b/g, 'I_0');
+  res = res.replace(/\bV0\b/g, 'V_0');
+  res = res.replace(/\bN0\b/g, 'N_0');
   // Handle \sqrt followed directly by digit/letter (e.g. \sqrt2 -> \sqrt{2})
   res = res.replace(/\\sqrt\s*([0-9a-zA-Z])(?![a-zA-Z0-9_{}])/g, '\\sqrt{$1}');
   // Auto-prefix trig and math function names with backslash if missing (e.g. sin(\omega t) -> \sin(\omega t))
@@ -295,8 +303,10 @@ export function convertFractionsToLaTeX(text: string): string {
   if (!text) return '';
   let res = text;
 
-  // Process existing \frac{a}{b}
-  res = res.replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, (match, num, den) => {
+  // Process existing \frac{a}{b} with support for nested braces
+  const nestedBracePattern = '([^{}]*(?:\\{[^{}]*\\}[^{}]*)*)';
+  const fracRegex = new RegExp(`\\\\frac\\s*\\{${nestedBracePattern}\\}\\s*\\{${nestedBracePattern}\\}`, 'g');
+  res = res.replace(fracRegex, (match, num, den) => {
     return `\\frac{${num.trim()}}{${den.trim()}}`;
   });
 
@@ -327,20 +337,41 @@ export function convertExponentsAndSubscripts(text: string): string {
   if (!text) return '';
   let res = text;
 
-  // 1. Scientific units & exponents: e.g. 10^-3 nm -> 10^{-3}\text{ nm}, 10⁻³ nm -> 10^{-3}\text{ nm}
-  res = res.replace(/(10)\s*\^?\s*([⁺⁻-]?\s*[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)\s*([a-zA-ZµÅ°]+)/g, (match, base, exp, unit) => {
+  // 1. Scientific units & exponents: REQUIRES explicit caret ^ OR explicit negative/positive sign OR Unicode superscripts.
+  // NEVER convert plain numbers like 100 or 1000 into 10^0!
+  res = res.replace(/\b(10)\s*\^\s*([⁺⁻-]?\s*[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)\s*([a-zA-ZµÅ°]+)/g, (match, base, exp, unit) => {
     const cleanExp = exp.replace(/⁻/g, '-').replace(/⁺/g, '+').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
       const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
       return idx !== -1 ? String(idx) : d;
     });
     return `${base}^{${cleanExp}}\\text{ ${unit}}`;
   });
-  res = res.replace(/(10)\s*\^?\s*([⁺⁻-]?\s*[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (match, base, exp) => {
+  res = res.replace(/\b(10)\s*\^\s*([⁺⁻-]?\s*[0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, (match, base, exp) => {
     const cleanExp = exp.replace(/⁻/g, '-').replace(/⁺/g, '+').replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (d: string) => {
       const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(d);
       return idx !== -1 ? String(idx) : d;
     });
     return `${base}^{${cleanExp}}`;
+  });
+
+  // 1b. Unicode superscripts directly on 10 (e.g. 10⁻³, 10⁵)
+  res = res.replace(/\b(10)([⁻⁺][⁰¹²³⁴⁵⁶⁷⁸⁹]+)\s*([a-zA-ZµÅ°]+)?/g, (match, base, sups, unit) => {
+    let cleanExp = '';
+    for (const ch of sups) {
+      if (ch === '⁻') cleanExp += '-';
+      else if (ch === '⁺') cleanExp += '+';
+      else {
+        const idx = '⁰¹²³⁴⁵⁶⁷⁸⁹'.indexOf(ch);
+        if (idx !== -1) cleanExp += idx;
+        else cleanExp += ch;
+      }
+    }
+    return unit ? `${base}^{${cleanExp}}\\text{ ${unit}}` : `${base}^{${cleanExp}}`;
+  });
+
+  // 1c. Direct negative power on 10 (e.g. 10-3 m, 10-5)
+  res = res.replace(/\b(10)\s*-\s*([0-9]+)\s*([a-zA-ZµÅ°]+)?/g, (match, base, exp, unit) => {
+    return unit ? `${base}^{-${exp}}\\text{ ${unit}}` : `${base}^{-${exp}}`;
   });
 
   // 2. Unicode superscripts: x², x³, 10⁻³ (skip if already in \text{...})

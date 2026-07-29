@@ -14,73 +14,127 @@ interface MathRendererProps {
 export default function MathRenderer({ text, className = '', inline = false }: MathRendererProps) {
   if (!text) return null;
 
-  const normalizedInput = normalizeLatexShortcuts(text);
-  const lines = normalizedInput.split('\n');
+  // Pre-normalize common LaTeX shortcuts (e.g. \wt -> \omega t, Vrms -> V_{rms})
+  const rawInput = normalizeLatexShortcuts(text);
 
-  const renderMathChunk = (expr: string) => {
+  // Helper to render LaTeX string via KaTeX safely
+  const renderKaTeX = (latexStr: string, isDisplayMode: boolean) => {
     try {
-      const latex = textToLaTeX(expr);
-      return katex.renderToString(latex, { displayMode: false, throwOnError: false, output: 'html' });
-    } catch (e) {
-      return expr;
+      const formatted = textToLaTeX(latexStr);
+      return katex.renderToString(formatted, {
+        displayMode: isDisplayMode,
+        throwOnError: false,
+        output: 'html',
+      });
+    } catch (err) {
+      return katex.renderToString(latexStr, {
+        displayMode: isDisplayMode,
+        throwOnError: false,
+        output: 'html',
+      });
     }
   };
 
-  // Regex to match specific math/latex/chemistry expressions inside a line
+  // Step 1: Parse Display Math Blocks \[ ... \] and $$ ... $$ FIRST across entire multi-line string
+  const blockMathRegex = /(?:\\\[([\s\S]*?)\\\]|\$\$([\s\S]*?)\$\$)/g;
+
+  const segments: { type: 'text' | 'block'; content: string }[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = blockMathRegex.exec(rawInput)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', content: rawInput.substring(lastIndex, match.index) });
+    }
+    const blockContent = match[1] ?? match[2];
+    segments.push({ type: 'block', content: blockContent.trim() });
+    lastIndex = blockMathRegex.lastIndex;
+  }
+
+  if (lastIndex < rawInput.length) {
+    segments.push({ type: 'text', content: rawInput.substring(lastIndex) });
+  }
+
+  // Tokenizer regex for inline math and math expressions in plain text lines:
   // 1. Explicit $...$ or \(...\)
-  // 2. \frac{...}{...}, \sqrt{...}, \int, \sum, \omega, \pi, \Delta, \alpha, \beta, etc.
-  // 3. Chemical formulas & subscripts: CH_3COOAg, CH_3Br, CO_2, Ag_2O, SO_4^{2-}, Ca^{2+}, H₂O
-  // 4. Equations like i = I_o sin(\omega t), \omega t = \frac{\pi}{2}
-  const mathTokenRegex = /(\$[^$]+\$|\\\([^)]+\\\)|\\frac\{[^{}]*\}\{[^{}]*\}|\\sqrt\{[^{}]*\}|\\(?:omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|int|sum|pm|times|div|le|ge|ne|infty|rightarrow|vec|bar|hat|overline)\b|\\[a-zA-Z]+|\b[A-Za-z0-9]+(?:_[0-9a-zA-Z{}]+|\^[0-9a-zA-Z{}+\-]+)+\S*|\b[a-zA-Z0-9_]+\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\s]+)|[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻]+)/g;
+  // 2. \frac{...}{...} (supporting nested braces)
+  // 3. \sqrt{...}
+  // 4. Standalone LaTeX commands (\omega, \pi, \Delta, \alpha, \beta, \int, \sum, \approx, \rightarrow, \text{...})
+  // 5. Equations / Math expressions like `i = I_0 \sin(\omega t)` or `E_0 = 141 V` or `\omega t = \frac{\pi}{2}`
+  const inlineTokenRegex = /(\$[^$\n]+\$|\\\([^)]+\\\)|\\frac\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\\sqrt\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\\(?:omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|int|sum|pm|times|div|le|ge|ne|infty|rightarrow|vec|bar|hat|overline|text|approx|therefore)\b(?:\s*\{[^{}]*\}|\s*\([^()]*\))?|(?:\b[a-zA-Z0-9_\theta\pi\omega\Delta]+(?:_[a-zA-Z0-9{}]+|\^[a-zA-Z0-9{}]+)?\s*(?:=|\approx|\\approx|\rightarrow|\\rightarrow|\+|-|\*|\/)\s*)+[^,;\n\(\)]+?(?=\s*(?:[.,;!]?(\s+(?:with|when|where|for|at|is|are|and|or|so|then|hence|from|to|which|that|the|Option|Choice|Part|Section|Statement|Assertion|Reason)\b|\s*$))|\)|\]|\}))/g;
 
   return (
-    <span className={`math-renderer inline-block align-middle whitespace-pre-wrap ${className}`}>
-      {lines.map((line, lIdx) => {
-        if (!line.trim()) {
-          return <React.Fragment key={lIdx}>{lIdx > 0 && <br />}</React.Fragment>;
-        }
-
-        const elements: React.ReactNode[] = [];
-        let lastIndex = 0;
-        let match: RegExpExecArray | null;
-
-        mathTokenRegex.lastIndex = 0;
-        while ((match = mathTokenRegex.exec(line)) !== null) {
-          if (match.index > lastIndex) {
-            const textPart = line.substring(lastIndex, match.index);
-            elements.push(<span key={`t-${lastIndex}`}>{textPart}</span>);
-          }
-
-          let rawExpr = match[0];
-          if (rawExpr.startsWith('$') && rawExpr.endsWith('$')) {
-            rawExpr = rawExpr.slice(1, -1).trim();
-          } else if (rawExpr.startsWith('\\(') && rawExpr.endsWith('\\)')) {
-            rawExpr = rawExpr.slice(2, -2).trim();
-          }
-
-          const html = renderMathChunk(rawExpr);
-          elements.push(<span key={`m-${match.index}`} dangerouslySetInnerHTML={{ __html: html }} />);
-          lastIndex = mathTokenRegex.lastIndex;
-        }
-
-        if (lastIndex < line.length) {
-          const textPart = line.substring(lastIndex);
-          elements.push(<span key={`t-${lastIndex}`}>{textPart}</span>);
-        }
-
-        if (elements.length === 0) {
+    <span className={`math-renderer ${inline ? 'inline-block' : 'block'} whitespace-pre-wrap ${className}`}>
+      {segments.map((seg, sIdx) => {
+        if (seg.type === 'block') {
+          const html = renderKaTeX(seg.content, true);
           return (
-            <React.Fragment key={lIdx}>
-              {lIdx > 0 && <br />}
-              <span>{line}</span>
-            </React.Fragment>
+            <span
+              key={`b-${sIdx}`}
+              className="block my-2 overflow-x-auto text-center"
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
           );
         }
 
+        const lines = seg.content.split('\n');
         return (
-          <React.Fragment key={lIdx}>
-            {lIdx > 0 && <br />}
-            <span>{elements}</span>
+          <React.Fragment key={`tseg-${sIdx}`}>
+            {lines.map((line, lIdx) => {
+              if (!line.trim()) {
+                return <React.Fragment key={lIdx}>{lIdx > 0 && <br />}</React.Fragment>;
+              }
+
+              const lineElements: React.ReactNode[] = [];
+              let lineLastIdx = 0;
+              let inlineMatch: RegExpExecArray | null;
+
+              inlineTokenRegex.lastIndex = 0;
+              while ((inlineMatch = inlineTokenRegex.exec(line)) !== null) {
+                if (inlineMatch.index > lineLastIdx) {
+                  const plainTextPart = line.substring(lineLastIdx, inlineMatch.index);
+                  lineElements.push(<span key={`t-${lineLastIdx}`}>{plainTextPart}</span>);
+                }
+
+                let rawExpr = inlineMatch[0];
+                if (rawExpr.startsWith('$') && rawExpr.endsWith('$')) {
+                  rawExpr = rawExpr.slice(1, -1).trim();
+                } else if (rawExpr.startsWith('\\(') && rawExpr.endsWith('\\)')) {
+                  rawExpr = rawExpr.slice(2, -2).trim();
+                }
+
+                const html = renderKaTeX(rawExpr, false);
+                lineElements.push(
+                  <span
+                    key={`m-${inlineMatch.index}`}
+                    className="inline-block align-middle mx-0.5"
+                    dangerouslySetInnerHTML={{ __html: html }}
+                  />
+                );
+                lineLastIdx = inlineTokenRegex.lastIndex;
+              }
+
+              if (lineLastIdx < line.length) {
+                const plainTextPart = line.substring(lineLastIdx);
+                lineElements.push(<span key={`t-${lineLastIdx}`}>{plainTextPart}</span>);
+              }
+
+              if (lineElements.length === 0) {
+                return (
+                  <React.Fragment key={lIdx}>
+                    {lIdx > 0 && <br />}
+                    <span>{line}</span>
+                  </React.Fragment>
+                );
+              }
+
+              return (
+                <React.Fragment key={lIdx}>
+                  {lIdx > 0 && <br />}
+                  <span>{lineElements}</span>
+                </React.Fragment>
+              );
+            })}
           </React.Fragment>
         );
       })}
