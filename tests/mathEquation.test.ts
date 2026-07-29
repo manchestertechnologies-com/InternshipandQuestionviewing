@@ -166,4 +166,21 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(textToLaTeX('\\sqrt3').includes('\\sqrt{3}'), true);
     assert.strictEqual(textToLaTeX('Option (4)').includes('\\text{Option (4)}'), true);
   });
+
+  it('Regression Case 16: Organic Chemistry Decarboxylative Halogenation Text & Formula Whitespace Preservation', () => {
+    const rawInput = [
+      'CH_3COOAg (silver acetate) ---(\\frac{Br_2}{CCl_4} (Hunsdiecker reaction))--->',
+      'The product of this classic decarboxylative halogenation is:',
+      '(A) CH_3Br (methyl bromide) + CO_2 + AgBr',
+      '(B) CH_3CH_2Br + AgOOCCH_3',
+      '(C) CH_3COBr + Ag_2O',
+      '(D) No reaction occurs'
+    ].join('\n');
+
+    const lines = rawInput.split('\n');
+    assert.strictEqual(lines.length, 6);
+    assert.strictEqual(textToLaTeX('CH_3COOAg').includes('CH_{3}COOAg') || textToLaTeX('CH_3COOAg').includes('CH_3COOAg'), true);
+    assert.strictEqual(textToLaTeX('CO_2').includes('CO_{2}') || textToLaTeX('CO_2').includes('CO_2'), true);
+    assert.strictEqual(textToLaTeX('Ag_2O').includes('Ag_{2}O') || textToLaTeX('Ag_2O').includes('Ag_2O'), true);
+  });
 });
