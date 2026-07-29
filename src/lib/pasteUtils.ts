@@ -57,6 +57,9 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
 
   const minusSet = '[+\\-–—\\u2212\\u2010-\\u2015\\u207B\\u207A]';
 
+  // List of recognized chemical element symbols & polyatomics
+  const knownIons = ['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Cr', 'Ni', 'Co', 'S', 'O', 'N', 'Cl', 'Br', 'F', 'I', 'H'];
+
   // 1. Format temperatures like 0-50C, 0-5^0C, 0-5oC -> 0-5°C
   result = result.replace(/(\d+)\s*(?:[0o⁰]C|°C|\^0C)/g, '$1°C');
   result = result.replace(/(\d+)-(\d+)\s*0C/gi, '$1-$2°C');
@@ -86,9 +89,8 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
   // e.g. NO3^- -> NO₃⁻, NH4^+ -> NH₄⁺, HCO3^- -> HCO₃⁻, MnO4^- -> MnO₄⁻, S2^- -> S²⁻, Ca2^+ -> Ca²⁺
   const polyCaretOneDigitRegex = new RegExp(`([A-Z][a-z]?|\\)|\\\])(\\d+)\\s*\\^\\s*(${minusSet})`, 'g');
   result = result.replace(polyCaretOneDigitRegex, (match, elem, subDigit, sign) => {
-    const monoatomicElements = ['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Cr', 'Ni', 'Co', 'S'];
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
-    if (monoatomicElements.includes(elem)) {
+    if (knownIons.includes(elem)) {
       const sups = subDigit.split('').map((d: string) => SUPER_MAP[d] || d).join('');
       return elem + sups + supSign;
     }
@@ -114,41 +116,39 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
 
   // 6. Polyatomic ions with numbers & charges WITHOUT carets:
   // e.g. SO42- -> SO₄²⁻, CO32- -> CO₃²⁻, Cr2O72- -> Cr₂O₇²⁻, PO43- -> PO₄³⁻
-  result = result.replace(/([A-Z][a-z]?|\)|\])(\d+)(\d)([\+\-\u2212–—])(?![a-zA-Z0-9])/g, (_, elem, subDigits, supDigit, sign) => {
-    const subs = subDigits.split('').map((d: string) => SUB_MAP[d] || d).join('');
+  result = result.replace(/\b(SO4|CO3|PO4|NO3|NH4|HCO3|MnO4|Cr2O7)(\d)([\+\-\u2212–—])\b/g, (_, elem, supDigit, sign) => {
+    const polyElem = elem.replace(/(\d+)/g, (m: string) => m.split('').map((d: string) => SUB_MAP[d] || d).join(''));
     const sup = SUPER_MAP[supDigit] || supDigit;
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
-    return elem + subs + sup + supSign;
+    return polyElem + sup + supSign;
   });
 
-  // 7. Monoatomic / Polyatomic ions with 1 digit + charge WITHOUT carets:
-  // e.g. NO3- -> NO₃⁻, NH4+ -> NH₄⁺, MnO4- -> MnO₄⁻, Fe3+ -> Fe³⁺, Cu2+ -> Cu²⁺, Ca2+ -> Ca²⁺, S2- -> S²⁻, Al3+ -> Al³⁺
-  result = result.replace(/([A-Z][a-z]?)(\d)([\+\-\u2212–—])(?![a-zA-Z0-9])/g, (match, elem, numDigit, sign) => {
+  // 7. Monoatomic ions with 1 digit + charge WITHOUT carets:
+  // ONLY for recognized chemical elements, NOT general physics variables like R1-, V1-, P1-!
+  result = result.replace(new RegExp(`\\b(${knownIons.join('|')})(\\d)([\\+\\-\\u2212–—])\\b`, 'g'), (match, elem, numDigit, sign) => {
     const sup = SUPER_MAP[numDigit] || numDigit;
-    const sub = SUB_MAP[numDigit] || numDigit;
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
-
-    if (['Fe', 'Cu', 'Ca', 'Ba', 'Mg', 'Zn', 'Al', 'Na', 'K', 'Li', 'Ag', 'Pb', 'Hg', 'Sn', 'Cr', 'Ni', 'Co', 'S'].includes(elem)) {
-      return elem + sup + supSign;
-    }
-    return elem + sub + supSign;
+    return elem + sup + supSign;
   });
 
-  // 8. Single ionic charges without digits: Cl- -> Cl⁻, K+ -> K⁺
-  result = result.replace(/([A-Z][a-z]?|\)|\]|[₀-₉]|[⁰-⁹])\s*([\+\-\u2212–—])(?![a-zA-Z0-9\+\-\=])/g, (match, elem, sign) => {
+  // 8. Single ionic charges without digits: ONLY for recognized chemical symbols or closing parens directly attached WITHOUT SPACES!
+  // NEVER convert math subtraction/addition like `R_1 - R_2` or `\frac{1}{R_1} - \frac{1}{R_2}` into ionic charges!
+  result = result.replace(new RegExp(`\\b(${knownIons.join('|')})([\\+\\-\\u2212–—])(?![a-zA-Z0-9\\+\\-\\=])`, 'g'), (match, elem, sign) => {
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
     return elem + supSign;
   });
 
   // 9. Periodic Table Chemical Subscripts for neutral molecules: H2O -> H₂O, CO2 -> CO₂, H2SO4 -> H₂SO₄
-  // Exclude numbers immediately followed by ionic charge superscripts ⁻ or ⁺
-  const chemicalSubscriptRegex = /([A-Z][a-z]?|\)|\])(\d+)(?![0-9]*[KkgmML\u207B\u207A⁻⁺])/g;
-  result = result.replace(chemicalSubscriptRegex, (match, prefix, numStr) => {
-    const subDigits = numStr.split('').map((d: string) => SUB_MAP[d] || d).join('');
-    return prefix + subDigits;
+  const chemicalSubscriptRegex = /\b(SO4|CO3|PO4|NO3|NH4|HCO3|MnO4|Cr2O7|H2O|CO2|H2SO4|PCl5|PCl3|NH3|CH4|C2H6|C6H12O6|NaCl|KCl|CaCO3)(\d+)?\b/gi;
+  result = result.replace(chemicalSubscriptRegex, (match) => {
+    return match.replace(/(\d+)/g, (m) => m.split('').map((d) => SUB_MAP[d] || d).join(''));
   });
 
-  // 10. Underscore chemical & variable subscripts: H_2SO_4 -> H₂SO₄, P_2Q_3 -> P₂Q₃, PQ_2 -> PQ₂
+  // 10. Underscore chemical & variable subscripts: ONLY if not in LaTeX mode (contains \)
+  if (text.includes('\\') || text.includes('{') || text.includes('}')) {
+    return result;
+  }
+
   result = result.replace(/([A-Za-z0-9\)\}])_([0-9]+|[a-zA-Z])/g, (match, base, subStr) => {
     const subDigits = subStr.split('').map((d: string) => SUB_MAP[d] || SUB_MAP[d.toLowerCase()] || d).join('');
     return base + subDigits;
