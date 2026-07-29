@@ -15,53 +15,28 @@ export async function POST() {
     const qiCount = await prisma.questionImage.deleteMany({});
     const qCount = await prisma.question.deleteMany({});
 
-    // 2. Delete task assignments and tasks
+    // 2. Delete task assignments and tasks (Questions tasks)
     const taCount = await prisma.taskAssignment.deleteMany({});
     const tCount = await prisma.task.deleteMany({});
 
-    // 3. Delete weekly submissions, domain project assignments, domain projects
-    const wsCount = await prisma.weeklySubmission.deleteMany({});
-    const dpaCount = await prisma.domainProjectAssignment.deleteMany({});
-    const dpCount = await prisma.domainProject.deleteMany({});
+    // NOTE: Domain projects, domain project assignments, weekly submissions,
+    // meetings, and problem statements are strictly preserved as requested.
 
-    // 4. Delete meetings and meeting targets
-    const mtCount = await prisma.meetingTarget.deleteMany({});
-    const mCount = await prisma.meeting.deleteMany({});
-
-    // 5. Delete problem statements
-    const psCount = await prisma.problemStatement.deleteMany({});
-
-    // 6. Delete communications & notifications
-    const msgCount = await prisma.message.deleteMany({});
-    const notifCount = await prisma.notification.deleteMany({});
-    const annCount = await prisma.announcement.deleteMany({});
-
-    // 7. Reset all intern profiles performance metrics
+    // 3. Reset intern profile task progress & points for question tasks
     const resetInterns = await prisma.internProfile.updateMany({
       data: {
         totalPoints: 0,
-        mentorScore: 0,
         progress: 0,
-        rank: 0,
       },
     });
 
     return NextResponse.json({
-      message: 'Database cleanup completed successfully!',
+      message: 'Question database cleared successfully! Domain projects and intern project assignments were preserved.',
       stats: {
         questionImages: qiCount.count,
         questions: qCount.count,
         taskAssignments: taCount.count,
         tasks: tCount.count,
-        weeklySubmissions: wsCount.count,
-        domainProjectAssignments: dpaCount.count,
-        domainProjects: dpCount.count,
-        meetingTargets: mtCount.count,
-        meetings: mCount.count,
-        problemStatements: psCount.count,
-        messages: msgCount.count,
-        notifications: notifCount.count,
-        announcements: annCount.count,
         resetInternsCount: resetInterns.count,
       },
     });

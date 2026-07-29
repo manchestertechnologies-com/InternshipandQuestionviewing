@@ -9,24 +9,19 @@ test('Database Cleanup Preservation Rules', () => {
     'MentorProfile',
     'InternProfile',
     'ViewerProfile',
-    'OtpToken'
+    'OtpToken',
+    'DomainProject',
+    'DomainProjectAssignment',
+    'WeeklySubmission',
+    'ProblemStatement'
   ];
 
-  // Transactional models cleared during reset
+  // Question models cleared during reset
   const clearedModels = [
     'QuestionImage',
     'Question',
     'TaskAssignment',
-    'Task',
-    'WeeklySubmission',
-    'DomainProjectAssignment',
-    'DomainProject',
-    'MeetingTarget',
-    'Meeting',
-    'ProblemStatement',
-    'Announcement',
-    'Message',
-    'Notification'
+    'Task'
   ];
 
   for (const model of preservedModels) {
