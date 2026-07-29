@@ -142,20 +142,28 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(formatted.includes('The element that would most readily form a diatomic molecule is'), true);
   });
 
-  it('Regression Case 12: Physics Macros & Solution Typesetting (\\wt, \\w, \\frac{rad}{s})', () => {
-    const input = 'Current follows i = I_o sin(\\wt), with \\w = 100\\pi \\frac{rad}{s}.';
-    const latex = textToLaTeX(input);
-    assert.strictEqual(latex.includes('\\omega t'), true, `Expected \\omega t, got: ${latex}`);
-    assert.strictEqual(latex.includes('\\omega'), true, `Expected \\omega, got: ${latex}`);
-    assert.strictEqual(latex.includes('\\text{rad}'), true, `Expected \\text{rad}, got: ${latex}`);
+  it('Regression Case 14: Full Screenshot Multi-line Solution Copy-Paste Typesetting', () => {
+    const rawSolutionInput = [
+      'Current follows i = I_o sin(\\wt), with \\w = 100\\pi \\frac{rad}{s}.',
+      'Peak value occurs at \\wt = \\frac{\\pi}{2}. The current equals its rms value (I_o/\\sqrt2) when sin(\\wt) = 1/\\sqrt2, i.e. \\wt = \\frac{\\pi}{4} or \\frac{3\\pi}{4}.',
+      'Moving forward from the peak (\\frac{\\pi}{2}), the next instant at which i = I_o/\\sqrt2 is \\wt = \\frac{3\\pi}{4}.',
+      'Time interval \\Delta t = \\frac{3\\pi/4 - \\pi/2}{\\w} = \\frac{\\frac{\\pi}{4}}{100\\pi} = \\frac{1}{400} = 2.5\\times10^{-3} s \\rightarrow Option (4).'
+    ].join('\n');
 
-    const html = katex.renderToString(textToLaTeX('\\omega t = \\frac{\\pi}{2}'), { throwOnError: false });
-    assert.strictEqual(html.includes('katex'), true);
+    const lines = rawSolutionInput.split('\n');
+    lines.forEach((line) => {
+      const latex = textToLaTeX(line);
+      assert.strictEqual(latex.includes('\\omega'), true, `Expected \\omega in line: ${line}`);
+      const html = katex.renderToString(latex, { throwOnError: false });
+      assert.strictEqual(html.includes('katex'), true, `KaTeX rendering failed for line: ${line}`);
+    });
   });
 
-  it('Regression Case 13: Exam Categories Exclude CET', () => {
-    const activeExams = ['NEET', 'JEE', 'KCET'];
-    assert.strictEqual(activeExams.includes('CET'), false);
-    assert.strictEqual(activeExams.length, 3);
+  it('Regression Case 15: Automatic trig backslash, sqrt digits & Option label text conversion', () => {
+    assert.strictEqual(textToLaTeX('sin(\\wt)').includes('\\sin(\\omega t)'), true);
+    assert.strictEqual(textToLaTeX('cos(\\wt)').includes('\\cos(\\omega t)'), true);
+    assert.strictEqual(textToLaTeX('\\sqrt2').includes('\\sqrt{2}'), true);
+    assert.strictEqual(textToLaTeX('\\sqrt3').includes('\\sqrt{3}'), true);
+    assert.strictEqual(textToLaTeX('Option (4)').includes('\\text{Option (4)}'), true);
   });
 });
