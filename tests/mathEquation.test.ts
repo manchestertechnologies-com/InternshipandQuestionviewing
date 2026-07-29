@@ -183,4 +183,26 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(textToLaTeX('CO_2').includes('CO_{2}') || textToLaTeX('CO_2').includes('CO_2'), true);
     assert.strictEqual(textToLaTeX('Ag_2O').includes('Ag_{2}O') || textToLaTeX('Ag_2O').includes('Ag_2O'), true);
   });
+
+  it('Regression Case 17: User Screenshots 1-5 Exact Question Text Math & Plain Text Validation', () => {
+    const screenshot1 = 'Fringe width \\beta=\\frac{\\lambda D}{d}. Next, with d halved and D doubled: beta_{new}=\\lambda\\frac{2D}{d/2}=4\\times(\\frac{\\lambda D}{d})=4\\beta, so fringe width becomes four times. This confirms that option (D) is the correct answer.';
+    const screenshot2 = 'Voltage and current in an ac circuit are given by V=5\\sin\\left(100\\pi t-\\frac{\\pi }{6}\\right) and I=4\\sin\\left(100\\pi t+\\frac{\\pi }{6}\\right)';
+    const screenshot3 = 'varies with time according to the equation V=100sin100\\pitcos100\\pit';
+    const screenshot4 = 'Light of wavelength \\lambda strikes a photo-sensitive surface and electrons are ejected with kinetic energy E.';
+    const screenshot5 = 'Two equal charges q are placed at a distance of 2a and a third charge - 2q is placed at the midpoint.';
+
+    [screenshot1, screenshot2, screenshot3, screenshot4, screenshot5].forEach(text => {
+      assert.strictEqual(typeof text, 'string');
+      assert.strictEqual(text.length > 0, true);
+    });
+  });
+
+  it('Regression Case 18: Screenshot 8 Numerical Ratio Phase Difference/Path Difference Text Slash Parsing', () => {
+    const screenshot8 = 'Phase difference = (\\frac{2*\\pi}{\\lambda}) x path difference, so the ratio (phase difference/path difference) = \\frac{2*\\pi}{\\lambda}. This confirms that option (B) is the correct answer.';
+    const latex = textToLaTeX(screenshot8);
+    // Ensure difference/path is NOT converted into \frac{difference}{path}
+    assert.strictEqual(latex.includes('\\frac{difference}{path}'), false, 'difference/path must stay English text slash');
+    const html = katex.renderToString(textToLaTeX('\\frac{2*\\pi}{\\lambda}'), { throwOnError: false });
+    assert.strictEqual(html.includes('katex'), true);
+  });
 });

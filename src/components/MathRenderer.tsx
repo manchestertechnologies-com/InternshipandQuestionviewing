@@ -3,7 +3,7 @@
 import React from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { textToLaTeX, normalizeLatexShortcuts } from '@/lib/mathParser';
+import { textToLaTeX, normalizeLatexShortcuts, normalizeLatexExpr } from '@/lib/mathParser';
 
 interface MathRendererProps {
   text: string;
@@ -19,19 +19,27 @@ export default function MathRenderer({ text, className = '', inline = false }: M
 
   // Helper to render LaTeX string via KaTeX safely
   const renderKaTeX = (latexStr: string, isDisplayMode: boolean) => {
+    if (!latexStr) return '';
     try {
-      const formatted = textToLaTeX(latexStr);
+      const normalized = normalizeLatexExpr(latexStr);
+      const formatted = textToLaTeX(normalized);
       return katex.renderToString(formatted, {
         displayMode: isDisplayMode,
         throwOnError: false,
         output: 'html',
       });
     } catch (err) {
-      return katex.renderToString(latexStr, {
-        displayMode: isDisplayMode,
-        throwOnError: false,
-        output: 'html',
-      });
+      try {
+        const fallback = normalizeLatexExpr(latexStr);
+        return katex.renderToString(fallback, {
+          displayMode: isDisplayMode,
+          throwOnError: false,
+          output: 'html',
+        });
+      } catch (e2) {
+        const safeText = latexStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        return `<span class="katex-error">${safeText}</span>`;
+      }
     }
   };
 
@@ -59,9 +67,10 @@ export default function MathRenderer({ text, className = '', inline = false }: M
   // 1. Explicit $...$ or \(...\)
   // 2. \frac{...}{...} (supporting nested braces)
   // 3. \sqrt{...}
-  // 4. Standalone LaTeX commands (\omega, \pi, \Delta, \alpha, \beta, \int, \sum, \approx, \rightarrow, \text{...})
-  // 5. Equations / Math expressions like `i = I_0 \sin(\omega t)` or `E_0 = 141 V` or `\omega t = \frac{\pi}{2}`
-  const inlineTokenRegex = /(\$[^$\n]+\$|\\\([^)]+\\\)|\\frac\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\\sqrt\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\\(?:omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|int|sum|pm|times|div|le|ge|ne|infty|rightarrow|vec|bar|hat|overline|text|approx|therefore)\b(?:\s*\{[^{}]*\}|\s*\([^()]*\))?|(?:\b[a-zA-Z0-9_\theta\pi\omega\Delta]+(?:_[a-zA-Z0-9{}]+|\^[a-zA-Z0-9{}]+)?\s*(?:=|\approx|\\approx|\rightarrow|\\rightarrow|\+|-|\*|\/)\s*)+[^,;\n\(\)]+?(?=\s*(?:[.,;!]?(\s+(?:with|when|where|for|at|is|are|and|or|so|then|hence|from|to|which|that|the|Option|Choice|Part|Section|Statement|Assertion|Reason)\b|\s*$))|\)|\]|\}))/g;
+  // 4. Standalone LaTeX commands (\omega, \pi, \Delta, \alpha, \beta, \int, \sum, \approx, \rightarrow, \vec{...}, \text{...})
+  // 5. Variables with carets/underscores (beta_{new}, I_0, V_{rms}, 10^{-3}, x^2, \lambda')
+  // 6. Inline equations starting strictly at valid single-letter/subscripted math symbols or LaTeX macros before operators (=, +, -, *, /, \times)
+  const inlineTokenRegex = /(\$[^$\n]+\$|\\\([^)]+\\\)|\\frac\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\\sqrt\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}|\\(?:omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|int|sum|pm|times|div|le|ge|ne|infty|rightarrow|vec|bar|hat|overline|text|approx|therefore|surd|left|right)\b(?:\s*\{[^{}]*\}|\s*\([^()]*\))?|\b[a-zA-Z0-9_\theta\pi\omega\Delta]+(?:_[a-zA-Z0-9{}]+|\^[a-zA-Z0-9{}]+)+'?|(?:\b(?!(?:of|an|ac|in|to|at|is|on|by|or|so|if|do|be|as|am|my|we|he|me|us|it|no|go|up)\b)(?:[a-zA-Z0-9]{1,2}|\\(?:[a-zA-Z]+))(?:_[a-zA-Z0-9{}]+|\^[a-zA-Z0-9{}]+)?\s*(?:=|\approx|\\approx|\rightarrow|\\rightarrow|\+|-|\*|\/)\s*)+[^,;\n\(\)]+?(?=\s*(?:[.,;!]?(\s+(?:with|when|where|for|at|is|are|and|or|so|then|hence|from|to|which|that|the|Option|Choice|Part|Section|Statement|Assertion|Reason)\b|\s*$))|\)|\]|\}))/g;
 
   return (
     <span className={`math-renderer ${inline ? 'inline-block' : 'block'} whitespace-pre-wrap ${className}`}>

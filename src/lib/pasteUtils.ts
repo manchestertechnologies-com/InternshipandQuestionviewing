@@ -90,10 +90,6 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
   const polyCaretOneDigitRegex = new RegExp(`([A-Z][a-z]?|\\)|\\\])(\\d+)\\s*\\^\\s*(${minusSet})`, 'g');
   result = result.replace(polyCaretOneDigitRegex, (match, elem, subDigit, sign) => {
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
-    if (knownIons.includes(elem)) {
-      const sups = subDigit.split('').map((d: string) => SUPER_MAP[d] || d).join('');
-      return elem + sups + supSign;
-    }
     const subs = subDigit.split('').map((d: string) => SUB_MAP[d] || d).join('');
     return elem + subs + supSign;
   });
@@ -115,33 +111,48 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
   });
 
   // 6. Polyatomic ions with numbers & charges WITHOUT carets:
-  // e.g. SO42- -> SO₄²⁻, CO32- -> CO₃²⁻, Cr2O72- -> Cr₂O₇²⁻, PO43- -> PO₄³⁻
-  result = result.replace(/\b(SO4|CO3|PO4|NO3|NH4|HCO3|MnO4|Cr2O7)(\d)([\+\-\u2212–—])\b/g, (_, elem, supDigit, sign) => {
+  // e.g. SO42- -> SO₄²⁻, CO32- -> CO₃²⁻, Cr2O72- -> Cr₂O₇²⁻, PO43- -> PO₄³⁻, S2O32- -> S₂O₃²⁻, MnO4- -> MnO₄⁻, HCO3- -> HCO₃⁻
+  result = result.replace(/\b(SO4|CO3|PO4|NO3|NH4|HCO3|MnO4|Cr2O7|ClO4|BrO3|IO3|S2O3)(\d*)([\+\-\u2212–—])(?![a-zA-Z0-9])/g, (_, elem, supDigit, sign) => {
     const polyElem = elem.replace(/(\d+)/g, (m: string) => m.split('').map((d: string) => SUB_MAP[d] || d).join(''));
-    const sup = SUPER_MAP[supDigit] || supDigit;
+    let sups = '';
+    if (supDigit) {
+      sups = supDigit.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    }
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
-    return polyElem + sup + supSign;
+    return polyElem + sups + supSign;
   });
 
-  // 7. Monoatomic ions with 1 digit + charge WITHOUT carets:
-  // ONLY for recognized chemical elements, NOT general physics variables like R1-, V1-, P1-!
-  result = result.replace(new RegExp(`\\b(${knownIons.join('|')})(\\d)([\\+\\-\\u2212–—])\\b`, 'g'), (match, elem, numDigit, sign) => {
-    const sup = SUPER_MAP[numDigit] || numDigit;
+  // 7. Monoatomic & simple polyatomic ions (CN-, OH-) with 1 digit + charge WITHOUT carets:
+  // ONLY for recognized chemical elements and ions, NOT general physics variables like R1-, V1-, P1-!
+  const knownIonsAndPoly = [...knownIons, 'CN', 'OH'];
+  result = result.replace(new RegExp(`\\b(${knownIonsAndPoly.join('|')})(\\d*)([\\+\\-\\u2212–—])(?![a-zA-Z0-9])`, 'g'), (match, elem, numDigit, sign) => {
+    let sups = '';
+    if (numDigit) {
+      sups = numDigit.split('').map((d: string) => SUPER_MAP[d] || d).join('');
+    }
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
-    return elem + sup + supSign;
+    return elem + sups + supSign;
   });
 
   // 8. Single ionic charges without digits: ONLY for recognized chemical symbols or closing parens directly attached WITHOUT SPACES!
   // NEVER convert math subtraction/addition like `R_1 - R_2` or `\frac{1}{R_1} - \frac{1}{R_2}` into ionic charges!
-  result = result.replace(new RegExp(`\\b(${knownIons.join('|')})([\\+\\-\\u2212–—])(?![a-zA-Z0-9\\+\\-\\=])`, 'g'), (match, elem, sign) => {
+  result = result.replace(new RegExp(`\\b(${knownIonsAndPoly.join('|')})([\\+\\-\\u2212–—])(?![a-zA-Z0-9\\+\\-\\=])`, 'g'), (match, elem, sign) => {
     const supSign = (sign === '+' || sign === '⁺') ? '⁺' : '⁻';
     return elem + supSign;
   });
 
-  // 9. Periodic Table Chemical Subscripts for neutral molecules: H2O -> H₂O, CO2 -> CO₂, H2SO4 -> H₂SO₄
-  const chemicalSubscriptRegex = /\b(SO4|CO3|PO4|NO3|NH4|HCO3|MnO4|Cr2O7|H2O|CO2|H2SO4|PCl5|PCl3|NH3|CH4|C2H6|C6H12O6|NaCl|KCl|CaCO3)(\d+)?\b/gi;
+  // 9. Periodic Table Chemical Subscripts for neutral molecules & compounds: H2O -> H₂O, CO2 -> CO₂, H2 -> H₂, O2 -> O₂, N2 -> N₂
+  const chemicalSubscriptRegex = /\b(SO4|CO3|PO4|NO3|NH4|HCO3|MnO4|Cr2O7|H2O|CO2|H2SO4|PCl5|PCl3|NH3|CH4|C2H6|C6H12O6|NaCl|KCl|CaCO3|H2|N2|O2|O3|F2|Br2|I2|P4|S8|NO2|N2O4|N2O5|SO3|H2O2|HNO3|NaOH|Fe2O3|Al2O3|BaSO4|ZnSO4|AgNO3|CuSO4|K2CrO4|Pb\(NO3\)2|C2H5OH|KMnO4)\b/gi;
   result = result.replace(chemicalSubscriptRegex, (match) => {
     return match.replace(/(\d+)/g, (m) => m.split('').map((d) => SUB_MAP[d] || d).join(''));
+  });
+
+  // 9b. Subscripts for any known chemical element symbol or closing parenthesis followed by a number (e.g. H2 -> H₂, Mg(OH)2 -> Mg(OH)₂, P2Q3 -> P₂Q₃):
+  const knownElements = ['He', 'Li', 'Be', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'Cl', 'Ar', 'Ca', 'Sc', 'Ti', 'Cr', 'Mn', 'Fe', 'Co', 'Ni', 'Cu', 'Zn', 'Ga', 'Ge', 'As', 'Se', 'Br', 'Kr', 'Rb', 'Sr', 'Zr', 'Nb', 'Mo', 'Tc', 'Ru', 'Rh', 'Pd', 'Ag', 'Cd', 'In', 'Sn', 'Sb', 'Te', 'Xe', 'Cs', 'Ba', 'La', 'Ce', 'Pr', 'Nd', 'Pm', 'Sm', 'Eu', 'Gd', 'Tb', 'Dy', 'Ho', 'Er', 'Tm', 'Yb', 'Lu', 'Hf', 'Ta', 'Re', 'Os', 'Ir', 'Pt', 'Au', 'Hg', 'Tl', 'Pb', 'Bi', 'Po', 'At', 'Rn', 'Fr', 'Ra', 'Ac', 'Th', 'Pa', 'H', 'B', 'C', 'N', 'O', 'F', 'P', 'S', 'K', 'V', 'Y', 'I', 'W', 'U', 'Q', '\\)'];
+  const elementSubscriptRegex = new RegExp(`(${knownElements.join('|')})(\\d+)`, 'g');
+  result = result.replace(elementSubscriptRegex, (match, elem, digits) => {
+    const subs = digits.split('').map((d: string) => SUB_MAP[d] || d).join('');
+    return elem + subs;
   });
 
   // 10. Underscore chemical & variable subscripts: ONLY if not in LaTeX mode (contains \)
@@ -318,12 +329,7 @@ function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string, offse
       return false;
     }
 
-    // If string contains an equals sign '=' (e.g. Rate = change/time), it IS a fraction formula
-    if (fullStr.includes('=')) {
-      return false;
-    }
-
-    // Otherwise, two plain English words separated by '/' represent English slash "or" (e.g., input/output, pass/fail)
+    // Otherwise, two plain English words separated by '/' represent English slash "or" (e.g., input/output, pass/fail, difference/path)
     return true;
   }
 

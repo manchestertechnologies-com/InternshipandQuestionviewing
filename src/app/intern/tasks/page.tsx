@@ -1384,6 +1384,14 @@ export default function DailyTasksPage() {
                       className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                       placeholder="Type Assertion (A)..."
                     />
+                    {assertionText && (
+                      <div className="p-3 bg-zinc-950 border border-brand-gold/40 rounded-xl text-white mt-1.5 space-y-1 shadow-lg">
+                        <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest block border-b border-brand-border/40 pb-1">✨ Assertion (A) Live Typeset Preview</span>
+                        <div className="text-sm sm:text-base text-white py-1 overflow-x-auto">
+                          <MathRenderer text={assertionText} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider">Reason (R) *</label>
@@ -1397,6 +1405,14 @@ export default function DailyTasksPage() {
                       className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                       placeholder="Type Reason (R)..."
                     />
+                    {reasonText && (
+                      <div className="p-3 bg-zinc-950 border border-brand-gold/40 rounded-xl text-white mt-1.5 space-y-1 shadow-lg">
+                        <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest block border-b border-brand-border/40 pb-1">✨ Reason (R) Live Typeset Preview</span>
+                        <div className="text-sm sm:text-base text-white py-1 overflow-x-auto">
+                          <MathRenderer text={reasonText} />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="p-3 bg-black/40 border border-brand-border rounded-xl text-[11px] text-zinc-400 space-y-1">
                     <p className="font-bold text-brand-gold">Predefined Options:</p>
@@ -1418,7 +1434,8 @@ export default function DailyTasksPage() {
                         type="text"
                         required
                         value={colA1}
-                        onChange={(e) => setColA1(e.target.value)}
+                        onChange={(e) => setColA1(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColA1(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row 1 *"
                       />
@@ -1426,21 +1443,24 @@ export default function DailyTasksPage() {
                         type="text"
                         required
                         value={colA2}
-                        onChange={(e) => setColA2(e.target.value)}
+                        onChange={(e) => setColA2(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColA2(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row 2 *"
                       />
                       <input
                         type="text"
                         value={colA3}
-                        onChange={(e) => setColA3(e.target.value)}
+                        onChange={(e) => setColA3(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColA3(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row 3 (Optional)"
                       />
                       <input
                         type="text"
                         value={colA4}
-                        onChange={(e) => setColA4(e.target.value)}
+                        onChange={(e) => setColA4(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColA4(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row 4 (Optional)"
                       />
@@ -1451,7 +1471,8 @@ export default function DailyTasksPage() {
                         type="text"
                         required
                         value={colBP}
-                        onChange={(e) => setColBP(e.target.value)}
+                        onChange={(e) => setColBP(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColBP(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row P *"
                       />
@@ -1459,26 +1480,51 @@ export default function DailyTasksPage() {
                         type="text"
                         required
                         value={colBQ}
-                        onChange={(e) => setColBQ(e.target.value)}
+                        onChange={(e) => setColBQ(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColBQ(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row Q *"
                       />
                       <input
                         type="text"
                         value={colBR}
-                        onChange={(e) => setColBR(e.target.value)}
+                        onChange={(e) => setColBR(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColBR(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row R (Optional)"
                       />
                       <input
                         type="text"
                         value={colBS}
-                        onChange={(e) => setColBS(e.target.value)}
+                        onChange={(e) => setColBS(formatCleanText(e.target.value))}
+                        onBlur={(e) => setColBS(formatCleanText(e.target.value))}
                         className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
                         placeholder="Row S (Optional)"
                       />
                     </div>
                   </div>
+
+                  {(colA1 || colA2 || colBP || colBQ) && (
+                    <div className="p-3 bg-zinc-950 border border-brand-gold/40 rounded-xl text-white space-y-2 shadow-lg">
+                      <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest block border-b border-brand-border/40 pb-1">✨ Match Columns Live Typeset Preview</span>
+                      <div className="grid grid-cols-2 gap-4 text-xs">
+                        <div className="space-y-1">
+                          <p className="font-semibold text-zinc-400 border-b border-brand-border/30 pb-0.5">Column A</p>
+                          {colA1 && <div>1. <MathRenderer text={colA1} inline /></div>}
+                          {colA2 && <div>2. <MathRenderer text={colA2} inline /></div>}
+                          {colA3 && <div>3. <MathRenderer text={colA3} inline /></div>}
+                          {colA4 && <div>4. <MathRenderer text={colA4} inline /></div>}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-semibold text-zinc-400 border-b border-brand-border/30 pb-0.5">Column B</p>
+                          {colBP && <div>P. <MathRenderer text={colBP} inline /></div>}
+                          {colBQ && <div>Q. <MathRenderer text={colBQ} inline /></div>}
+                          {colBR && <div>R. <MathRenderer text={colBR} inline /></div>}
+                          {colBS && <div>S. <MathRenderer text={colBS} inline /></div>}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

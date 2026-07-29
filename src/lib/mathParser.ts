@@ -21,6 +21,25 @@ export function stripOuterParens(str: string): string {
 }
 
 /**
+ * Normalizes raw expressions with literal math symbols (√, ×, ÷, °, ″, ′, etc.)
+ * into valid KaTeX commands so rendering won't throw unrecognized unicode errors.
+ */
+export function normalizeLatexExpr(expr: string): string {
+  if (!expr) return '';
+  let res = expr;
+  res = res.replace(/√\s*\(([^()]+)\)/g, '\\sqrt{$1}');
+  res = res.replace(/√\s*([0-9]+(?:\.[0-9]+)?|[a-zA-Z]+)/g, '\\sqrt{$1}');
+  res = res.replace(/√/g, '\\surd ');
+  res = res
+    .replace(/×/g, ' \\times ')
+    .replace(/÷/g, ' \\div ')
+    .replace(/°/g, '^{\\circ}')
+    .replace(/″/g, "''")
+    .replace(/′/g, "'");
+  return res;
+}
+
+/**
  * Normalizes common LaTeX physics/math shorthand typos and shortcuts.
  * e.g. \wt -> \omega t, \w -> \omega, \D -> \Delta, sin -> \sin, \sqrt2 -> \sqrt{2}
  */
@@ -114,7 +133,6 @@ export function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string
 
     if (mathFunctions.has(numLow) || mathFunctions.has(denLow)) return false;
     if (physicsQuantities.has(numLow) || physicsQuantities.has(denLow)) return false;
-    if (fullStr.includes('=')) return false;
 
     return true;
   }
