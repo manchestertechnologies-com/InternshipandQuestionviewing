@@ -65,6 +65,12 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\bN0\b/g, 'N_0');
   // Handle \sqrt followed directly by digit/letter (e.g. \sqrt2 -> \sqrt{2})
   res = res.replace(/\\sqrt\s*([0-9a-zA-Z])(?![a-zA-Z0-9_{}])/g, '\\sqrt{$1}');
+  // Vector arrows & unit hats: e.g. \vec E -> \vec{E}, \hat i -> \hat{i}, E⃗ -> \vec{E}, î -> \hat{i}
+  res = res.replace(/\\vec\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\vec{$1}');
+  res = res.replace(/\\hat\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\hat{$1}');
+  res = res.replace(/\\bar\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\bar{$1}');
+  res = res.replace(/([a-zA-Z0-9])[\u20D7\u20D6\u20D1]/g, '\\vec{$1}');
+  res = res.replace(/([a-zA-Z0-9])[\u0302\u0306\u030a]/g, '\\hat{$1}');
   // Auto-prefix trig and math function names with backslash if missing (e.g. sin(\omega t) -> \sin(\omega t))
   res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc|log|ln|exp|lim)\b/g, '\\$1');
   // Format Option labels in math expressions cleanly

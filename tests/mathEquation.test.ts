@@ -205,4 +205,20 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     const html = katex.renderToString(textToLaTeX('\\frac{2*\\pi}{\\lambda}'), { throwOnError: false });
     assert.strictEqual(html.includes('katex'), true);
   });
+
+  it('Regression Case 19: Vector Arrow \\vec{E}, \\hat{i}, \\hat{j}, \\vec E and Unicode Combining Arrow Normalization', () => {
+    assert.strictEqual(textToLaTeX('\\vec E').includes('\\vec{E}'), true);
+    assert.strictEqual(textToLaTeX('\\hat i').includes('\\hat{i}'), true);
+    assert.strictEqual(textToLaTeX('\\hat j').includes('\\hat{j}'), true);
+    assert.strictEqual(textToLaTeX('E\u20D7').includes('\\vec{E}'), true);
+    assert.strictEqual(textToLaTeX('i\u0302').includes('\\hat{i}'), true);
+
+    const questionInput = 'In a space having electric field \\vec{E} = A(x\\hat{i} + y\\hat{j}) the potential at a point (10 m, 20 m) is zero';
+    const latex = textToLaTeX(questionInput);
+    const html = katex.renderToString(latex, { throwOnError: false });
+    assert.strictEqual(html.includes('katex'), true);
+    assert.strictEqual(latex.includes('\\vec{E}'), true);
+    assert.strictEqual(latex.includes('\\hat{i}'), true);
+    assert.strictEqual(latex.includes('\\hat{j}'), true);
+  });
 });
