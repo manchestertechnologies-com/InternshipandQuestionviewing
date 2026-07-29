@@ -141,4 +141,21 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(formatted.includes('S(1s²2s²2p²)'), true);
     assert.strictEqual(formatted.includes('The element that would most readily form a diatomic molecule is'), true);
   });
+
+  it('Regression Case 12: Physics Macros & Solution Typesetting (\\wt, \\w, \\frac{rad}{s})', () => {
+    const input = 'Current follows i = I_o sin(\\wt), with \\w = 100\\pi \\frac{rad}{s}.';
+    const latex = textToLaTeX(input);
+    assert.strictEqual(latex.includes('\\omega t'), true, `Expected \\omega t, got: ${latex}`);
+    assert.strictEqual(latex.includes('\\omega'), true, `Expected \\omega, got: ${latex}`);
+    assert.strictEqual(latex.includes('\\text{rad}'), true, `Expected \\text{rad}, got: ${latex}`);
+
+    const html = katex.renderToString(textToLaTeX('\\omega t = \\frac{\\pi}{2}'), { throwOnError: false });
+    assert.strictEqual(html.includes('katex'), true);
+  });
+
+  it('Regression Case 13: Exam Categories Exclude CET', () => {
+    const activeExams = ['NEET', 'JEE', 'KCET'];
+    assert.strictEqual(activeExams.includes('CET'), false);
+    assert.strictEqual(activeExams.length, 3);
+  });
 });

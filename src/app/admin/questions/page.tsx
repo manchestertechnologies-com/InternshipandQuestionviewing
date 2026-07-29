@@ -335,7 +335,6 @@ export default function QuestionRepository() {
               <option value="JEE">JEE</option>
               <option value="NEET">NEET</option>
               <option value="KCET">KCET</option>
-              <option value="CET">CET</option>
             </select>
           </div>
 

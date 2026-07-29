@@ -1214,26 +1214,32 @@ export default function DailyTasksPage() {
                   </select>
                 </div>
                 
-                {/* Dynamic Concept selection */}
+                {/* Concept text input for copy-pasting / typing */}
                 <div>
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Concept (NCERT) *</label>
-                  <select
+                  <input
+                    type="text"
                     required
+                    list="concept-list"
                     value={concept}
-                    onChange={(e) => {
-                      setConcept(e.target.value);
-                      setSubConcept('');
+                    onChange={(e) => setConcept(e.target.value)}
+                    onPaste={(e) => {
+                      const pasteText = e.clipboardData?.getData('text/plain');
+                      if (pasteText) {
+                        e.preventDefault();
+                        setConcept(pasteText.trim());
+                      }
                     }}
-                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs"
-                    disabled={!topic}
-                  >
-                    <option value="">Select Concept</option>
-                    {concepts.map((c) => (
-                      <option key={c.name} value={c.name}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
+                    className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs placeholder:text-zinc-600"
+                    placeholder="Type or copy paste concept..."
+                  />
+                  {concepts.length > 0 && (
+                    <datalist id="concept-list">
+                      {concepts.map((c) => (
+                        <option key={c.name} value={c.name} />
+                      ))}
+                    </datalist>
+                  )}
                 </div>
               </div>
 
@@ -1241,7 +1247,7 @@ export default function DailyTasksPage() {
                 <div>
                   <label className="block text-[10px] font-semibold text-brand-text uppercase tracking-wider mb-2">Exam Categories *</label>
                   <div className="flex flex-wrap gap-1.5 bg-black p-1.5 rounded-lg border border-brand-border min-h-[36px] items-center">
-                    {['NEET', 'JEE', 'KCET', 'CET'].map((exam) => {
+                    {['NEET', 'JEE', 'KCET'].map((exam) => {
                       const isChecked = selectedExams.includes(exam);
                       return (
                         <button

@@ -21,6 +21,25 @@ export function stripOuterParens(str: string): string {
 }
 
 /**
+ * Normalizes common LaTeX physics/math shorthand typos and shortcuts.
+ * e.g. \wt -> \omega t, \w -> \omega, \D -> \Delta
+ */
+export function normalizeLatexShortcuts(text: string): string {
+  if (!text) return '';
+  let res = text;
+  res = res.replace(/\\wt(?![a-zA-Z])/g, '\\omega t');
+  res = res.replace(/\\w(?![a-zA-Z])/g, '\\omega');
+  res = res.replace(/\\D(?![a-zA-Z])/g, '\\Delta');
+  res = res.replace(/\\a(?![a-zA-Z])/g, '\\alpha');
+  res = res.replace(/\\b(?![a-zA-Z])/g, '\\beta');
+  res = res.replace(/\\th(?![a-zA-Z])/g, '\\theta');
+  res = res.replace(/\\l(?![a-zA-Z])/g, '\\lambda');
+  res = res.replace(/\\p(?![a-zA-Z])/g, '\\pi');
+  res = res.replace(/\\s(?![a-zA-Z])/g, '\\sigma');
+  return res;
+}
+
+/**
  * Checks if a matched A / B string is an English "or" text slash rather than a mathematical fraction.
  */
 export function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string, offset: number, match: string): boolean {
@@ -357,7 +376,7 @@ export function convertExponentsAndSubscripts(text: string): string {
 export function textToLaTeX(text: string): string {
   if (!text) return '';
 
-  let res = text.trim();
+  let res = normalizeLatexShortcuts(text.trim());
 
   // 0. Replace multiplication asterisks * with \cdot
   res = res.replace(/([a-zA-Z0-9\)\}\]])\s*\*\s*([a-zA-Z0-9\(\{\\])/g, '$1 \\cdot $2');
@@ -377,31 +396,57 @@ export function textToLaTeX(text: string): string {
   // 5. Convert exponents and subscripts
   res = convertExponentsAndSubscripts(res);
 
-  // Clean up double spaces or double braces
+  // Clean up double spaces or double braces & format unit words inside fractions
   res = res.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, (match, num, den) => {
-    const cleanNum = stripOuterParens(num);
-    const cleanDen = stripOuterParens(den);
-    return `\\frac{${cleanNum}}{${cleanDen}}`;
+    let cleanNum = stripOuterParens(num);
+    let cleanDen = stripOuterParens(den);
+
+    const formatPart = (part: string) => {
+      const trimmed = part.trim();
+      if (/^(?:rad|sec|deg|cm|mm|m|kg|g|mg|mol|Hz|Pa|J|V|A|W|N|Ω|°C)(?:\/[a-z]+)?$/i.test(trimmed)) {
+        return `\\text{${trimmed}}`;
+      }
+      return trimmed;
+    };
+
+    return `\\frac{${formatPart(cleanNum)}}{${formatPart(cleanDen)}}`;
   });
 
   return res;
 }
 
 /**
- * Auto-wraps embedded scientific math terms and electron configurations in mixed paragraph text with $...$ for inline KaTeX rendering.
+ * Auto-wraps embedded scientific math terms, equations, fractions, and electron configurations in mixed paragraph text with $...$ for inline KaTeX rendering.
  */
 export function autoFormatMixedTextToLaTeX(text: string): string {
   if (!text) return '';
-  if (/\$|\\\(/.test(text)) return text;
+  let res = normalizeLatexShortcuts(text);
+  if (/\$|\\\(/.test(res)) return res;
 
-  let result = text;
+  // Auto-wrap chemical terms, electron configurations, fractions, vectors, square roots, superscripts/subscripts, LaTeX commands, and equations into $...$
+  const lines = res.split('\n');
+  const processedLines = lines.map(line => {
+    if (!line.trim()) return line;
 
-  // Auto-wrap chemical terms, electron configurations, fractions, vectors, square roots, superscripts/subscripts into $...$
-  result = result.replace(/(\b[A-Za-z0-9_]+\s*\([^)]*[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻^_-]+[^)]*\)|\b[a-zA-Z0-9]+[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻]+\S*|\\(?:vec|bar|hat|overline)\{[^}]+\}|\\sqrt\{[^}]+\}|\((?:[^()]+|\([^()]*\))*\)\/\((?:[^()]+|\([^()]*\))*\))/g, (match) => {
-    return `$${match.trim()}$`;
+    // Check if line contains LaTeX commands or math equations
+    const hasLatexCmds = /\\(?:frac|sqrt|omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|int|sum|pm|times|div|le|ge|ne|infty|rightarrow)\b/.test(line);
+    const hasMathSymbols = /[=^√∫∑±≤≥≠∞αβθπΔ]/;
+
+    if (!hasLatexCmds && !hasMathSymbols) {
+      return line.replace(/(\b[A-Za-z0-9_]+\s*\([^)]*[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻^_-]+[^)]*\)|\b[a-zA-Z0-9]+[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻]+\S*|\\(?:vec|bar|hat|overline)\{[^}]+\}|\\sqrt\{[^}]+\}|\((?:[^()]+|\([^()]*\))*\)\/\((?:[^()]+|\([^()]*\))*\))/g, (match) => {
+        return `$${match.trim()}$`;
+      });
+    }
+
+    // Auto-wrap math formulas & equations in mixed sentences
+    return line.replace(/(?:\\(?:frac|sqrt|omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|pm|times|div|le|ge|ne|infty|int|sum|rightarrow|vec|bar|hat|overline)\b(?:\{[^{}]*\}|\([^()]*\)|[a-zA-Z0-9_*^/\\\-–—\s])*(?=\s*[.,;!]?(\s+[a-zA-Z]{3,}|\s*$))|\b[a-zA-Z0-9_]+\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\s]+)|\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_\sqrt{}\\]+|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\})/g, (match) => {
+      const trimmed = match.trim();
+      if (trimmed.startsWith('$') && trimmed.endsWith('$')) return trimmed;
+      return `$${trimmed}$`;
+    });
   });
 
-  return result;
+  return processedLines.join('\n');
 }
 
 /**
