@@ -221,4 +221,17 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(latex.includes('\\hat{i}'), true);
     assert.strictEqual(latex.includes('\\hat{j}'), true);
   });
+
+  it('Regression Case 20: User Prompt Vector Arrow Paste "Charge Q is given a displacement r ⃗=ai ˆ+bj ˆ in an electric field E ⃗=E_1 i ˆ+E_2 j ˆ"', () => {
+    const rawUserPaste = 'Charge Q is given a displacement r ⃗=ai ˆ+bj ˆ in an electric field E ⃗=E_1 i ˆ+E_2 j ˆ. The work done is';
+    const formatted = formatCleanText(rawUserPaste);
+    assert.strictEqual(formatted.includes('\\vec{r}'), true, 'r ⃗ must format to \\vec{r}');
+    assert.strictEqual(formatted.includes('\\vec{E}'), true, 'E ⃗ must format to \\vec{E}');
+    assert.strictEqual(formatted.includes('\\hat{i}'), true, 'i ˆ must format to \\hat{i}');
+    assert.strictEqual(formatted.includes('\\hat{j}'), true, 'j ˆ must format to \\hat{j}');
+
+    const latex = textToLaTeX(formatted);
+    const html = katex.renderToString(latex, { throwOnError: false });
+    assert.strictEqual(html.includes('katex'), true);
+  });
 });

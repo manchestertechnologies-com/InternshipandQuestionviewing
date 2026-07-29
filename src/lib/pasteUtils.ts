@@ -55,6 +55,11 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
   if (!text) return '';
   let result = text;
 
+  // 0. Vector arrows & unit hats: e.g. r ⃗ -> \vec{r}, E ⃗ -> \vec{E}, i ˆ -> \hat{i}, j ˆ -> \hat{j}, k ˆ -> \hat{k}
+  result = result.replace(/([a-zA-Z0-9])\s*[\u20D7\u20D6\u20D1\u20D0\u20E1\u2192]/g, '\\vec{$1}');
+  result = result.replace(/([a-zA-Z0-9])\s*[\u02C6\u0302\u0306\u030a]/g, '\\hat{$1}');
+  result = result.replace(/\b([a-zA-Z0-9])\s*[\^ˆ](?=\s*[\+=\-\*\/\),\. ]|$)/g, '\\hat{$1}');
+
   const minusSet = '[+\\-–—\\u2212\\u2010-\\u2015\\u207B\\u207A]';
 
   // List of recognized chemical element symbols & polyatomics
