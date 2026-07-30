@@ -55,6 +55,14 @@ export function normalizeLatexExpr(expr: string): string {
 export function normalizeLatexShortcuts(text: string): string {
   if (!text) return '';
   let res = text;
+
+  // Unescape double backslashes before LaTeX commands: \\left -> \left, \\right -> \right, \\frac -> \frac, etc.
+  res = res.replace(/\\{2,}([a-zA-Z]+|\[|\]|\(|\)|_|\^)/g, '\\$1');
+
+  // Fix mismatched block delimiters: e.g. $$\left[...] \right]$ -> $\left[...] \right]$
+  res = res.replace(/\$\$([^\$\n]+)\$/g, (_m, inner) => '$' + inner + '$');
+  res = res.replace(/\$([^\$\n]+)\$\$/g, (_m, inner) => '$' + inner + '$');
+
   // Normalize direct Unicode Greek letters to LaTeX commands
   res = res
     .replace(/α/g, '\\alpha ')
