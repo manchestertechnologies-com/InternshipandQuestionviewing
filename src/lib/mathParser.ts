@@ -83,8 +83,10 @@ export function normalizeLatexShortcuts(text: string): string {
     .replace(/ω/g, '\\omega ')
     .replace(/Δ/g, '\\Delta ')
     .replace(/Ω/g, '\\Omega ');
-  // Clean up space after Greek commands before subscripts or operators
-  res = res.replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|chi|omega|Delta|Omega)\s+(_|\^|\{|\d|[=+,;.()\-\s]|$)/g, (m, g, rest) => `\\${g}${rest.trim() ? rest : ''}`);
+  // Clean up space after Greek commands ONLY before subscripts/superscripts/braces/digits (e.g. \mu _0 -> \mu_0, \chi _1 -> \chi_1)
+  res = res.replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|chi|omega|Delta|Omega)\s+(_|\^|\{|\d)/g, '\\$1$2');
+  // Ensure single clean space around equality for Greek variables (\mu= -> \mu = )
+  res = res.replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|chi|omega|Delta|Omega)\s*=\s*/g, (m, g) => `\\${g} = `);
 
   res = res.replace(/\\wt(?![a-zA-Z])/g, '\\omega t');
   res = res.replace(/\\w(?![a-zA-Z])/g, '\\omega');
@@ -107,9 +109,10 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/(?<![\\a-zA-Z])\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)(\d+)\b/gi, (m, g, num) => `\\${g.toLowerCase()}_{${num}}`);
   // Standalone Greek words typed without backslash (e.g. alpha -> \alpha, theta -> \theta, omega -> \omega)
   res = res.replace(/(?<![\\a-zA-Z])\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)\b(?![a-zA-Z])/gi, (m, g) => `\\${g.toLowerCase()}`);
-  // Roots: root(n, expr) -> \sqrt[n]{expr}, sqrt(expr) -> \sqrt{expr}
+  // Roots: root(n, expr) -> \sqrt[n]{expr}, sqrt(expr) -> \sqrt{expr}, \sqrt[expr] (without {}) -> \sqrt{expr}
   res = res.replace(/\broot\((\d+),\s*(.+?)\)/gi, '\\sqrt[$1]{$2}');
   res = res.replace(/\bsqrt\((.+?)\)/gi, '\\sqrt{$1}');
+  res = res.replace(/\\sqrt\[([^\]]+)\](?!\s*\{)/g, '\\sqrt{$1}');
   // Operators: <= -> \le, >= -> \ge, != -> \ne, +- -> \pm
   res = res.replace(/<=/g, '\\le ');
   res = res.replace(/>=/g, '\\ge ');
@@ -556,7 +559,7 @@ export function autoFormatMixedTextToLaTeX(text: string): string {
     }
 
     // Auto-wrap math formulas & equations in mixed sentences
-    return line.replace(/(?:\\(?:frac|sqrt|omega|pi|Delta|alpha|beta|theta|lambda|mu|sigma|Omega|pm|times|div|le|ge|ne|infty|int|sum|rightarrow|vec|bar|hat|overline)\b(?:\{[^{}]*\}|\([^()]*\)|[a-zA-Z0-9_*^/\\\-–—\s])*(?=\s*[.,;!]?(\s+[a-zA-Z]{3,}|\s*$))|\b[a-zA-Z0-9_]+\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\s]+)|\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_\sqrt{}\\]+|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\})/g, (match) => {
+    return line.replace(/(?:(?:\\?[a-zA-Z0-9_]+)\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\[\]\s]+?)(?=\s*[.,;!:]?(\s*\\?[a-zA-Z0-9_]+\s*(=|\\le|\\ge|\\ne|\\approx)|\s+[a-zA-Z]{2,}|\s*$))|\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_\sqrt{}\\]+|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\})/g, (match) => {
       const trimmed = match.trim();
       if (trimmed.startsWith('$') && trimmed.endsWith('$')) return trimmed;
       return `$${trimmed}$`;
@@ -1047,6 +1050,8 @@ export function smartConvertRaw(raw: string): string {
   if (!raw) return '';
   const converted = splitFinalSegments(raw).map(seg => {
     if (seg.value.startsWith('$') || seg.value.startsWith('{{IMG::')) return seg.value;
+    const formatted = autoFormatMixedTextToLaTeX(seg.value);
+    if (/\$|\\\(/.test(formatted)) return formatted;
     return smartConvertZone(seg.value);
   }).join('');
   return mergeMathBlocks(converted);

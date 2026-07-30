@@ -359,4 +359,19 @@ with known stability-based exceptions.`;
     assert.strictEqual(converted.includes('d^{1-10}'), true, 'Must preserve left bracket math structure');
     assert.strictEqual(converted.includes('$\\left['), true, 'Must collapse internal newlines into valid single-line $...$ math block');
   });
+
+  it('Regression Case 29: Spins-only Magnetic Moment \\sqrt[n(n+2)] Typo & \\mu Equation Formatting', () => {
+    const prompt1 = `Concept: For transition-metal ions, the spin-only moment is \\mu = \\sqrt[n(n + 2)] BM, where n is the number of unpaired electrons.`;
+    const prompt2 = `Count the unpaired electrons and, where required, use \\mu = \\sqrt[n(n + 2)] BM.`;
+
+    const norm1 = normalizeLatexShortcuts(prompt1);
+    assert.strictEqual(norm1.includes('\\sqrt{n(n + 2)}'), true, '\\sqrt[expr] must convert to \\sqrt{expr}');
+
+    const conv1 = smartConvertRaw(norm1);
+    assert.strictEqual(conv1.includes('$\\mu = \\sqrt{n(n + 2)}$'), true, 'Must wrap \\mu = \\sqrt{n(n + 2)} in single clean $...$ math block');
+    assert.strictEqual(conv1.includes('$\\$mu'), false, 'Must not produce corrupted \\$\\$mu');
+
+    const conv2 = smartConvertRaw(normalizeLatexShortcuts(prompt2));
+    assert.strictEqual(conv2.includes('$\\mu = \\sqrt{n(n + 2)}$'), true, 'Must format \\mu = \\sqrt{n(n + 2)} cleanly in prompt 2');
+  });
 });
