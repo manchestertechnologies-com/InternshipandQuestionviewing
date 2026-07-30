@@ -120,8 +120,19 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\+-/g, '\\pm ');
   // Handle \sqrt followed directly by digit/letter (e.g. \sqrt2 -> \sqrt{2})
   res = res.replace(/\\sqrt\s*([0-9a-zA-Z])(?![a-zA-Z0-9_{}])/g, '\\sqrt{$1}');
-  // Convert caret range exponents for Chemistry orbitals (e.g. d^(1-10) -> d^{1-10}, d^(1-5) -> d^{1-5}, ns^(1-2) -> ns^{1-2}, ns^(0-2) -> ns^{0-2})
+  // Convert caret charges & range exponents for Chemistry (e.g. TiF6 ^(2-) -> TiF_6^{2-}, CoF6^(3-) -> CoF_6^{3-}, NiCl4^(2-) -> NiCl_4^{2-}, Cu2Cl2 -> Cu_2Cl_2)
+  res = res.replace(/([A-Z][a-z]?(?:\d+)?)\s*\^\(?(\d*[-+]|[-+]\d+|\d+)\)?/g, (m, base, charge) => {
+    let cleanCharge = charge;
+    if (/^\d+$/.test(charge)) cleanCharge += '-';
+    return `${base}^{${cleanCharge}}`;
+  });
+  res = res.replace(/([A-Z][a-z]?)(\d+)(?=[A-Z\s^{()\-]|$)/g, '$1_{$2}');
+  res = res.replace(/([A-Z][a-z]?_\{\d+\})\s+([A-Z][a-z]?_\{\d+\})/g, '$1$2');
   res = res.replace(/([a-zA-Z0-9_\)\}\]])\^\(?(\d+[\-–—]\d+)\)?/g, '$1^{$2}');
+
+  // Physics impedance & variable helpers: e.g. wL -> \omega L, 1/wC -> \frac{1}{\omega C}
+  res = res.replace(/(?<![\\a-zA-Z])\bwL\b/g, '\\omega L');
+  res = res.replace(/(?<![\\a-zA-Z])\b1\/wC\b/gi, '\\frac{1}{\\omega C}');
 
   // Vector arrows & unit hats: e.g. \vec E -> \vec{E}, \hat i -> \hat{i}, r ⃗ -> \vec{r}, i ˆ -> \hat{i}, E ⃗ -> \vec{E}
   res = res.replace(/\\vec\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\vec{$1}');
@@ -129,11 +140,75 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\\bar\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\bar{$1}');
   res = res.replace(/([a-zA-Z0-9])\s*[\u20D7\u20D6\u20D1\u20D0\u20E1\u2192]/g, '\\vec{$1}');
   res = res.replace(/([a-zA-Z0-9])\s*[\u02C6\u0302\u0306\u030a]/g, '\\hat{$1}');
-  // Auto-prefix trig and math function names with backslash if missing (e.g. sin(\omega t) -> \sin(\omega t))
-  res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc|log|ln|exp|lim)\b/g, '\\$1');
+  // Auto-prefix trig and math function names with backslash & format sin2x -> \sin^2 x, log2 -> \log_2
+  res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc)\s*(\d+)\s*([a-zA-Z])/gi, (_m, fn, num, letter) => '\\' + fn.toLowerCase() + '^{' + num + '} ' + letter);
+  res = res.replace(/(?<!\\)\b(log)\s*(\d+)/gi, (_m, fn, base) => '\\log_{' + base + '}');
+  res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc|log|ln|exp|lim)\b/gi, (_m, fn) => '\\' + fn.toLowerCase());
   // Format Option labels in math expressions cleanly
   res = res.replace(/\b(Option|Choice|Part|Section)\s*(\([0-9a-zA-Z]+\)|[0-9a-zA-Z]+)/gi, '\\text{$1 $2}');
   return res;
+}
+
+/**
+ * Post-Processing Normalization Engine.
+ * Removes duplicate/nested \text{\text{...}}, cleans stray \text{} in plain text,
+ * fixes duplicate $$ block markers, removes nested math environments,
+ * and balances unmatched braces/parentheses.
+ */
+export function normalizePostProcessing(text: string): string {
+  if (!text) return '';
+  let res = text;
+
+  // 1. Unwrap nested \text{\text{...}} recursively
+  while (/\\text\{\s*\\text\{/g.test(res)) {
+    res = res.replace(/\\text\{\s*\\text\{([^{}]*)\}\s*\}/g, '\\text{$1}');
+  }
+
+  // 2. Remove duplicate $$ ... $$ block delimiters if inline: $$\omega$$ -> $\omega$
+  res = res.replace(/\$\$\s*([^$\n]+?)\s*\$\$/g, (_m, inner) => '$' + inner + '$');
+
+  // 3. Remove nested $ ... $ inside LaTeX commands: \frac{$a$}{$b$} -> \frac{a}{b}
+  res = res.replace(/\\(frac|sqrt|text|vec|hat|bar)\{([^{}]*?)\$([^{}]*?)\$([^{}]*?)\}/g, '\\$1{$2$3$4}');
+  res = res.replace(/\\frac\{([^{}]*?)\$([^{}]*?)\$([^{}]*?)\}\{([^{}]*?)\$([^{}]*?)\$([^{}]*?)\}/g, '\\frac{$1$2$3}{$4$5$6}');
+
+  // 4. Strip \text{...} commands outside $...$ math blocks to clean plain text
+  const parts = res.split(/(\$[^$\n]+\$|\$\$[\s\S]*?\$\$)/g);
+  res = parts.map(p => {
+    if (p.startsWith('$')) return p;
+    let clean = p;
+    while (/\\text\{/g.test(clean)) {
+      clean = clean.replace(/\\text\{([^{}]*)\}/g, '$1');
+    }
+    return clean;
+  }).join('');
+
+  // 5. Stack-based balancer for unmatched braces and parens
+  res = balanceDelimiters(res);
+
+  return res;
+}
+
+/**
+ * Stack-based delimiter balancer for unmatched braces and parens.
+ */
+export function balanceDelimiters(str: string): string {
+  let s = str;
+  // Balance dollar signs
+  const dollarCount = (s.match(/(?<!\\)\$/g) || []).length;
+  if (dollarCount % 2 !== 0) {
+    s += '$';
+  }
+  // Balance curly braces {} per line
+  const lines = s.split('\n');
+  const balancedLines = lines.map(line => {
+    let openBraces = 0;
+    for (let i = 0; i < line.length; i++) {
+      if (line[i] === '{' && (i === 0 || line[i-1] !== '\\')) openBraces++;
+      else if (line[i] === '}' && (i === 0 || line[i-1] !== '\\')) openBraces = Math.max(0, openBraces - 1);
+    }
+    return line + '}'.repeat(openBraces);
+  });
+  return balancedLines.join('\n');
 }
 
 /**
@@ -559,10 +634,10 @@ export function autoFormatMixedTextToLaTeX(text: string): string {
     }
 
     // Auto-wrap math formulas & equations in mixed sentences
-    return line.replace(/(?:(?:\\?[a-zA-Z0-9_]+)\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\[\]\s]+?)(?=\s*[.,;!:]?(\s*\\?[a-zA-Z0-9_]+\s*(=|\\le|\\ge|\\ne|\\approx)|\s+[a-zA-Z]{2,}|\s*$))|\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_\sqrt{}\\]+|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\})/g, (match) => {
+    return line.replace(/(?:(?:\\?[a-zA-Z0-9_]+)\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\[\]\s]+?)(?=\s*[.,;!:]?(\s*\\?[a-zA-Z0-9_]+\s*(=|\\le|\\ge|\\ne|\\approx)|\s+[a-zA-Z]{2,}|\s*$))|(?<!\\)\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_\sqrt{}\\]+|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\}|\\(?:sin|cos|tan|cot|sec|csc|log|ln|exp|lim)(?:_\{?[a-zA-Z0-9]+\}?|\^\{?[a-zA-Z0-9]+\}?)*\s*(?:\([^()]*\)|[a-zA-Z0-9_]+)*)/g, (match) => {
       const trimmed = match.trim();
       if (trimmed.startsWith('$') && trimmed.endsWith('$')) return trimmed;
-      return `$${trimmed}$`;
+      return '$' + trimmed + '$';
     });
   });
 
@@ -1054,5 +1129,6 @@ export function smartConvertRaw(raw: string): string {
     if (/\$|\\\(/.test(formatted)) return formatted;
     return smartConvertZone(seg.value);
   }).join('');
-  return mergeMathBlocks(converted);
+  const merged = mergeMathBlocks(converted);
+  return normalizePostProcessing(merged);
 }

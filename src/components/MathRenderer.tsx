@@ -89,8 +89,12 @@ export default function MathRenderer({ text, className = '', inline = false }: M
                   );
                 }
 
-                // Plain text segment: render as normal English text
-                return <span key={pIdx}>{part}</span>;
+                // Plain text segment: render as normal English text (stripping any raw \text{} artifacts)
+                let cleanText = part;
+                while (/\\text\{/g.test(cleanText)) {
+                  cleanText = cleanText.replace(/\\text\{([^{}]*)\}/g, '$1');
+                }
+                return <span key={pIdx}>{cleanText}</span>;
               })}
             </span>
           </React.Fragment>
