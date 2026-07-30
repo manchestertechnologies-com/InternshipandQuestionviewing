@@ -345,13 +345,18 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(normBio.includes('q^2') || normBio.includes('q^{2}'), true);
   });
 
-  it('Regression Case 28: Escaped Double Backslashes (\\\\left) & Mismatched Math Delimiters ($$\\left[...]\\right] disconnect)', () => {
-    const rawInput = 'Concept: Transition elements generally have the electronic configuration $$\\\\\\left[ \\\\\\left(n-1\\\\\\right)d^{1-10}ns^{0-2}, \\\\\\right]$ with known stability-based exceptions.';
-    const normalized = normalizeLatexShortcuts(rawInput);
+  it('Regression Case 28: Multiline Escaped Double Backslashes & Mismatched Math Delimiters ($$\\left[\\n...\\n\\right] disconnect)', () => {
+    const multilineRaw = `Concept: Transition elements generally have the electronic configuration
+$$\\\\\\left[
+\\\\\\left(n-1\\\\\\right)d^{1-10}ns^{0-2},
+\\\\\\right]$
+with known stability-based exceptions.`;
+    const normalized = normalizeLatexShortcuts(multilineRaw);
     assert.strictEqual(normalized.includes('\\\\\\left'), false, 'Double backslashes must be unescaped');
     assert.strictEqual(normalized.includes('$$\\left'), false, 'Mismatched $$...$ must be converted to $...$');
 
     const converted = smartConvertRaw(normalized);
     assert.strictEqual(converted.includes('d^{1-10}'), true, 'Must preserve left bracket math structure');
+    assert.strictEqual(converted.includes('$\\left['), true, 'Must collapse internal newlines into valid single-line $...$ math block');
   });
 });

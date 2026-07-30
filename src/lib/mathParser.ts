@@ -59,9 +59,12 @@ export function normalizeLatexShortcuts(text: string): string {
   // Unescape double backslashes before LaTeX commands: \\left -> \left, \\right -> \right, \\frac -> \frac, etc.
   res = res.replace(/\\{2,}([a-zA-Z]+|\[|\]|\(|\)|_|\^)/g, '\\$1');
 
-  // Fix mismatched block delimiters: e.g. $$\left[...] \right]$ -> $\left[...] \right]$
-  res = res.replace(/\$\$([^\$\n]+)\$/g, (_m, inner) => '$' + inner + '$');
-  res = res.replace(/\$([^\$\n]+)\$\$/g, (_m, inner) => '$' + inner + '$');
+  // Fix mismatched block delimiters across newlines: e.g. $$\left[\n...\n\right]$ -> $\left[...\right]$
+  res = res.replace(/\$\$([\s\S]+?)\$/g, (_m, inner) => inner.includes('$$') ? _m : '$' + inner + '$');
+  res = res.replace(/\$([\s\S]+?)\$\$/g, (_m, inner) => inner.includes('$$') ? _m : '$' + inner + '$');
+
+  // Collapse internal newlines within $...$ math blocks so MathRenderer line-by-line split keeps math blocks intact
+  res = res.replace(/\$([^$\n]*?\r?\n[^$]*?)\$/g, (_m, inner) => '$' + inner.replace(/\r?\n/g, ' ') + '$');
 
   // Normalize direct Unicode Greek letters to LaTeX commands
   res = res
