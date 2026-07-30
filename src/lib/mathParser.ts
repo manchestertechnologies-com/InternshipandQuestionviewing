@@ -904,7 +904,7 @@ function isNonMathToken(str: string): boolean {
 }
 
 function convertToken(tokRaw: string): { converted: boolean; latex?: string; trailing?: string } {
-  const m0 = tokRaw.match(/^(.*?)([.,;:!?]*)$/s);
+  const m0 = tokRaw.match(/^([\s\S]*?)([.,;:!?]*)$/);
   if (!m0) return {converted:false};
   const core = m0[1], trailing = m0[2];
   if (!core) return {converted:false};
