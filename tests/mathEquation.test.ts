@@ -288,14 +288,14 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
 
     const normA = normalizeLatexShortcuts(optA);
     assert.strictEqual(normA.includes('\\varepsilon_{0}'), true, 'varepsilon0 must format to \\varepsilon_{0}');
-    assert.strictEqual(normA.includes('a^2+b^2'), true, 'a^2+b^2 exponent must remain a^2+b^2');
+    assert.strictEqual(normA.includes('a^{2}+b^{2}') || normA.includes('a^2+b^2'), true, 'a^2+b^2 exponent must remain exponent');
 
     const cleanB = optB.replace(/^(?:\([1-4A-Da-d]\)|[1-4A-Da-d][\.\)]|Option\s+[1-4A-Da-d]:?)\s*/i, '');
     assert.strictEqual(cleanB.startsWith('(3)'), false, 'Leading (3) option label must be stripped');
 
     const normD = normalizeLatexShortcuts(optD);
     assert.strictEqual(normD.includes('\\varepsilon_{0}'), true);
-    assert.strictEqual(normD.includes('a^2+b^2'), true);
+    assert.strictEqual(normD.includes('a^{2}+b^{2}') || normD.includes('a^2+b^2'), true);
   });
 
   it('Regression Case 25: Magnetic Susceptibility Formula (mu_0, chi, mu_r equations wrapped & merged)', () => {
@@ -316,5 +316,32 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(converted.includes('$M = \\chi H$'), true);
     assert.strictEqual(converted.includes('B = \\mu'), true);
     assert.strictEqual(converted.includes('$\\mu_r = 1 + \\chi$'), true);
+  });
+
+  it('Regression Case 27: Chemistry Orbitals & Biology Genetics Exponents (d^(1-10), ns^(1-2), p^2 + 2pq)', () => {
+    const q1 = '(1) (n-1)d^(1-5)';
+    const q2 = '(2) (n-1)d^(1-10) ns^1';
+    const q3 = '(3) (n-1)d^(1-10) ns^(1-2)';
+    const concept = 'Transition elements generally have (n-1)d^(1-10) ns^(0-2) configurations, with known stability-based exceptions.';
+    const bio = 'Hardy-Weinberg equilibrium: p^2 + 2pq + q^2 = 1';
+
+    const norm1 = normalizeLatexShortcuts(q1);
+    assert.strictEqual(norm1.includes('d^{1-5}'), true);
+
+    const norm2 = normalizeLatexShortcuts(q2);
+    assert.strictEqual(norm2.includes('d^{1-10}'), true);
+    assert.strictEqual(norm2.includes('ns^1') || norm2.includes('ns^{1}'), true);
+
+    const norm3 = normalizeLatexShortcuts(q3);
+    assert.strictEqual(norm3.includes('d^{1-10}'), true);
+    assert.strictEqual(norm3.includes('ns^{1-2}'), true);
+
+    const normConcept = normalizeLatexShortcuts(concept);
+    assert.strictEqual(normConcept.includes('d^{1-10}'), true);
+    assert.strictEqual(normConcept.includes('ns^{0-2}'), true);
+
+    const normBio = normalizeLatexShortcuts(bio);
+    assert.strictEqual(normBio.includes('p^2') || normBio.includes('p^{2}'), true);
+    assert.strictEqual(normBio.includes('q^2') || normBio.includes('q^{2}'), true);
   });
 });

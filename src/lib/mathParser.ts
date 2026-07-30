@@ -106,6 +106,9 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\+-/g, '\\pm ');
   // Handle \sqrt followed directly by digit/letter (e.g. \sqrt2 -> \sqrt{2})
   res = res.replace(/\\sqrt\s*([0-9a-zA-Z])(?![a-zA-Z0-9_{}])/g, '\\sqrt{$1}');
+  // Convert caret range exponents for Chemistry orbitals (e.g. d^(1-10) -> d^{1-10}, d^(1-5) -> d^{1-5}, ns^(1-2) -> ns^{1-2}, ns^(0-2) -> ns^{0-2})
+  res = res.replace(/([a-zA-Z0-9_\)\}\]])\^\(?(\d+[\-–—]\d+)\)?/g, '$1^{$2}');
+
   // Vector arrows & unit hats: e.g. \vec E -> \vec{E}, \hat i -> \hat{i}, r ⃗ -> \vec{r}, i ˆ -> \hat{i}, E ⃗ -> \vec{E}
   res = res.replace(/\\vec\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\vec{$1}');
   res = res.replace(/\\hat\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\hat{$1}');
