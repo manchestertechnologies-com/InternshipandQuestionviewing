@@ -5,6 +5,7 @@ import { Search, Filter, Database, Check, X, RefreshCw, AlertCircle, Eye, Chevro
 import { ACADEMIC_HIERARCHY } from '@/lib/academicHierarchy';
 import MathRenderer from '@/components/MathRenderer';
 import MathToolbar from '@/components/MathToolbar';
+import UniversalQuestionEditor from '@/components/UniversalQuestionEditor';
 
 interface QuestionImage {
   id: string;
@@ -824,113 +825,21 @@ export default function QuestionRepository() {
                     </div>
                   </div>
 
-                  {/* Question Text Area */}
-                  <div className="space-y-2">
-                    <label className="block text-xs uppercase font-bold tracking-wider text-brand-gold">
-                      Question Text / Statement (Large Workspace)
-                    </label>
-                    <MathToolbar
-                      targetRef={editQuestionRef}
-                      currentValue={editQuestionText}
-                      onUpdate={setEditQuestionText}
-                      className="mb-1.5"
-                    />
-                    <textarea
-                      ref={editQuestionRef}
-                      rows={8}
-                      value={editQuestionText}
-                      onChange={(e) => setEditQuestionText(e.target.value)}
-                      className="w-full px-3.5 py-3 rounded-xl border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[180px] resize-y font-mono"
-                      placeholder="Type or edit question text..."
-                    />
-                    {editQuestionText && (
-                      <div className="p-3 bg-zinc-950 border border-brand-gold/30 rounded-xl text-white mt-1 space-y-1">
-                        <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest block">✨ Live Typeset Preview:</span>
-                        <div className="text-sm py-1 overflow-x-auto">
-                          <MathRenderer text={editQuestionText} />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Options Editor (except for Numerical) */}
-                  {editQuestionType !== 'NUMERICAL' && (
-                    <div className="space-y-3 p-4 bg-zinc-950/60 rounded-xl border border-brand-border">
-                      <label className="block text-xs uppercase font-bold tracking-wider text-brand-gold">
-                        Options & Choices
-                      </label>
-                      {(['A', 'B', 'C', 'D'] as const).map((opt) => {
-                        const val = opt === 'A' ? editOptionA : opt === 'B' ? editOptionB : opt === 'C' ? editOptionC : editOptionD;
-                        const setVal = opt === 'A' ? setEditOptionA : opt === 'B' ? setEditOptionB : opt === 'C' ? setEditOptionC : setEditOptionD;
-                        return (
-                          <div key={opt} className="space-y-1">
-                            <div className="flex gap-2 items-center">
-                              <span className="w-6 h-6 rounded-full bg-zinc-900 border border-brand-border flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
-                                {opt}
-                              </span>
-                              <input
-                                type="text"
-                                value={val}
-                                onChange={(e) => setVal(e.target.value)}
-                                className="flex-1 px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
-                                placeholder={`Option ${opt}...`}
-                              />
-                            </div>
-                            {val && (
-                              <div className="ml-8 p-1.5 bg-black/60 border border-brand-border/40 rounded text-xs text-white">
-                                <MathRenderer text={val} inline />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      {editExtraOptions.map((optVal, idx) => {
-                        const letter = String.fromCharCode(69 + idx);
-                        return (
-                          <div key={letter} className="space-y-1">
-                            <div className="flex gap-2 items-center">
-                              <span className="w-6 h-6 rounded-full bg-brand-gold/20 border border-brand-gold flex items-center justify-center font-bold text-xs text-brand-gold shrink-0">
-                                {letter}
-                              </span>
-                              <input
-                                type="text"
-                                value={optVal}
-                                onChange={(e) => {
-                                  const updated = [...editExtraOptions];
-                                  updated[idx] = e.target.value;
-                                  setEditExtraOptions(updated);
-                                }}
-                                className="flex-1 px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
-                                placeholder={`Option ${letter}...`}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setEditExtraOptions(editExtraOptions.filter((_, i) => i !== idx))}
-                                className="p-1.5 bg-red-950/40 border border-red-800/40 text-red-400 rounded hover:bg-red-950/80 cursor-pointer"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                            {optVal && (
-                              <div className="ml-8 p-1.5 bg-black/60 border border-brand-border/40 rounded text-xs text-white">
-                                <MathRenderer text={optVal} inline />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-
-                      <button
-                        type="button"
-                        onClick={() => setEditExtraOptions([...editExtraOptions, ''])}
-                        className="flex items-center gap-1 py-1.5 px-3 bg-zinc-900 hover:bg-zinc-800 text-brand-gold border border-brand-border rounded text-xs font-semibold cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Add Option {String.fromCharCode(69 + editExtraOptions.length)}</span>
-                      </button>
-                    </div>
-                  )}
+                  <UniversalQuestionEditor
+                    questionText={editQuestionText}
+                    onChangeQuestionText={setEditQuestionText}
+                    optionA={editOptionA}
+                    onChangeOptionA={setEditOptionA}
+                    optionB={editOptionB}
+                    onChangeOptionB={setEditOptionB}
+                    optionC={editOptionC}
+                    onChangeOptionC={setEditOptionC}
+                    optionD={editOptionD}
+                    onChangeOptionD={setEditOptionD}
+                    detailedSolution={editDetailedSolution}
+                    onChangeDetailedSolution={setEditDetailedSolution}
+                    subject={selectedQuestion.subject}
+                  />
 
                   {/* Correct Answer Selection */}
                   <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border space-y-2">
@@ -944,35 +853,6 @@ export default function QuestionRepository() {
                       className="w-full px-3 py-2 rounded-lg border border-brand-border bg-black text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
                       placeholder="e.g. A, B, C, D or Numerical value 25.4"
                     />
-                  </div>
-
-                  {/* Detailed Solution Area */}
-                  <div className="space-y-2">
-                    <label className="block text-xs uppercase font-bold tracking-wider text-emerald-400">
-                      Detailed Solution (Large Workspace)
-                    </label>
-                    <MathToolbar
-                      targetRef={editSolutionRef}
-                      currentValue={editDetailedSolution}
-                      onUpdate={setEditDetailedSolution}
-                      className="mb-1.5"
-                    />
-                    <textarea
-                      ref={editSolutionRef}
-                      rows={6}
-                      value={editDetailedSolution}
-                      onChange={(e) => setEditDetailedSolution(e.target.value)}
-                      className="w-full px-3.5 py-3 rounded-xl border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-xs sm:text-sm leading-relaxed min-h-[160px] resize-y font-mono"
-                      placeholder="Type or edit detailed step-by-step solution..."
-                    />
-                    {editDetailedSolution && (
-                      <div className="p-3 bg-emerald-950/20 border border-emerald-500/30 rounded-xl text-white mt-1 space-y-1">
-                        <span className="text-[10px] font-extrabold text-emerald-400 uppercase tracking-widest block">✨ Solution Live Preview:</span>
-                        <div className="text-xs sm:text-sm py-1 overflow-x-auto">
-                          <MathRenderer text={editDetailedSolution} />
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Action Bar */}

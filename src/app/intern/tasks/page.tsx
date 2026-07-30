@@ -27,6 +27,7 @@ import { ACADEMIC_HIERARCHY, getChapters, getConcepts } from '@/lib/academicHier
 import { handleRichPaste, formatCleanText } from '@/lib/pasteUtils';
 import MathToolbar from '@/components/MathToolbar';
 import MathRenderer from '@/components/MathRenderer';
+import UniversalQuestionEditor from '@/components/UniversalQuestionEditor';
 
 interface QuestionImage {
   id?: string;
@@ -1320,41 +1321,22 @@ export default function DailyTasksPage() {
                     </div>
                   )}
 
-                  <MathToolbar
-                    targetRef={questionTextareaRef}
-                    currentValue={questionText}
-                    onUpdate={setQuestionText}
-                    className="mb-1.5"
+                  <UniversalQuestionEditor
+                    questionText={questionText}
+                    onChangeQuestionText={setQuestionText}
+                    optionA={optionA}
+                    onChangeOptionA={setOptionA}
+                    optionB={optionB}
+                    onChangeOptionB={setOptionB}
+                    optionC={optionC}
+                    onChangeOptionC={setOptionC}
+                    optionD={optionD}
+                    onChangeOptionD={setOptionD}
+                    detailedSolution={detailedSolution}
+                    onChangeDetailedSolution={setDetailedSolution}
+                    subject={subject}
+                    onChangeSubject={setSubject}
                   />
-
-                  <textarea
-                    ref={questionTextareaRef}
-                    required
-                    rows={9}
-                    value={questionText}
-                    onChange={(e) => setQuestionText(e.target.value)}
-                    onBlur={(e) => setQuestionText(formatCleanText(e.target.value))}
-                    onPaste={(e) => handlePasteImage(e, 'QUESTION')}
-                    className="w-full px-3.5 py-3 rounded-lg border border-brand-border bg-black text-white focus:outline-none focus:border-brand-gold text-sm leading-relaxed min-h-[200px] resize-y font-mono"
-                    placeholder={
-                      questionType === 'DIAGRAM' 
-                        ? "Type question text referring to the diagram, and attach the diagram image..." 
-                        : "Type question text or paste image (Ctrl+V) directly inside here..."
-                    }
-                  />
-
-                  {questionText && (
-                    <div className="p-4 bg-zinc-950 border border-brand-gold/40 rounded-xl text-white mt-2 space-y-2 shadow-lg">
-                      <div className="flex justify-between items-center border-b border-brand-border/40 pb-1.5">
-                        <span className="text-[10px] font-extrabold text-brand-gold uppercase tracking-widest flex items-center gap-1.5">
-                          <span>✨ Live Typeset Equation Preview (Word / LaTeX Quality)</span>
-                        </span>
-                      </div>
-                      <div className="text-base sm:text-lg text-white py-2 overflow-x-auto flex justify-center">
-                        <MathRenderer text={questionText} />
-                      </div>
-                    </div>
-                  )}
                   
                   {uploadingField === 'QUESTION' && <p className="text-[10px] text-brand-gold animate-pulse">Uploading image...</p>}
                   

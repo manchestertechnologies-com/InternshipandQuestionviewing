@@ -218,6 +218,61 @@ export function balanceDelimiters(str: string): string {
   return balancedLines.join('\n');
 }
 
+// Recognized biology genus names & binomial patterns
+const KNOWN_GENERA = new Set([
+  'homo', 'panthera', 'felis', 'canis', 'pisum', 'solanum', 'mangifera',
+  'oryza', 'triticum', 'zea', 'escherichia', 'drosophila', 'arabidopsis',
+  'saccharomyces', 'plasmodium', 'entamoeba', 'taenia', 'ascaris',
+  'periplaneta', 'rana', 'columba', 'pavo', 'naja', 'labeo', 'hirudinaria',
+  'hydra', 'obelia', 'aurelia', 'fasciola', 'ancylostoma', 'wuchereria',
+  'hirudo', 'palamnaeus', 'scorpio', 'limulus', 'asterias', 'echinus',
+  'balanoglossus', 'ascidia', 'branchiostoma', 'petromyzon', 'myxine',
+  'scyliorhinus', 'pristis', 'carcharodon', 'trygon', 'catla',
+  'clarias', 'betta', 'pterophyllum', 'bufo', 'hyla', 'salamandra',
+  'typhlonectes', 'chelone', 'testudo', 'chameleon', 'calotes', 'alligator',
+  'crocodilus', 'hemidactylus', 'corvus', 'psittacula', 'struthio',
+  'aptenodytes', 'neophron', 'ornithorhynchus', 'tachyglossus', 'macropus',
+  'pteropus', 'camelus', 'macaca', 'rattus', 'equus', 'elephas', 'balaenoptera',
+  'chlamydomonas', 'volvox', 'ulothrix', 'spirogyra', 'chara', 'ectocarpus',
+  'dictyota', 'laminaria', 'sargassum', 'fucus', 'porphyra', 'polysiphonia',
+  'polytrichum', 'sphagnum', 'funaria', 'marchantia', 'riccia', 'selaginella',
+  'equisetum', 'pteris', 'dryopteris', 'adiantum', 'cycas', 'pinus', 'ginkgo',
+  'cedrus', 'gnetum', 'ephedra', 'welwitschia', 'capsella', 'mustard',
+  'brassica', 'hibiscus', 'gossypium', 'crotalaria', 'phaseolus', 'cajanus',
+  'glycine', 'arachis', 'lathyrus', 'lycopersicon',
+  'capsicum', 'nicotiana', 'meandrina', 'fungia', 'tubipora', 'metridium',
+  'adamsia', 'pennatula', 'gorgonia', 'physalia'
+]);
+
+/**
+ * Formats biology, botany, and zoology notation:
+ * - Binomial nomenclature (Genus species -> *Genus species*)
+ * - Genetics generations (F1 -> F_1, F2 -> F_2)
+ * - Biochemical terms (FADH2 -> FADH₂)
+ */
+export function formatBiologyTaxonomy(text: string): string {
+  if (!text) return '';
+  let res = text;
+
+  // 1. Binomial Nomenclature (Genus species -> *Genus species*)
+  res = res.replace(/\b([A-Z][a-z]{2,})\s+([a-z]{3,})\b/g, (match, genus, species) => {
+    const gLow = genus.toLowerCase();
+    if (KNOWN_GENERA.has(gLow) || (genus.length >= 4 && species.length >= 4 && !/^(Option|Choice|Question|Section|Part|Statement|Assertion|Reason|The|When|In|For|If|With|By|From|Which|Where)$/i.test(genus))) {
+      return `*${genus} ${species}*`;
+    }
+    return match;
+  });
+
+  // 2. Genetics Generations (F1 -> F_1, F2 -> F_2, P1 -> P_1, P2 -> P_2)
+  res = res.replace(/\b([FP])([123])\b/g, '$1_$2');
+
+  // 3. Biochemical terms with subscripts (FADH2 -> FADH₂, NADPH -> NADPH)
+  res = res.replace(/\bFADH2\b/g, 'FADH₂');
+  res = res.replace(/\bNADH2\b/g, 'NADH₂');
+
+  return res;
+}
+
 /**
  * Checks if a matched A / B string is an English "or" text slash rather than a mathematical fraction.
  */
@@ -1150,5 +1205,5 @@ export function smartConvertRaw(raw: string): string {
     return smartConvertZone(seg.value);
   }).join('');
   const merged = mergeMathBlocks(converted);
-  return normalizePostProcessing(merged);
+  return formatBiologyTaxonomy(normalizePostProcessing(merged));
 }

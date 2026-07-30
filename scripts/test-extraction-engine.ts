@@ -64,16 +64,18 @@ assert.strictEqual(normMath.includes('\\sin'), true, 'sin must be prefixed with 
 assert.strictEqual(normMath.includes('\\log'), true, 'log must be prefixed with \\log');
 console.log('✔ Mathematics calculus & functions verified:', normMath);
 
-// 5. Biology Formatter Tests
-console.log('\n--- SECTION 6: BIOLOGY FORMATTER ---');
-const bioInput = `Synthesis of ATP in mitochondria produces CO2 and H2O.`;
+// 5. Biology, Botany & Zoology Formatter Tests
+console.log('\n--- SECTION 6, 7 & 8: BIOLOGY, BOTANY & ZOOLOGY FORMATTERS ---');
+const bioInput = `The scientific name of mango is Mangifera indica and human is Homo sapiens. Cellular respiration converts ADP to ATP using FADH2.`;
 const normBio = smartConvertRaw(normalizeLatexShortcuts(bioInput));
-assert.strictEqual(normBio.includes('ATP'), true, 'Biology text must remain plain text');
-console.log('✔ Biology prose preservation verified:', normBio);
+assert.strictEqual(normBio.includes('*Mangifera indica*'), true, 'Binomial nomenclature must be italicized');
+assert.strictEqual(normBio.includes('*Homo sapiens*'), true, 'Binomial nomenclature must be italicized');
+assert.strictEqual(normBio.includes('FADH_{2}'), true, 'FADH2 must convert to FADH_{2}');
+console.log('✔ Biology, Botany & Zoology binomial nomenclature & biochemical terms verified:', normBio);
 
 // 6. KaTeX Render Safety Check
 console.log('\n--- SECTION 10 & 11: KATEX RENDER SAFETY CHECK ---');
-const allMathMatches = [normChem, normOptions, normPhysics, normMath].flatMap(s => s.match(/\$[^$\n]+\$/g) || []);
+const allMathMatches = [normChem, normOptions, normPhysics, normMath, normBio].flatMap(s => s.match(/\$[^$\n]+\$/g) || []);
 let katexErrors = 0;
 allMathMatches.forEach(m => {
   const expr = m.slice(1, -1).trim();
