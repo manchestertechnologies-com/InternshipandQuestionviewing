@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { textToLaTeX, isMathExpression } from '../src/lib/mathParser';
+import { textToLaTeX, isMathExpression, normalizeLatexShortcuts, normalizeLatexExpr } from '../src/lib/mathParser';
 import { formatCleanText, parseRichTextToUnicode } from '../src/lib/pasteUtils';
 import katex from 'katex';
 
@@ -253,5 +253,16 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(cleaned.includes('\\item'), false);
     assert.strictEqual(cleaned.includes('\\textbf'), false);
     assert.strictEqual(cleaned.includes('1. Question:'), true);
+  });
+
+  it('Regression Case 22: User Screenshots 1 & 2 OCR Fraction & Vector Typo Fixes (Zero Red KaTeX Errors)', () => {
+    const s1 = 'Peak voltage E_{0} = 141 V, so V_{rms} = E_0/\\sqrt 2 = \\frac{141}{\\sqrt2} \\approx 100V .\nAlso \\omega = 628 \\frac{rad}{s} = 2\\pi \\vec f = \\frac{628}{2\\pi} \\approx 100 Hz.\nHence V_{rms} = 100 V, f = 100 H\\vec{z} Option (3).';
+    const s2 = 'For nth dark fringe:\nx=(\\frac{n-1}{2})\\frac{x\\lambda\\times D}{d}. Next, for n=2: x=1.\\frac{5\\times\\lambda\\times D}{d}\n=\\lambda=\\frac{x\\times d}{1.5\\times D}=1\\times10^{-3}\\times0.\\frac{9\\times10^{-3}}{1.5\\times1}=0.\\frac{9\\times10^{-6}}{1}.5=6\\times10^{-7}m=6\\times10^{-5} cm. This\nconfirms that option (D) is the correct answer.';
+
+    const html1 = katex.renderToString(textToLaTeX(normalizeLatexExpr(normalizeLatexShortcuts(s1))), { throwOnError: false });
+    assert.strictEqual(html1.includes('katex-error'), false, 'Screenshot 1 must have zero katex-error');
+
+    const html2 = katex.renderToString(textToLaTeX(normalizeLatexExpr(normalizeLatexShortcuts(s2))), { throwOnError: false });
+    assert.strictEqual(html2.includes('katex-error'), false, 'Screenshot 2 must have zero katex-error');
   });
 });

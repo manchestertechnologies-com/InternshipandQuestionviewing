@@ -27,6 +27,15 @@ export function stripOuterParens(str: string): string {
 export function normalizeLatexExpr(expr: string): string {
   if (!expr) return '';
   let res = expr;
+  // 1. Convert OCR fraction typos: 1.\frac{5\times\lambda\times D}{d} -> 1.5 \times \frac{\lambda \times D}{d}
+  res = res.replace(/(\d+)\.\s*\\frac\{(\d+)([^}]*)\}/g, '$1.$2 \\times \\frac{$3}');
+  // 2. Convert trailing decimal fractions: \frac{...}{1}.5 -> \frac{...}{1} \times 0.5
+  res = res.replace(/(\\frac\{[^{}]*\}\{[^{}]*\})\s*\.\s*(\d+)/g, '$1 \\times 0.$2');
+  // 3. Convert multi-letter words before \vec: H\vec{z} -> H \vec{z}
+  res = res.replace(/([a-zA-Z]{2,})\\vec\{([a-zA-Z]+)\}/g, '$1 \\vec{$2}');
+  // 4. Convert multi-letter words inside \frac{rad}{s} -> \frac{\text{rad}}{\text{s}}
+  res = res.replace(/\\frac\{([a-zA-Z]{2,})\}\{([a-zA-Z]{1,2})\}/g, '\\frac{\\text{$1}}{\\text{$2}}');
+
   res = res.replace(/√\s*\(([^()]+)\)/g, '\\sqrt{$1}');
   res = res.replace(/√\s*([0-9]+(?:\.[0-9]+)?|[a-zA-Z]+)/g, '\\sqrt{$1}');
   res = res.replace(/√/g, '\\surd ');

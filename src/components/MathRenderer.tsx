@@ -23,22 +23,24 @@ export default function MathRenderer({ text, className = '', inline = false }: M
     try {
       const normalized = normalizeLatexExpr(latexStr);
       const formatted = textToLaTeX(normalized);
-      return katex.renderToString(formatted, {
+      const html = katex.renderToString(formatted, {
         displayMode: isDisplayMode,
         throwOnError: false,
         output: 'html',
       });
+      return html.replace(/class="katex-error"[^>]*>([^<]+)<\/span>/g, '<span class="text-zinc-200">$1</span>');
     } catch (err) {
       try {
         const fallback = normalizeLatexExpr(latexStr);
-        return katex.renderToString(fallback, {
+        const html = katex.renderToString(fallback, {
           displayMode: isDisplayMode,
           throwOnError: false,
           output: 'html',
         });
+        return html.replace(/class="katex-error"[^>]*>([^<]+)<\/span>/g, '<span class="text-zinc-200">$1</span>');
       } catch (e2) {
         const safeText = latexStr.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        return `<span class="katex-error">${safeText}</span>`;
+        return `<span class="text-zinc-200">${safeText}</span>`;
       }
     }
   };
