@@ -120,6 +120,13 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\+-/g, '\\pm ');
   // Handle \sqrt followed directly by digit/letter (e.g. \sqrt2 -> \sqrt{2})
   res = res.replace(/\\sqrt\s*([0-9a-zA-Z])(?![a-zA-Z0-9_{}])/g, '\\sqrt{$1}');
+  // Convert Unicode subscripts (₀₁₂₃₄₅₆₇₈₉) to standard ASCII digits for formula parsing
+  const uniSubMap: Record<string, string> = { '₀': '0', '₁': '1', '₂': '2', '₃': '3', '₄': '4', '₅': '5', '₆': '6', '₇': '7', '₈': '8', '₉': '9' };
+  res = res.replace(/([A-Z][a-z]?)([₀₁₂₃₄₅₆₇₈₉]+)/g, (_m, elem, uniSubs) => {
+    const digits = uniSubs.split('').map((ch: string) => uniSubMap[ch] || ch).join('');
+    return elem + digits;
+  });
+
   // Convert caret charges & range exponents for Chemistry (e.g. TiF6 ^(2-) -> TiF_6^{2-}, CoF6^(3-) -> CoF_6^{3-}, NiCl4^(2-) -> NiCl_4^{2-}, Cu2Cl2 -> Cu_2Cl_2)
   res = res.replace(/([A-Z][a-z]?(?:\d+)?)\s*\^\(?(\d*[-+]|[-+]\d+|\d+)\)?/g, (m, base, charge) => {
     let cleanCharge = charge;
@@ -144,8 +151,8 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc)\s*(\d+)\s*([a-zA-Z])/gi, (_m, fn, num, letter) => '\\' + fn.toLowerCase() + '^{' + num + '} ' + letter);
   res = res.replace(/(?<!\\)\b(log)\s*(\d+)/gi, (_m, fn, base) => '\\log_{' + base + '}');
   res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc|log|ln|exp|lim)\b/gi, (_m, fn) => '\\' + fn.toLowerCase());
-  // Format Option labels in math expressions cleanly
-  res = res.replace(/\b(Option|Choice|Part|Section)\s*(\([0-9a-zA-Z]+\)|[0-9a-zA-Z]+)/gi, '\\text{$1 $2}');
+  // Format Option labels in math expressions cleanly (e.g. Option (1), Choice A, Part 2)
+  res = res.replace(/\b(Option|Choice|Part|Section)\s+(\([0-9a-zA-Z]+\)|[0-9]+|[A-D])(?![a-zA-Z0-9])/gi, '\\text{$1 $2}');
   return res;
 }
 
@@ -237,6 +244,7 @@ export function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string
     'acid/base', 'day/night', 'correct/incorrect', 'even/odd', 'real/imaginary',
     'open/closed', 'before/after', 'start/stop', 'win/loss', 'read/write',
     'import/export', 'buy/sell', 'push/pull', 'plus/minus', 'north/south', 'east/west',
+    'text/options', 'text/option', 'source/text', 'option/options', 'text/options are merged',
     'or', 'and or',
     'km/h', 'km/hr', 'm/s', 'kg/s', 'cm/s', 'ft/s', 'mi/h', 'mph', 'rad/s', 'g/l', 'mg/ml', 'g/ml'
   ]);
@@ -634,9 +642,18 @@ export function autoFormatMixedTextToLaTeX(text: string): string {
     }
 
     // Auto-wrap math formulas & equations in mixed sentences
-    return line.replace(/(?:(?:\\?[a-zA-Z0-9_]+)\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\[\]\s]+?)(?=\s*[.,;!:]?(\s*\\?[a-zA-Z0-9_]+\s*(=|\\le|\\ge|\\ne|\\approx)|\s+[a-zA-Z]{2,}|\s*$))|(?<!\\)\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_\sqrt{}\\]+|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\}|\\(?:sin|cos|tan|cot|sec|csc|log|ln|exp|lim)(?:_\{?[a-zA-Z0-9]+\}?|\^\{?[a-zA-Z0-9]+\}?)*\s*(?:\([^()]*\)|[a-zA-Z0-9_]+)*)/g, (match) => {
+    return line.replace(/(?:(?:\\?[a-zA-Z0-9_]+)\s*=\s*(?:\\?[a-zA-Z0-9_+\-*\/^()\\.{}\[\]\s]+?)(?=\s*[.,;!:]?(\s*\\?[a-zA-Z0-9_]+\s*(=|\\le|\\ge|\\ne|\\approx)|\s+[a-zA-Z]{2,}|\s*$))|(?<!\\)\b[a-zA-Z0-9_]+(?:\/[a-zA-Z0-9_]+\b|\^[0-9_{}\-]+)+|\b\d+(?:\.\d+)?\s*(?:[xX*×]|\\times)\s*10\^?\{?[-\d]+\}?|\b\\frac\{[^{}]+\}\{[^{}]+\}|\b\\sqrt\{[^{}]+\}|\\(?:sin|cos|tan|cot|sec|csc|log|ln|exp|lim)(?:_\{?[a-zA-Z0-9]+\}?|\^\{?[a-zA-Z0-9]+\}?)*\s*(?:\([^()]*\)|[a-zA-Z0-9_]+)*)/g, (...args: any[]) => {
+      const match = args[0] as string;
+      const offset = (typeof args[args.length - 2] === 'number' ? args[args.length - 2] : 0) as number;
       const trimmed = match.trim();
       if (trimmed.startsWith('$') && trimmed.endsWith('$')) return trimmed;
+
+      // Check if this match is an English text slash pair like text/options
+      const slashParts = trimmed.split('/');
+      if (slashParts.length === 2 && isEnglishOrSlash(slashParts[0], slashParts[1], line, offset, trimmed)) {
+        return match;
+      }
+
       return '$' + trimmed + '$';
     });
   });
@@ -731,6 +748,7 @@ function convertFraction(str: string): string {
   const m = str.match(/^(\(.+\)|[^\/()]+)\/(\(.+\)|[^\/()]+)$/);
   if (!m) return str;
   let num = m[1], den = m[2];
+  if (isEnglishOrSlash(num, den, str, 0, str)) return str;
   if (num.startsWith('(') && num.endsWith(')')) num = num.slice(1,-1);
   if (den.startsWith('(') && den.endsWith(')')) den = den.slice(1,-1);
   const numConv = convertIdentifierSubscripts(greekify(convertFraction(num)));
@@ -1012,6 +1030,8 @@ function isNonMathToken(str: string): boolean {
   if (/^\[.*\]\(.*\)$/.test(str)) return true;
   if (/^`.*`$/.test(str)) return true;
   if (UNIT_FRACTIONS_SET.has(str.toLowerCase())) return true;
+  const parts = str.split('/');
+  if (parts.length === 2 && isEnglishOrSlash(parts[0], parts[1], str, 0, str)) return true;
   return false;
 }
 

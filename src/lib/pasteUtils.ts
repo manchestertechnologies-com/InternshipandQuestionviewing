@@ -76,6 +76,15 @@ export function autoFormatIonicChargesAndChemistry(text: string): string {
     return elemSup + supSign;
   });
 
+  // 2b. Support element with Unicode subscripts followed by caret charges: e.g. TiF₆ ^(2-) -> TiF₆²⁻, CoF₆^(3-) -> CoF₆³⁻, NiCl₄^(2-) -> NiCl₄²⁻, NiCl₄^2 -> NiCl₄²⁻
+  result = result.replace(/([A-Z][a-z]?[₀₁₂₃₄₅₆₇₈₉]+)\s*\^\(?(\d*[-+]|[-+]\d+|\d+)\)?/g, (_, elemSup, charge) => {
+    const digitMap: Record<string, string> = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹' };
+    const numDigits = charge.replace(/[-+]/g, '');
+    const sign = charge.includes('+') ? '⁺' : '⁻';
+    const sups = numDigits.split('').map((d: string) => digitMap[d] || d).join('');
+    return elemSup + (sups || '²') + sign;
+  });
+
   // 3. Format polyatomic ions with digit BEFORE caret AND digit AFTER caret:
   // e.g. SO4^2- -> SO₄²⁻, CO3^2- -> CO₃²⁻, PO4^3- -> PO₄³⁻, Cr2O7^2- -> Cr₂O₇²⁻
   const polyCaretTwoDigitsRegex = new RegExp(`([A-Z][a-z]?|\\)|\\\])(\\d+)\\s*\\^\\s*([0-9⁰¹²³⁴⁵⁶⁷⁸⁹]+)\\s*(${minusSet})`, 'g');
