@@ -297,4 +297,12 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(normD.includes('\\varepsilon_{0}'), true);
     assert.strictEqual(normD.includes('a^2+b^2'), true);
   });
+
+  it('Regression Case 25: Magnetic Susceptibility Formula (mu_0, chi, mu_r equations wrapped & merged)', () => {
+    const s = 'Formula: Use M = \\chi H, B = \\mu_0(H + M), \\mu = \\mu_0(1 + \\chi), and \\mu_r = 1 + \\chi.';
+    const converted = smartConvertRaw(normalizeLatexShortcuts(s));
+    assert.strictEqual(converted.includes('$M = \\chi H$'), true, 'Must merge M = \\chi H');
+    assert.strictEqual(converted.includes('$B = \\mu_0(H + M)$'), true, 'Must merge B = \\mu_0(H + M)');
+    assert.strictEqual(converted.includes('$\\mu_r = 1 + \\chi$'), true, 'Must merge \\mu_r = 1 + \\chi');
+  });
 });

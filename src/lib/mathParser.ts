@@ -996,10 +996,24 @@ function smartConvertZone(text: string): string {
   }).join('');
 }
 
+function mergeMathBlocks(text: string): string {
+  let res = text;
+  // 1. Merge "var = $Math$" -> "$var = Math$"
+  res = res.replace(/\b([a-zA-Z0-9_]+)\s*(=|\\le|\\ge|\\ne|\\approx)\s*\$([^$]+)\$/g, (_m, v, op, math) => `$${v} ${op} ${math}$`);
+  // 2. Merge "$Math1$ = $Math2$" -> "$Math1 = Math2$"
+  res = res.replace(/\$([^$]+)\$\s*(=|\\le|\\ge|\\ne|\\approx)\s*\$([^$]+)\$/g, (_m, m1, op, m2) => `$${m1} ${op} ${m2}$`);
+  // 3. Merge "$Math1 =$ $Math2$" -> "$Math1 = Math2$"
+  res = res.replace(/\$([^$]+\s*=)\$\s*\$([^$]+)\$/g, (_m, m1, m2) => `$${m1} ${m2}$`);
+  // 4. Merge "$Math1$ = val + $Math2$" -> "$Math1 = val + Math2$"
+  res = res.replace(/\$([^$]+)\$\s*=\s*(\d+(?:\.\d+)?)\s*([+\-*/])\s*\$([^$]+)\$/g, (_m, m1, val, op, m2) => `$${m1} = ${val} ${op} ${m2}$`);
+  return res;
+}
+
 export function smartConvertRaw(raw: string): string {
   if (!raw) return '';
-  return splitFinalSegments(raw).map(seg => {
+  const converted = splitFinalSegments(raw).map(seg => {
     if (seg.value.startsWith('$') || seg.value.startsWith('{{IMG::')) return seg.value;
     return smartConvertZone(seg.value);
   }).join('');
+  return mergeMathBlocks(converted);
 }
