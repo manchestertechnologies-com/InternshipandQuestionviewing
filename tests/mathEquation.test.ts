@@ -234,4 +234,24 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     const html = katex.renderToString(latex, { throwOnError: false });
     assert.strictEqual(html.includes('katex'), true);
   });
+
+  it('Regression Case 21: Reference Portal Features (Greek words, unit rates, document structure)', () => {
+    // Greek words
+    assert.strictEqual(textToLaTeX('mu0').includes('\\mu_{0}'), true);
+    assert.strictEqual(textToLaTeX('lambda1').includes('\\lambda_{1}'), true);
+    assert.strictEqual(textToLaTeX('theta').includes('\\theta'), true);
+    assert.strictEqual(textToLaTeX('+-').includes('\\pm'), true);
+    assert.strictEqual(textToLaTeX('root(3, x)').includes('\\sqrt[3]{x}'), true);
+
+    // Unit rates stay text slashes
+    assert.strictEqual(textToLaTeX('speed is 60 km/h').includes('\\frac{km}{h}'), false);
+    assert.strictEqual(textToLaTeX('velocity is 10 m/s').includes('\\frac{m}{s}'), false);
+
+    // Document structure command stripping
+    const docText = '\\item[1.] \\textbf{Question:} Find the wavelength \\lambda when frequency is 50 Hz.';
+    const cleaned = formatCleanText(docText);
+    assert.strictEqual(cleaned.includes('\\item'), false);
+    assert.strictEqual(cleaned.includes('\\textbf'), false);
+    assert.strictEqual(cleaned.includes('1. Question:'), true);
+  });
 });

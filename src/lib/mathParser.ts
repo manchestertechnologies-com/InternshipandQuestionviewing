@@ -62,7 +62,18 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\bE0\b/g, 'E_0');
   res = res.replace(/\bI0\b/g, 'I_0');
   res = res.replace(/\bV0\b/g, 'V_0');
-  res = res.replace(/\bN0\b/g, 'N_0');
+  // Greek words with subscripts (e.g. mu0 -> \mu_0, lambda1 -> \lambda_1, theta2 -> \theta_2)
+  res = res.replace(/\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)(\d+)\b/gi, (m, g, num) => `\\${g.toLowerCase()}_{${num}}`);
+  // Standalone Greek words typed without backslash (e.g. alpha -> \alpha, theta -> \theta, omega -> \omega)
+  res = res.replace(/(?<!\\)\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)\b/gi, (m, g) => `\\${g.toLowerCase()}`);
+  // Roots: root(n, expr) -> \sqrt[n]{expr}, sqrt(expr) -> \sqrt{expr}
+  res = res.replace(/\broot\((\d+),\s*(.+?)\)/gi, '\\sqrt[$1]{$2}');
+  res = res.replace(/\bsqrt\((.+?)\)/gi, '\\sqrt{$1}');
+  // Operators: <= -> \le, >= -> \ge, != -> \ne, +- -> \pm
+  res = res.replace(/<=/g, '\\le ');
+  res = res.replace(/>=/g, '\\ge ');
+  res = res.replace(/!=/g, '\\ne ');
+  res = res.replace(/\+-/g, '\\pm ');
   // Handle \sqrt followed directly by digit/letter (e.g. \sqrt2 -> \sqrt{2})
   res = res.replace(/\\sqrt\s*([0-9a-zA-Z])(?![a-zA-Z0-9_{}])/g, '\\sqrt{$1}');
   // Vector arrows & unit hats: e.g. \vec E -> \vec{E}, \hat i -> \hat{i}, r ⃗ -> \vec{r}, i ˆ -> \hat{i}, E ⃗ -> \vec{E}
@@ -97,7 +108,7 @@ export function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string
     return true;
   }
 
-  // 3. Known English text options & slash pairs (case-insensitive)
+  // 3. Known English text options & slash pairs, and non-math physical unit rates (case-insensitive)
   const knownTextSlashPairs = new Set([
     'and/or', 'true/false', 'yes/no', 'input/output', 'pass/fail', 'male/female',
     'either/or', 'on/off', 'in/out', 'up/down', 'left/right', 'high/low',
@@ -105,7 +116,8 @@ export function isEnglishOrSlash(numStr: string, denStr: string, fullStr: string
     'acid/base', 'day/night', 'correct/incorrect', 'even/odd', 'real/imaginary',
     'open/closed', 'before/after', 'start/stop', 'win/loss', 'read/write',
     'import/export', 'buy/sell', 'push/pull', 'plus/minus', 'north/south', 'east/west',
-    'or', 'and or'
+    'or', 'and or',
+    'km/h', 'km/hr', 'm/s', 'kg/s', 'cm/s', 'ft/s', 'mi/h', 'mph', 'rad/s', 'g/l', 'mg/ml', 'g/ml'
   ]);
   const pairLower = `${numClean.toLowerCase()}/${denClean.toLowerCase()}`;
   if (knownTextSlashPairs.has(pairLower)) {

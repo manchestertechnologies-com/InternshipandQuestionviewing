@@ -452,6 +452,13 @@ export function cleanLineBreaks(text: string): string {
 export function formatCleanText(text: string): string {
   if (!text) return '';
   let res = text;
+  // Strip document-structuring LaTeX commands from pasted exam sources
+  res = res
+    .replace(/\\item\s*\[([^\]]*)\]\s*/g, '$1 ')
+    .replace(/\\item\b\s*/g, '• ')
+    .replace(/\\(?:begin|end)\{(?:itemize|enumerate)\*?\}\s*/g, '')
+    .replace(/\\(?:textbf|textit|emph)\{([^{}]*)\}/g, '$1');
+
   res = autoFormatIonicChargesAndChemistry(res);
   res = autoFormatScientificExponents(res);
   res = autoFormatStackedFractions(res);
