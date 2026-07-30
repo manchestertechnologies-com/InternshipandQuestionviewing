@@ -1550,14 +1550,14 @@ export default function DailyTasksPage() {
                             required
                             value={opt === 'A' ? optionA : opt === 'B' ? optionB : opt === 'C' ? optionC : optionD}
                             onChange={(e) => {
-                              const cleaned = formatCleanText(e.target.value);
+                              const cleaned = formatCleanText(e.target.value).replace(/^(?:\([1-4A-Da-d]\)|[1-4A-Da-d][\.\)]|Option\s+[1-4A-Da-d]:?)\s*/i, '');
                               if (opt === 'A') setOptionA(cleaned);
                               else if (opt === 'B') setOptionB(cleaned);
                               else if (opt === 'C') setOptionC(cleaned);
                               else setOptionD(cleaned);
                             }}
                             onBlur={(e) => {
-                              const cleaned = formatCleanText(e.target.value);
+                              const cleaned = formatCleanText(e.target.value).replace(/^(?:\([1-4A-Da-d]\)|[1-4A-Da-d][\.\)]|Option\s+[1-4A-Da-d]:?)\s*/i, '');
                               if (opt === 'A') setOptionA(cleaned);
                               else if (opt === 'B') setOptionB(cleaned);
                               else if (opt === 'C') setOptionC(cleaned);

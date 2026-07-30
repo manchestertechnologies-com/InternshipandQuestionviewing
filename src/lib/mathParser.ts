@@ -68,13 +68,14 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\bVrms\b/gi, 'V_{\\text{rms}}');
   res = res.replace(/\bIrms\b/gi, 'I_{\\text{rms}}');
   res = res.replace(/\bErms\b/gi, 'E_{\\text{rms}}');
-  res = res.replace(/\bE0\b/g, 'E_0');
-  res = res.replace(/\bI0\b/g, 'I_0');
-  res = res.replace(/\bV0\b/g, 'V_0');
+  res = res.replace(/(?<!\\)\bE0\b/g, 'E_0');
+  res = res.replace(/(?<!\\)\bI0\b/g, 'I_0');
+  res = res.replace(/(?<!\\)\bV0\b/g, 'V_0');
+  res = res.replace(/\\(varepsilon|epsilon)0\b/g, '\\$1_{0}');
   // Greek words with subscripts (e.g. mu0 -> \mu_0, lambda1 -> \lambda_1, theta2 -> \theta_2)
-  res = res.replace(/\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)(\d+)\b/gi, (m, g, num) => `\\${g.toLowerCase()}_{${num}}`);
+  res = res.replace(/(?<![\\a-zA-Z])\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)(\d+)\b/gi, (m, g, num) => `\\${g.toLowerCase()}_{${num}}`);
   // Standalone Greek words typed without backslash (e.g. alpha -> \alpha, theta -> \theta, omega -> \omega)
-  res = res.replace(/(?<!\\)\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)\b/gi, (m, g) => `\\${g.toLowerCase()}`);
+  res = res.replace(/(?<![\\a-zA-Z])\b(alpha|beta|gamma|theta|lambda|omega|pi|mu|sigma|phi|delta|epsilon)\b(?![a-zA-Z])/gi, (m, g) => `\\${g.toLowerCase()}`);
   // Roots: root(n, expr) -> \sqrt[n]{expr}, sqrt(expr) -> \sqrt{expr}
   res = res.replace(/\broot\((\d+),\s*(.+?)\)/gi, '\\sqrt[$1]{$2}');
   res = res.replace(/\bsqrt\((.+?)\)/gi, '\\sqrt{$1}');
@@ -91,7 +92,6 @@ export function normalizeLatexShortcuts(text: string): string {
   res = res.replace(/\\bar\s*([a-zA-Z0-9])(?![a-zA-Z0-9_{}])/g, '\\bar{$1}');
   res = res.replace(/([a-zA-Z0-9])\s*[\u20D7\u20D6\u20D1\u20D0\u20E1\u2192]/g, '\\vec{$1}');
   res = res.replace(/([a-zA-Z0-9])\s*[\u02C6\u0302\u0306\u030a]/g, '\\hat{$1}');
-  res = res.replace(/\b([a-zA-Z0-9])\s*[\^ˆ](?=\s*[\+=\-\*\/\),\. ]|$)/g, '\\hat{$1}');
   // Auto-prefix trig and math function names with backslash if missing (e.g. sin(\omega t) -> \sin(\omega t))
   res = res.replace(/(?<!\\)\b(sin|cos|tan|cot|sec|csc|log|ln|exp|lim)\b/g, '\\$1');
   // Format Option labels in math expressions cleanly

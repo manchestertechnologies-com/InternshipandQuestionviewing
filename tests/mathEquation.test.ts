@@ -280,4 +280,21 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     const converted3 = smartConvertRaw(normalizeLatexShortcuts(s3));
     assert.strictEqual(converted3.includes('$'), true, 'Smart convert must wrap radicals in $...$');
   });
+
+  it('Regression Case 24: MS Word Electrostatic Potential Options (vareps0, exponent ^2 preserved as ^2)', () => {
+    const optA = '\\frac{1}{4\\pi\\varepsilon0}\\cdot\\frac{-q}{a^2+b^2}';
+    const optB = '(3) \\frac{1}{4\\pi\\varepsilon_0}\\cdot q/\\sqrt(a^2+b^2)';
+    const optD = '\\frac{1}{4\\pi\\varepsilon0}\\cdot\\frac{2q}{a^2+b^2}';
+
+    const normA = normalizeLatexShortcuts(optA);
+    assert.strictEqual(normA.includes('\\varepsilon_{0}'), true, 'varepsilon0 must format to \\varepsilon_{0}');
+    assert.strictEqual(normA.includes('a^2+b^2'), true, 'a^2+b^2 exponent must remain a^2+b^2');
+
+    const cleanB = optB.replace(/^(?:\([1-4A-Da-d]\)|[1-4A-Da-d][\.\)]|Option\s+[1-4A-Da-d]:?)\s*/i, '');
+    assert.strictEqual(cleanB.startsWith('(3)'), false, 'Leading (3) option label must be stripped');
+
+    const normD = normalizeLatexShortcuts(optD);
+    assert.strictEqual(normD.includes('\\varepsilon_{0}'), true);
+    assert.strictEqual(normD.includes('a^2+b^2'), true);
+  });
 });
