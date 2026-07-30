@@ -305,4 +305,16 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
     assert.strictEqual(converted.includes('$B = \\mu_0(H + M)$'), true, 'Must merge B = \\mu_0(H + M)');
     assert.strictEqual(converted.includes('$\\mu_r = 1 + \\chi$'), true, 'Must merge \\mu_r = 1 + \\chi');
   });
+
+  it('Regression Case 26: Direct Unicode Greek Characters (χ, μ, μ₀, μ_r) in Formula Text', () => {
+    const unicodeInput = 'Formula: Use M = χH, B = μ₀(H + M), μ = μ₀(1 + χ), and μ_r = 1 + χ.';
+    const normalized = normalizeLatexShortcuts(unicodeInput);
+    assert.strictEqual(normalized.includes('\\chi'), true, 'Unicode χ must convert to \\chi');
+    assert.strictEqual(normalized.includes('\\mu'), true, 'Unicode μ must convert to \\mu');
+
+    const converted = smartConvertRaw(normalized);
+    assert.strictEqual(converted.includes('$M = \\chi H$'), true);
+    assert.strictEqual(converted.includes('B = \\mu'), true);
+    assert.strictEqual(converted.includes('$\\mu_r = 1 + \\chi$'), true);
+  });
 });

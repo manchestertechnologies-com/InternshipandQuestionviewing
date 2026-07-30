@@ -55,6 +55,26 @@ export function normalizeLatexExpr(expr: string): string {
 export function normalizeLatexShortcuts(text: string): string {
   if (!text) return '';
   let res = text;
+  // Normalize direct Unicode Greek letters to LaTeX commands
+  res = res
+    .replace(/α/g, '\\alpha ')
+    .replace(/β/g, '\\beta ')
+    .replace(/γ/g, '\\gamma ')
+    .replace(/δ/g, '\\delta ')
+    .replace(/ε/g, '\\epsilon ')
+    .replace(/θ/g, '\\theta ')
+    .replace(/λ/g, '\\lambda ')
+    .replace(/μ/g, '\\mu ')
+    .replace(/π/g, '\\pi ')
+    .replace(/σ/g, '\\sigma ')
+    .replace(/[ϕφ]/g, '\\phi ')
+    .replace(/χ/g, '\\chi ')
+    .replace(/ω/g, '\\omega ')
+    .replace(/Δ/g, '\\Delta ')
+    .replace(/Ω/g, '\\Omega ');
+  // Clean up space after Greek commands before subscripts or operators
+  res = res.replace(/\\(alpha|beta|gamma|delta|epsilon|theta|lambda|mu|pi|sigma|phi|chi|omega|Delta|Omega)\s+(_|\^|\{|\d|[=+,;.()\-\s]|$)/g, (m, g, rest) => `\\${g}${rest.trim() ? rest : ''}`);
+
   res = res.replace(/\\wt(?![a-zA-Z])/g, '\\omega t');
   res = res.replace(/\\w(?![a-zA-Z])/g, '\\omega');
   res = res.replace(/\\D(?![a-zA-Z])/g, '\\Delta');
