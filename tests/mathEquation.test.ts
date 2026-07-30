@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { textToLaTeX, isMathExpression, normalizeLatexShortcuts, normalizeLatexExpr } from '../src/lib/mathParser';
+import { textToLaTeX, isMathExpression, normalizeLatexShortcuts, normalizeLatexExpr, smartConvertRaw } from '../src/lib/mathParser';
 import { formatCleanText, parseRichTextToUnicode } from '../src/lib/pasteUtils';
 import katex from 'katex';
 
@@ -264,5 +264,20 @@ describe('Professional Mathematical Equation Rendering Tests', () => {
 
     const html2 = katex.renderToString(textToLaTeX(normalizeLatexExpr(normalizeLatexShortcuts(s2))), { throwOnError: false });
     assert.strictEqual(html2.includes('katex-error'), false, 'Screenshot 2 must have zero katex-error');
+  });
+
+  it('Regression Case 23: Reference Portal smartConvertRaw on Latest Prompt Screenshots 1, 2, and 3', () => {
+    const s1 = 'Internal resistance: r = \\frac{E - V}{I} = \\frac{50 - 45}{4}.5 = \\frac{5}{4}.5 \\approx 1.11 \\Omega';
+    const s2 = 'Peak voltage E_o = 141 V, so Vrms = E_o/\\sqrt2 = 141/\\sqrt2 = 100 V.\nAlso \\omega = 628 \\frac{rad}{s} = 2\\pi\\vec{f} f = \\frac{628}{2\\pi} \\approx 100 Hz.\nHence Vrms = 100 V, f = 100 H\\vec{z} Option (3).';
+    const s3 = 'I_max = (\\sqrt{I_1} + \\sqrt{I_2})^2 = (\\sqrt{I} + \\sqrt{4I})^2 = (\\sqrt{I} + 2\\sqrt{I})^2 = (3\\sqrt{I})^2 = 9I . This confirms that option (B) is the correct answer.';
+
+    const converted1 = smartConvertRaw(normalizeLatexShortcuts(s1));
+    assert.strictEqual(converted1.includes('$'), true, 'Smart convert must wrap fractions in $...$');
+
+    const converted2 = smartConvertRaw(normalizeLatexShortcuts(s2));
+    assert.strictEqual(converted2.includes('$'), true, 'Smart convert must wrap equations in $...$');
+
+    const converted3 = smartConvertRaw(normalizeLatexShortcuts(s3));
+    assert.strictEqual(converted3.includes('$'), true, 'Smart convert must wrap radicals in $...$');
   });
 });

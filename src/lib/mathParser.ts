@@ -544,9 +544,462 @@ export function isMathExpression(text: string): boolean {
   if (/\$|\\\[|\\\(|\^|_|√|∫|∑|±|≤|≥|≠|∞|α|β|θ|π|Δ|[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉⁺⁻]/.test(text)) {
     return true;
   }
-  if (/\//.test(text) && !isEnglishOrSlash('a', 'b', text, text.indexOf('/'), 'a/b')) {
-    return true;
+  return false;
+}
+
+// ============================================================
+// Smart Math Input System from question-bank-portal.vercel.app
+// Auto-detects math-like plain-text patterns (fractions, exponents,
+// subscripts, chemical formulas, charges, roots, Greek letters,
+// operators, trig/calculus notation) and converts them to LaTeX,
+// wrapping only the math portion in $...$.
+// Genuine plain English words are left completely untouched.
+// ============================================================
+
+const GREEK_WORDS_MAP: Record<string, string> = {
+  alpha:'\\alpha', beta:'\\beta', gamma:'\\gamma', theta:'\\theta',
+  lambda:'\\lambda', omega:'\\omega', pi:'\\pi', mu:'\\mu',
+  sigma:'\\sigma', phi:'\\phi', delta:'\\delta', epsilon:'\\epsilon'
+};
+
+const TRIG_WORDS_MAP: Record<string, string> = {
+  sin:'\\sin', cos:'\\cos', tan:'\\tan', cot:'\\cot',
+  sec:'\\sec', cosec:'\\csc', csc:'\\csc', log:'\\log', ln:'\\ln'
+};
+
+const GREEK_LIST_KEYS = Object.keys(GREEK_WORDS_MAP).sort((a,b)=>b.length-a.length);
+
+const UNICODE_SUPERSCRIPTS_MAP: Record<string, string> = {'\u2070':'0','\u00b9':'1','\u00b2':'2','\u00b3':'3','\u2074':'4','\u2075':'5','\u2076':'6','\u2077':'7','\u2078':'8','\u2079':'9','\u207a':'+','\u207b':'-'};
+const UNICODE_SUBSCRIPTS_MAP: Record<string, string> = {'\u2080':'0','\u2081':'1','\u2082':'2','\u2083':'3','\u2084':'4','\u2085':'5','\u2086':'6','\u2087':'7','\u2088':'8','\u2089':'9','\u208a':'+','\u208b':'-'};
+
+function greekify(str: string): string {
+  let result = str;
+  GREEK_LIST_KEYS.forEach(word => {
+    const re = new RegExp('(^|[^A-Za-z\\\\])(' + word + ')(\\d*)', 'gi');
+    result = result.replace(re, (m, pre, w, digits, offset, full) => {
+      if (!digits) {
+        const nextChar = full[offset + m.length];
+        if (nextChar && /[A-Za-z]/.test(nextChar)) return m;
+      }
+      return pre + GREEK_WORDS_MAP[w.toLowerCase()] + (digits ? '_{' + digits + '}' : '');
+    });
+  });
+  return result;
+}
+
+function splitFinalSegments(raw: string): { type: string; value: string }[] {
+  const segments: { type: string; value: string }[] = [];
+  let i = 0; const n = raw.length; let buf = '';
+  while (i < n) {
+    if (raw.startsWith('{{IMG::', i)) {
+      const close = raw.indexOf('}}', i + 7);
+      if (close === -1) { buf += raw.slice(i); break; }
+      if (buf) { segments.push({type:'final', value:buf}); buf=''; }
+      segments.push({type:'final', value: raw.slice(i, close+2)});
+      i = close + 2; continue;
+    }
+    if (raw[i] === '$') {
+      const isDisplay = raw[i+1] === '$';
+      const delim = isDisplay ? '$$' : '$';
+      const end = raw.indexOf(delim, i + delim.length);
+      if (end === -1) { buf += raw.slice(i); break; }
+      if (buf) { segments.push({type:'final', value:buf}); buf=''; }
+      segments.push({type:'final', value: raw.slice(i, end+delim.length)});
+      i = end + delim.length; continue;
+    }
+    buf += raw[i]; i++;
+  }
+  if (buf) segments.push({type:'final', value:buf});
+  return segments;
+}
+
+function wrapMath(latex: string): string { return '$' + latex + '$'; }
+
+function convertFraction(str: string): string {
+  const m = str.match(/^(\(.+\)|[^\/()]+)\/(\(.+\)|[^\/()]+)$/);
+  if (!m) return str;
+  let num = m[1], den = m[2];
+  if (num.startsWith('(') && num.endsWith(')')) num = num.slice(1,-1);
+  if (den.startsWith('(') && den.endsWith(')')) den = den.slice(1,-1);
+  const numConv = convertIdentifierSubscripts(greekify(convertFraction(num)));
+  const denConv = convertIdentifierSubscripts(greekify(convertFraction(den)));
+  return '\\frac{' + numConv + '}{' + denConv + '}';
+}
+
+function convertChemSubscripts(str: string): string {
+  if (!/^([A-Z][a-z]?\d*)+$/.test(str)) return str;
+  if (!/\d/.test(str)) return str;
+  return str.replace(/([A-Z][a-z]?)(\d+)/g, (m, el, num) => el + '_{' + num + '}');
+}
+
+function convertIdentifierSubscripts(str: string): string {
+  return str.replace(/([A-Za-z])(\d+)/g, (m, letter, digits) => letter + '_{' + digits + '}');
+}
+
+function hasUnclosedLatexEnvironment(raw: string): boolean {
+  const begins = (raw.match(/\\begin\{/g) || []).length;
+  const ends = (raw.match(/\\end\{/g) || []).length;
+  return begins > ends;
+}
+
+const TWO_ARG_LATEX_COMMANDS = ['frac','dfrac','tfrac','binom','dbinom','tbinom'];
+
+function looksIncompleteLatex(raw: string): boolean {
+  if (!/\\[a-zA-Z]/.test(raw)) return false;
+  let depth = 0;
+  for (const ch of raw) {
+    if (ch === '{') depth++;
+    else if (ch === '}') depth = Math.max(0, depth-1);
+  }
+  if (depth > 0) return true;
+
+  const trimmed = raw.replace(/\s+$/,'');
+  if (/\\[a-zA-Z]+$/.test(trimmed)) return true;
+  if (endsWithOneArgOfTwoArgCommand(trimmed)) return true;
+  return hasUnclosedLatexEnvironment(raw);
+}
+
+function endsWithOneArgOfTwoArgCommand(trimmed: string): boolean {
+  const n = trimmed.length;
+  let i = 0, lastDeficient = false;
+  while (i < n) {
+    const m = trimmed.slice(i).match(/^\\([a-zA-Z]+)/);
+    if (m && TWO_ARG_LATEX_COMMANDS.includes(m[1])) {
+      let end = i + m[0].length, got = 0;
+      for (let a = 0; a < 2; a++) {
+        let j = end;
+        while (j < n && /\s/.test(trimmed[j])) j++;
+        if (trimmed[j] !== '{') break;
+        let depth = 1, k = j + 1;
+        while (k < n && depth > 0) {
+          if (trimmed[k] === '{') depth++;
+          else if (trimmed[k] === '}') depth--;
+          k++;
+        }
+        if (depth !== 0) { end = n; got++; break; }
+        end = k; got++;
+      }
+      lastDeficient = (got < 2 && end === n);
+      i = end;
+      continue;
+    }
+    i++;
+  }
+  return lastDeficient;
+}
+
+function groupBalancedTokens(text: string): { type: string; value: string }[] {
+  const tokens: { type: string; value: string }[] = [];
+  let i = 0; const n = text.length;
+  while (i < n) {
+    if (/\s/.test(text[i])) {
+      const start = i;
+      while (i < n && /\s/.test(text[i])) i++;
+      tokens.push({type:'space', value:text.slice(start,i)});
+      continue;
+    }
+    const start = i;
+    let depth = 0;
+    while (i < n) {
+      const ch = text[i];
+      if (ch === '(' || ch === '[' || ch === '{') depth++;
+      else if (ch === ')' || ch === ']' || ch === '}') depth = Math.max(0, depth-1);
+      if (/\s/.test(ch) && depth === 0) {
+        if (looksIncompleteLatex(text.slice(start, i))) { i++; continue; }
+        break;
+      }
+      i++;
+    }
+    tokens.push({type:'word', value:text.slice(start,i)});
+  }
+  return tokens;
+}
+
+function convertGeneralExpression(str: string): { latex: string; changed: boolean } {
+  let changed = false;
+  let result = '';
+  let i = 0; const n = str.length;
+  while (i < n) {
+    const ch = str[i];
+    if (ch === '(' || ch === '[') {
+      const closeCh = ch === '(' ? ')' : ']';
+      let depth = 1, j = i+1;
+      while (j < n && depth > 0) {
+        if (str[j] === ch) depth++;
+        else if (str[j] === closeCh) depth--;
+        j++;
+      }
+      const hasClose = depth === 0;
+      const inner = hasClose ? str.slice(i+1, j-1) : str.slice(i+1);
+      const innerConv = convertGeneralExpression(inner);
+      if (innerConv.changed) changed = true;
+
+      let groupLatex: string;
+      if (ch === '(' && hasClose && /√\s*$/.test(result)) {
+        result = result.replace(/√\s*$/, '');
+        groupLatex = '\\sqrt{' + innerConv.latex + '}';
+        changed = true;
+      } else {
+        const leftDelim = ch === '(' ? '\\left(' : '\\left[';
+        const rightDelim = ch === '(' ? '\\right)' : '\\right]';
+        groupLatex = hasClose ? (leftDelim + innerConv.latex + rightDelim) : (ch + innerConv.latex);
+      }
+      i = hasClose ? j : n;
+
+      if (hasClose && i < n && str[i] === '^') {
+        let k = i + 1, expLatex = '';
+        if (str[k] === '(') {
+          let ed = 1, m2 = k+1;
+          while (m2 < n && ed > 0) {
+            if (str[m2] === '(') ed++; else if (str[m2] === ')') ed--;
+            m2++;
+          }
+          expLatex = convertGeneralExpression(str.slice(k+1, m2-1)).latex;
+          k = m2;
+        } else if (str[k] === '{') {
+          const close = str.indexOf('}', k);
+          if (close !== -1) { expLatex = str.slice(k+1, close); k = close+1; }
+        } else {
+          const dm = str.slice(k).match(/^-?\d+/);
+          if (dm) { expLatex = dm[0]; k += dm[0].length; }
+        }
+        if (expLatex) { groupLatex += '^{' + expLatex + '}'; changed = true; i = k; }
+      }
+
+      result += groupLatex;
+      continue;
+    }
+    let j = i;
+    while (j < n && str[j] !== '(' && str[j] !== '[') j++;
+    const chunk = str.slice(i, j);
+    const chunkConv = convertSimpleChunk(chunk);
+    if (chunkConv.changed) changed = true;
+    result += chunkConv.latex;
+    i = j;
+  }
+  return {latex: result, changed};
+}
+
+function splitTopLevelTerms(str: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') depth = Math.max(0, depth-1);
+    else if ((ch === '+' || ch === '-') && depth === 0) {
+      if (i === 0) continue;
+      const prevNonSpace = str.slice(0, i).replace(/\s+$/,'').slice(-1);
+      if (prevNonSpace === '^') continue;
+      let opStart = i;
+      while (opStart > start && /\s/.test(str[opStart-1])) opStart--;
+      let opEnd = i + 1;
+      while (opEnd < str.length && /\s/.test(str[opEnd])) opEnd++;
+      parts.push(str.slice(start, opStart));
+      parts.push(str.slice(opStart, opEnd));
+      start = opEnd;
+      i = opEnd - 1;
+    }
+  }
+  parts.push(str.slice(start));
+  return parts;
+}
+
+function splitTopLevelEquals(str: string): string[] {
+  const parts: string[] = [];
+  let depth = 0, start = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '{') depth++;
+    else if (ch === '}') depth = Math.max(0, depth-1);
+    else if (ch === '=' && depth === 0) {
+      const prev = str[i-1];
+      if (prev === '<' || prev === '>' || prev === '!') continue;
+      parts.push(str.slice(start, i));
+      parts.push('=');
+      start = i + 1;
+    }
+  }
+  parts.push(str.slice(start));
+  return parts;
+}
+
+function convertSimpleChunk(chunk: string): { latex: string; changed: boolean } {
+  let changed = false;
+  let work = greekify(chunk);
+  if (work !== chunk) changed = true;
+
+  if (work.includes('√')) {
+    const withRadical = work.replace(/√\s*([0-9]+(?:\.[0-9]+)?|[a-zA-Z][a-zA-Z0-9_{}]*)/g, '\\sqrt{$1}');
+    if (withRadical !== work) { work = withRadical; changed = true; }
   }
 
+  const eqParts = splitTopLevelEquals(work);
+  if (eqParts.length > 1) {
+    work = eqParts.map(part => {
+      if (part === '=') return part;
+      const r = convertOneEqualitySide(part);
+      if (r.changed) changed = true;
+      return r.latex;
+    }).join('');
+  } else {
+    const r = convertOneEqualitySide(work);
+    if (r.changed) changed = true;
+    work = r.latex;
+  }
+
+  return {latex: work, changed};
+}
+
+function convertOneEqualitySide(work: string): { latex: string; changed: boolean } {
+  let changed = false;
+
+  const termSplit = splitTopLevelTerms(work);
+  if (termSplit.length > 1) {
+    work = termSplit.map(part => {
+      if (/^\s*[+\-]\s*$/.test(part)) return part;
+      const f = convertFraction(part);
+      if (f !== part) changed = true;
+      const s = convertIdentifierSubscripts(f);
+      if (s !== f) changed = true;
+      return s;
+    }).join('');
+  } else {
+    const f = convertFraction(work);
+    if (f !== work) { work = f; changed = true; }
+    const withSub = convertIdentifierSubscripts(work);
+    if (withSub !== work) { work = withSub; changed = true; }
+  }
+
+  if (/[A-Za-z0-9]_\{?[A-Za-z0-9+\-]+\}?/.test(work)) changed = true;
+  if (/[A-Za-z0-9)\]]\^\{?[A-Za-z0-9+\-]+\}?/.test(work)) changed = true;
+
+  const supFixed = work.replace(/([A-Za-z0-9)\]])\^(\{[^{}]*\}|-?[A-Za-z0-9]+)/g, (m, base, exp) => {
+    if (exp.startsWith('{')) return m;
+    return base + '^{' + exp + '}';
+  });
+  if (supFixed !== work) { work = supFixed; changed = true; }
+
+  [[/<=/g,'\\le{}'],[/>=/g,'\\ge{}'],[/!=/g,'\\ne{}']].forEach(([re,rep]) => {
+    if ((re as RegExp).test(work)) { work = work.replace(re as RegExp, rep as string); changed = true; }
+  });
+
+  return {latex: work, changed};
+}
+
+const UNIT_FRACTIONS_SET = new Set([
+  'km/h','km/hr','m/s','kg/s','cm/s','ft/s','mi/h','mph','rad/s','g/l','mg/ml','g/ml'
+]);
+
+function isNonMathToken(str: string): boolean {
+  if (/^https?:\/\//i.test(str)) return true;
+  if (/^www\./i.test(str)) return true;
+  if (/^[A-Za-z]:\\/.test(str)) return true;
+  if (/^\.{1,2}\//.test(str)) return true;
+  if (/^\d{1,4}\/\d{1,2}(\/\d{1,4})?$/.test(str)) return true;
+  if (/^\[.*\]\(.*\)$/.test(str)) return true;
+  if (/^`.*`$/.test(str)) return true;
+  if (UNIT_FRACTIONS_SET.has(str.toLowerCase())) return true;
   return false;
+}
+
+function convertToken(tokRaw: string): { converted: boolean; latex?: string; trailing?: string } {
+  const m0 = tokRaw.match(/^(.*?)([.,;:!?]*)$/s);
+  if (!m0) return {converted:false};
+  const core = m0[1], trailing = m0[2];
+  if (!core) return {converted:false};
+
+  if (/\\[a-zA-Z]/.test(core)) return {converted:true, latex:core, trailing};
+
+  const lower = core.toLowerCase();
+  if (lower === 'infinity') return {converted:true, latex:'\\infty', trailing};
+  if (core === '+-') return {converted:true, latex:'\\pm{}', trailing};
+
+  if (isNonMathToken(core)) return {converted:false};
+
+  if (core.includes('(') || core.includes(')') || core.includes('[') || core.includes(']')) {
+    const f = convertFraction(core);
+    if (f !== core) return {converted:true, latex:f, trailing};
+    const g = convertGeneralExpression(core);
+    if (g.changed) return {converted:true, latex:g.latex, trailing};
+  }
+
+  let work = core, changed = false;
+
+  let m: RegExpMatchArray | null;
+  if (!changed && (m = work.match(/^sqrt\((.+)\)$/i))) {
+    work = '\\sqrt{' + convertFraction(m[1]) + '}'; changed = true;
+  } else if (!changed && (m = work.match(/^root\((\d+),(.+)\)$/i))) {
+    work = '\\sqrt[' + m[1] + ']{' + convertFraction(m[2]) + '}'; changed = true;
+  }
+
+  if (!changed && (m = work.match(/^([A-Za-z0-9]+?)(\^?)(\d*)([+-])$/))) {
+    const base = convertChemSubscripts(m[1]);
+    const supPart = (m[3] ? m[3] : '') + m[4];
+    work = base + '^{' + supPart + '}'; changed = true;
+  }
+
+  if (!changed) {
+    for (const key in TRIG_WORDS_MAP) {
+      const re = new RegExp('^' + key + '(\\^\\{?\\d+\\}?)?$', 'i');
+      if (re.test(work)) {
+        work = work.replace(new RegExp('^'+key,'i'), TRIG_WORDS_MAP[key]);
+        work = work.replace(/\^\{?(\d+)\}?$/, '^{$1}');
+        changed = true; break;
+      }
+    }
+  }
+
+  if (!changed) {
+    const sc = convertSimpleChunk(work);
+    if (sc.changed) { work = sc.latex; changed = true; }
+  }
+
+  if (!changed && work.includes('^')) {
+    const s = work.replace(/\^\{?(-?\d+)\}?/g, '^{$1}');
+    if (s !== work) { work = s; changed = true; }
+  }
+
+  if (changed) return {converted:true, latex:work, trailing};
+  return {converted:false};
+}
+
+function smartConvertZone(text: string): string {
+  text = text
+    .replace(/\\item\s*\[([^\]]*)\]\s*/g, '$1 ')
+    .replace(/\\item\b\s*/g, '• ')
+    .replace(/\\(?:begin|end)\{(?:itemize|enumerate)\*?\}\s*/g, '')
+    .replace(/\\(?:textbf|textit|emph|text)\{([^{}]*)\}/g, '$1')
+    .replace(/\\section\*?\{([^{}]*)\}/g, '$1\n');
+
+  text = text.replace(/\u2212/g, '-');
+
+  text = text.replace(/([\u2070\u00b9\u00b2\u00b3\u2074-\u2079\u207a\u207b]+)/g, m =>
+    '^{' + m.split('').map(c => UNICODE_SUPERSCRIPTS_MAP[c] || c).join('') + '}');
+  text = text.replace(/([\u2080-\u2089\u208a\u208b]+)/g, m =>
+    '_{' + m.split('').map(c => UNICODE_SUBSCRIPTS_MAP[c] || c).join('') + '}');
+
+  text = text.replace(/\\begin\{([a-zA-Z*]+)\}[\s\S]*?\\end\{\1\}/g, m => wrapMath(m));
+
+  text = text.replace(/\bint\s+(\S.*?)\s+dx\b/g, (m, expr) => wrapMath('\\int ' + expr.trim() + '\\,dx'));
+  text = text.replace(/\bsum\s+i\s*=\s*(\S+)\s+to\s+(\S+)/gi, (m, a, b) => wrapMath('\\sum_{i=' + a + '}^{' + b + '}'));
+  text = text.replace(/\blim\s+([a-zA-Z])\s*->\s*(\S+)/gi, (m, v, to) => wrapMath('\\lim_{' + v + '\\to ' + to + '}'));
+
+  const parts = text.split(/(\$[^$]*\$)/g);
+  return parts.map(part => {
+    if (part.startsWith('$') && part.endsWith('$') && part.length > 1) return part;
+    return groupBalancedTokens(part).map(t => {
+      if (t.type === 'space') return t.value;
+      const r = convertToken(t.value);
+      return r.converted ? wrapMath(r.latex!) + (r.trailing || '') : t.value;
+    }).join('');
+  }).join('');
+}
+
+export function smartConvertRaw(raw: string): string {
+  if (!raw) return '';
+  return splitFinalSegments(raw).map(seg => {
+    if (seg.value.startsWith('$') || seg.value.startsWith('{{IMG::')) return seg.value;
+    return smartConvertZone(seg.value);
+  }).join('');
 }

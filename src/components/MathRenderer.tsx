@@ -3,7 +3,7 @@
 import React from 'react';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
-import { textToLaTeX, normalizeLatexShortcuts, normalizeLatexExpr } from '@/lib/mathParser';
+import { textToLaTeX, normalizeLatexShortcuts, normalizeLatexExpr, smartConvertRaw } from '@/lib/mathParser';
 
 interface MathRendererProps {
   text: string;
@@ -14,8 +14,8 @@ interface MathRendererProps {
 export default function MathRenderer({ text, className = '', inline = false }: MathRendererProps) {
   if (!text) return null;
 
-  // Pre-normalize common LaTeX shortcuts (e.g. \wt -> \omega t, Vrms -> V_{rms})
-  const rawInput = normalizeLatexShortcuts(text);
+  // Pre-normalize and smart-convert math patterns into $...$ blocks (matching question-bank-portal reference site)
+  const rawInput = smartConvertRaw(normalizeLatexShortcuts(text));
 
   // Helper to render LaTeX string via KaTeX safely
   const renderKaTeX = (latexStr: string, isDisplayMode: boolean) => {
