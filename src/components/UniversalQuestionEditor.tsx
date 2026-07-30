@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import MathRenderer from '@/components/MathRenderer';
+import QuestionRenderer from '@/components/QuestionRenderer';
 import MathToolbar from '@/components/MathToolbar';
 import { formatCleanText, handleRichPaste } from '@/lib/pasteUtils';
 import { normalizePostProcessing } from '@/lib/mathParser';
@@ -260,7 +260,7 @@ export default function UniversalQuestionEditor({
 
           {/* Question Text Rendered */}
           <div className="text-zinc-100 text-sm font-sans leading-relaxed">
-            <MathRenderer text={questionText} />
+            <QuestionRenderer text={questionText} subject={activeSubject} />
           </div>
 
           {/* Options Rendered */}
@@ -269,25 +269,25 @@ export default function UniversalQuestionEditor({
               {optionA && (
                 <div className="flex items-start gap-2 bg-zinc-950/80 p-2.5 rounded border border-brand-border/40 text-xs">
                   <span className="font-bold text-brand-gold shrink-0">(1)</span>
-                  <MathRenderer text={optionA} inline />
+                  <QuestionRenderer text={optionA} subject={activeSubject} inline />
                 </div>
               )}
               {optionB && (
                 <div className="flex items-start gap-2 bg-zinc-950/80 p-2.5 rounded border border-brand-border/40 text-xs">
                   <span className="font-bold text-brand-gold shrink-0">(2)</span>
-                  <MathRenderer text={optionB} inline />
+                  <QuestionRenderer text={optionB} subject={activeSubject} inline />
                 </div>
               )}
               {optionC && (
                 <div className="flex items-start gap-2 bg-zinc-950/80 p-2.5 rounded border border-brand-border/40 text-xs">
                   <span className="font-bold text-brand-gold shrink-0">(3)</span>
-                  <MathRenderer text={optionC} inline />
+                  <QuestionRenderer text={optionC} subject={activeSubject} inline />
                 </div>
               )}
               {optionD && (
                 <div className="flex items-start gap-2 bg-zinc-950/80 p-2.5 rounded border border-brand-border/40 text-xs">
                   <span className="font-bold text-brand-gold shrink-0">(4)</span>
-                  <MathRenderer text={optionD} inline />
+                  <QuestionRenderer text={optionD} subject={activeSubject} inline />
                 </div>
               )}
             </div>
@@ -298,7 +298,7 @@ export default function UniversalQuestionEditor({
             <div className="mt-3 pt-3 border-t border-brand-border/40 bg-zinc-950/90 p-3 rounded-lg border border-brand-border/50 space-y-1">
               <span className="text-xs font-bold text-brand-gold uppercase block">Detailed Solution:</span>
               <div className="text-zinc-200 text-xs font-sans leading-relaxed">
-                <MathRenderer text={detailedSolution} />
+                <QuestionRenderer text={detailedSolution} subject={activeSubject} />
               </div>
             </div>
           )}
