@@ -1,10 +1,127 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { FileCheck, Search, Filter, Check, X, RefreshCw, AlertCircle, Eye, ChevronRight, ChevronDown, BookOpen, Edit, Plus, Save } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FileCheck, Search, Filter, Check, X, RefreshCw, AlertCircle, Eye, ChevronRight, ChevronDown, BookOpen, Edit, Plus, Save, ZoomIn, Loader2, ImageOff } from 'lucide-react';
 import { ACADEMIC_HIERARCHY } from '@/lib/academicHierarchy';
 import MathRenderer from '@/components/MathRenderer';
 import MathToolbar from '@/components/MathToolbar';
+
+// ─── SafeImage component ─────────────────────────────────────────────────────
+interface SafeImageProps {
+  src: string;
+  alt: string;
+  className?: string;
+  onClickEnlarge?: (src: string, alt: string) => void;
+  label?: string;
+}
+
+function SafeImage({ src, alt, className = '', onClickEnlarge, label }: SafeImageProps) {
+  const [status, setStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+
+  const handleLoad = useCallback(() => setStatus('loaded'), []);
+  const handleError = useCallback(() => {
+    console.error('[SafeImage] Failed to load image:', src);
+    setStatus('error');
+  }, [src]);
+
+  return (
+    <div className="relative group">
+      {status === 'loading' && (
+        <div className="flex items-center justify-center bg-zinc-900 rounded-lg border border-brand-border min-h-[80px] min-w-[80px]">
+          <Loader2 className="w-5 h-5 text-brand-gold animate-spin" />
+        </div>
+      )}
+      {status === 'error' && (
+        <div className="flex flex-col items-center justify-center gap-1 bg-zinc-900 rounded-lg border border-red-800/40 p-3 min-h-[80px] min-w-[80px]">
+          <ImageOff className="w-5 h-5 text-red-400" />
+          <span className="text-[10px] text-red-400 text-center">Unable to load image</span>
+        </div>
+      )}
+      {/* Always render <img> so it can load; hide with CSS until ready */}
+      <div className={status !== 'loaded' ? 'hidden' : 'block'}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          loading="lazy"
+          onLoad={handleLoad}
+          onError={handleError}
+          className={`rounded-lg border border-brand-border object-contain max-w-full ${className}`}
+          style={{ display: status === 'loaded' ? 'block' : 'none' }}
+        />
+        {status === 'loaded' && onClickEnlarge && (
+          <button
+            type="button"
+            onClick={() => onClickEnlarge(src, alt)}
+            title="Click to enlarge"
+            className="absolute inset-0 flex items-center justify-center bg-black/0 hover:bg-black/40 transition-all rounded-lg cursor-zoom-in opacity-0 group-hover:opacity-100 border-0"
+          >
+            <ZoomIn className="w-6 h-6 text-white drop-shadow-lg" />
+          </button>
+        )}
+        {label && (
+          <span className="block text-center text-[9px] uppercase tracking-widest font-bold text-brand-muted mt-1.5">
+            {label}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Lightbox Modal ──────────────────────────────────────────────────────────
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  const [zoom, setZoom] = useState(1);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/95 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="relative max-w-5xl max-h-[90vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+        {/* Toolbar */}
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            onClick={() => setZoom((z) => Math.max(0.5, z - 0.25))}
+            className="px-3 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-xs font-bold hover:bg-zinc-700 cursor-pointer border-solid"
+          >−</button>
+          <span className="text-xs text-zinc-400 w-12 text-center">{Math.round(zoom * 100)}%</span>
+          <button
+            onClick={() => setZoom((z) => Math.min(3, z + 0.25))}
+            className="px-3 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-xs font-bold hover:bg-zinc-700 cursor-pointer border-solid"
+          >+</button>
+          <button
+            onClick={() => setZoom(1)}
+            className="px-3 py-1 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 cursor-pointer border-solid"
+          >Reset</button>
+          <button
+            onClick={onClose}
+            className="ml-4 px-3 py-1 rounded-lg bg-red-900/60 border border-red-700/40 text-red-300 text-xs font-bold hover:bg-red-900 cursor-pointer border-solid flex items-center gap-1"
+          >
+            <X className="w-3.5 h-3.5" /> Close
+          </button>
+        </div>
+        {/* Image */}
+        <div className="overflow-auto max-h-[80vh] w-full flex items-center justify-center rounded-xl bg-zinc-950/60 border border-zinc-800 p-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={alt}
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'center', transition: 'transform 0.2s' }}
+            className="max-w-full rounded-lg"
+          />
+        </div>
+        <p className="text-[10px] text-zinc-500 mt-2">Scroll to pan • Press Esc to close</p>
+      </div>
+    </div>
+  );
+}
 
 interface QuestionImage {
   id: string;
@@ -44,6 +161,12 @@ interface Question {
 export default function MentorReviewsPage() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Lightbox state
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [lightboxAlt, setLightboxAlt] = useState('');
+  const openLightbox = useCallback((src: string, alt: string) => { setLightboxSrc(src); setLightboxAlt(alt); }, []);
+  const closeLightbox = useCallback(() => setLightboxSrc(null), []);
   const [error, setError] = useState('');
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null);
 
@@ -950,23 +1073,26 @@ export default function MentorReviewsPage() {
                     </div>
                   </div>
 
-                  {/* Question Images if any */}
-                  {selectedQuestion.images && selectedQuestion.images.length > 0 && (
+                  {/* Question Image (type === QUESTION or DIAGRAM) */}
+                  {selectedQuestion.images && selectedQuestion.images.filter(img => img.type === 'QUESTION' || img.type === 'DIAGRAM').length > 0 && (
                     <div className="space-y-2">
-                      <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">Attached Images</h4>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                        {selectedQuestion.images.map((img) => (
-                          <div key={img.id} className="relative bg-zinc-900 p-2 rounded-lg border border-brand-border flex flex-col items-center">
-                            <img
-                              src={img.imageUrl}
-                              alt="Question asset"
-                              className="max-h-32 object-contain"
-                            />
-                            <span className="text-[9px] uppercase tracking-wider font-bold text-brand-muted mt-2">
-                              {img.type}
-                            </span>
-                          </div>
-                        ))}
+                      <h4 className="text-xs uppercase font-bold tracking-wider text-brand-gold">
+                        {selectedQuestion.images.some(i => i.type === 'DIAGRAM') ? 'Diagram / Question Image' : 'Question Image'}
+                      </h4>
+                      <div className="flex flex-wrap gap-4">
+                        {selectedQuestion.images
+                          .filter(img => img.type === 'QUESTION' || img.type === 'DIAGRAM')
+                          .map((img) => (
+                            <div key={img.id} className="bg-zinc-900 p-2 rounded-lg border border-brand-border">
+                              <SafeImage
+                                src={img.imageUrl}
+                                alt={`${img.type.toLowerCase()} image`}
+                                className="max-h-48 max-w-xs"
+                                onClickEnlarge={openLightbox}
+                                label={img.type}
+                              />
+                            </div>
+                          ))}
                       </div>
                     </div>
                   )}
@@ -1047,30 +1173,46 @@ export default function MentorReviewsPage() {
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {[
-                        { opt: 'A', text: selectedQuestion.optionA },
-                        { opt: 'B', text: selectedQuestion.optionB },
-                        { opt: 'C', text: selectedQuestion.optionC },
-                        { opt: 'D', text: selectedQuestion.optionD },
+                        { opt: 'A', text: selectedQuestion.optionA, imgType: 'OPTION_A' },
+                        { opt: 'B', text: selectedQuestion.optionB, imgType: 'OPTION_B' },
+                        { opt: 'C', text: selectedQuestion.optionC, imgType: 'OPTION_C' },
+                        { opt: 'D', text: selectedQuestion.optionD, imgType: 'OPTION_D' },
                         ...(((selectedQuestion as any).extraData?.additionalOptions || []) as string[]).map((txt, idx) => ({
                           opt: String.fromCharCode(69 + idx),
-                          text: txt
+                          text: txt,
+                          imgType: `OPTION_${String.fromCharCode(69 + idx)}`
                         }))
-                      ].filter(item => item.text).map(({ opt, text }) => (
-                        <div key={opt} className={`p-4 rounded-xl border flex gap-3 text-sm transition ${
-                          selectedQuestion.correctAnswer === opt
-                            ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
-                            : 'bg-zinc-950/40 border-brand-border text-zinc-300'
-                        }`}>
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${
+                      ].filter(item => item.text || (selectedQuestion.images || []).some(img => img.type === item.imgType)).map(({ opt, text, imgType }) => {
+                        const optionImage = (selectedQuestion.images || []).find(img => img.type === imgType);
+                        return (
+                          <div key={opt} className={`p-4 rounded-xl border flex flex-col gap-3 text-sm transition ${
                             selectedQuestion.correctAnswer === opt
-                              ? 'bg-emerald-500 text-black'
-                              : 'bg-zinc-800 text-zinc-400'
+                              ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
+                              : 'bg-zinc-950/40 border-brand-border text-zinc-300'
                           }`}>
-                            {opt}
-                          </span>
-                          <div className="whitespace-pre-wrap"><MathRenderer text={text} /></div>
-                        </div>
-                      ))}
+                            <div className="flex gap-3">
+                              <span className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 ${
+                                selectedQuestion.correctAnswer === opt
+                                  ? 'bg-emerald-500 text-black'
+                                  : 'bg-zinc-800 text-zinc-400'
+                              }`}>
+                                {opt}
+                              </span>
+                              {text && <div className="whitespace-pre-wrap flex-1"><MathRenderer text={text} /></div>}
+                            </div>
+                            {optionImage && (
+                              <div className="ml-9">
+                                <SafeImage
+                                  src={optionImage.imageUrl}
+                                  alt={`Option ${opt} image`}
+                                  className="max-h-32 max-w-full"
+                                  onClickEnlarge={openLightbox}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1080,6 +1222,24 @@ export default function MentorReviewsPage() {
                     <div className="p-4 bg-emerald-950/5 border border-emerald-900/30 rounded-xl text-white text-sm whitespace-pre-wrap leading-relaxed">
                       <MathRenderer text={selectedQuestion.detailedSolution} />
                     </div>
+                    {/* Solution / Explanation images */}
+                    {selectedQuestion.images && selectedQuestion.images.filter(img => img.type === 'SOLUTION' || img.type === 'EXPLANATION').length > 0 && (
+                      <div className="flex flex-wrap gap-4 mt-3">
+                        {selectedQuestion.images
+                          .filter(img => img.type === 'SOLUTION' || img.type === 'EXPLANATION')
+                          .map((img) => (
+                            <div key={img.id} className="bg-zinc-900 p-2 rounded-lg border border-emerald-900/40">
+                              <SafeImage
+                                src={img.imageUrl}
+                                alt={`${img.type.toLowerCase()} image`}
+                                className="max-h-48 max-w-xs"
+                                onClickEnlarge={openLightbox}
+                                label={img.type}
+                              />
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Review Section */}
@@ -1129,6 +1289,11 @@ export default function MentorReviewsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── Image Lightbox ────────────────────────────────────────────── */}
+      {lightboxSrc && (
+        <ImageLightbox src={lightboxSrc} alt={lightboxAlt} onClose={closeLightbox} />
       )}
     </div>
   );

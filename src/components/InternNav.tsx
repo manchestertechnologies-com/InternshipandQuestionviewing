@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from 'next-auth/react';
@@ -20,12 +20,32 @@ interface InternNavProps {
 
 export default function InternNav({ onNavigate }: InternNavProps) {
   const pathname = usePathname();
+  const [unreadMessages, setUnreadMessages] = useState(0);
+  const pollRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch('/api/notifications');
+        if (!res.ok) return;
+        const data: { type: string }[] = await res.json();
+        const count = data.filter((n) => n.type === 'MESSAGE').length;
+        setUnreadMessages(count);
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchUnread();
+    pollRef.current = setInterval(fetchUnread, 6000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, []);
 
   const links = [
     { href: '/intern', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/intern/tasks', label: 'Daily Tasks', icon: ClipboardList },
     { href: '/intern/domain-project', label: 'Domain Project', icon: BookOpen },
-    { href: '/intern/messages', label: 'Messages', icon: MessageSquare },
+    { href: '/intern/messages', label: 'Messages', icon: MessageSquare, badge: unreadMessages },
     { href: '/intern/leaderboard', label: 'Leaderboard', icon: Trophy },
     { href: '/intern/profile', label: 'Profile', icon: User },
   ];
@@ -48,7 +68,12 @@ export default function InternNav({ onNavigate }: InternNavProps) {
               }`}
             >
               <Icon className="w-5 h-5 shrink-0" />
-              <span>{link.label}</span>
+              <span className="flex-1">{link.label}</span>
+              {(link as any).badge > 0 && (
+                <span className="w-5 h-5 rounded-full bg-amber-500 text-black text-[10px] font-extrabold flex items-center justify-center shadow-sm shrink-0">
+                  {(link as any).badge > 9 ? '9+' : (link as any).badge}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
+import NotificationSystem from '@/components/NotificationSystem';
 
 interface ResponsiveLayoutWrapperProps {
   title: string;
@@ -135,6 +136,9 @@ export default function ResponsiveLayoutWrapper({
 
       {/* RIGHT SIDEBAR (If provided, e.g. Intern Metrics) */}
       {rightSidebar}
+
+      {/* GLOBAL NOTIFICATION SYSTEM — shows toasts + bell for all users */}
+      <NotificationSystem />
     </div>
   );
 }
