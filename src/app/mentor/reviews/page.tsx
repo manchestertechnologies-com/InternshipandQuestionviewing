@@ -191,6 +191,8 @@ export default function MentorReviewsPage() {
 
   // Edit states for modal
   const [isEditMode, setIsEditMode] = useState(false);
+  const [editSaveSuccess, setEditSaveSuccess] = useState(false);
+  const [editSaveError, setEditSaveError] = useState('');
   const [editQuestionText, setEditQuestionText] = useState('');
   const [editOptionA, setEditOptionA] = useState('');
   const [editOptionB, setEditOptionB] = useState('');
@@ -202,6 +204,13 @@ export default function MentorReviewsPage() {
   const [editDifficulty, setEditDifficulty] = useState('Easy');
   const [editStatus, setEditStatus] = useState('PENDING');
   const [editQuestionType, setEditQuestionType] = useState('MCQ');
+  // Metadata edit fields
+  const [editSubject, setEditSubject] = useState('');
+  const [editTopic, setEditTopic] = useState('');
+  const [editConcept, setEditConcept] = useState('');
+  const [editSubConcept, setEditSubConcept] = useState('');
+  const [editClassVal, setEditClassVal] = useState('');
+  const [editExamType, setEditExamType] = useState('');
 
   const editQuestionRef = React.useRef<HTMLTextAreaElement>(null);
   const editSolutionRef = React.useRef<HTMLTextAreaElement>(null);
@@ -209,6 +218,8 @@ export default function MentorReviewsPage() {
   const openQuestionModal = (q: Question) => {
     setSelectedQuestion(q);
     setIsEditMode(false);
+    setEditSaveSuccess(false);
+    setEditSaveError('');
     setEditQuestionText(q.questionText || '');
     setEditOptionA(q.optionA || '');
     setEditOptionB(q.optionB || '');
@@ -221,11 +232,20 @@ export default function MentorReviewsPage() {
     setEditStatus(q.status || 'PENDING');
     setEditQuestionType((q as any).questionType || 'MCQ');
     setFeedback(q.reviewFeedback || '');
+    // Metadata
+    setEditSubject(q.subject || '');
+    setEditTopic(q.topic || '');
+    setEditConcept(q.concept || '');
+    setEditSubConcept(q.subConcept || '');
+    setEditClassVal(q.classVal || '');
+    setEditExamType(q.examType || '');
   };
 
   const handleSaveFullQuestionEdit = async () => {
     if (!selectedQuestion) return;
     setUpdating(true);
+    setEditSaveSuccess(false);
+    setEditSaveError('');
     try {
       const extraData = (selectedQuestion as any).extraData || {};
       const updatedExtraData = editExtraOptions.length > 0 
@@ -246,7 +266,14 @@ export default function MentorReviewsPage() {
           status: editStatus,
           questionType: editQuestionType,
           extraData: updatedExtraData,
-          reviewFeedback: feedback
+          reviewFeedback: feedback,
+          // Metadata fields
+          subject: editSubject,
+          topic: editTopic,
+          concept: editConcept,
+          subConcept: editSubConcept || null,
+          classVal: editClassVal,
+          examType: editExamType,
         }),
       });
 
@@ -256,12 +283,14 @@ export default function MentorReviewsPage() {
       }
 
       const updated = await res.json();
+      // API now returns images + intern; merge into list and selected state
       setQuestions(prev => prev.map(q => q.id === updated.id ? { ...q, ...updated } : q));
-      setSelectedQuestion(updated);
+      setSelectedQuestion({ ...updated });
       setIsEditMode(false);
-      alert('Question updated successfully!');
+      setEditSaveSuccess(true);
+      setTimeout(() => setEditSaveSuccess(false), 4000);
     } catch (err: any) {
-      alert(err.message);
+      setEditSaveError(err.message || 'An unexpected error occurred');
     } finally {
       setUpdating(false);
     }
@@ -1015,29 +1044,131 @@ export default function MentorReviewsPage() {
                     )}
                   </div>
 
+                  {/* ── Metadata Edit Section ───────────────────────── */}
+                  <div className="p-4 bg-zinc-950/60 rounded-xl border border-brand-border space-y-4">
+                    <label className="block text-[10px] font-bold uppercase text-amber-400 tracking-widest">
+                      📚 Classification Metadata
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* Subject */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">Subject</label>
+                        <select
+                          value={editSubject}
+                          onChange={(e) => setEditSubject(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                        >
+                          <option value="Physics">Physics</option>
+                          <option value="Chemistry">Chemistry</option>
+                          <option value="Biology">Biology</option>
+                          <option value="Mathematics">Mathematics</option>
+                        </select>
+                      </div>
+                      {/* Class */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">Class</label>
+                        <select
+                          value={editClassVal}
+                          onChange={(e) => setEditClassVal(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                        >
+                          <option value="11th">Class 11</option>
+                          <option value="12th">Class 12</option>
+                        </select>
+                      </div>
+                      {/* Topic / Chapter */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">Chapter / Topic</label>
+                        <input
+                          type="text"
+                          value={editTopic}
+                          onChange={(e) => setEditTopic(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                          placeholder="e.g. Laws of Motion"
+                        />
+                      </div>
+                      {/* Concept */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">Concept</label>
+                        <input
+                          type="text"
+                          value={editConcept}
+                          onChange={(e) => setEditConcept(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                          placeholder="e.g. Newton's Second Law"
+                        />
+                      </div>
+                      {/* Sub-Concept */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">Sub-Concept <span className="normal-case text-zinc-600">(optional)</span></label>
+                        <input
+                          type="text"
+                          value={editSubConcept}
+                          onChange={(e) => setEditSubConcept(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                          placeholder="e.g. Atwood Machine"
+                        />
+                      </div>
+                      {/* Exam Type */}
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase text-brand-muted mb-1">Exam Type</label>
+                        <input
+                          type="text"
+                          value={editExamType}
+                          onChange={(e) => setEditExamType(e.target.value)}
+                          className="w-full px-3 py-1.5 rounded-lg border border-brand-border bg-black text-white text-xs focus:outline-none focus:border-brand-gold"
+                          placeholder="e.g. JEE, NEET or JEE, NEET, BOARD"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   {/* Action Bar */}
-                  <div className="pt-4 border-t border-brand-border flex justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setIsEditMode(false)}
-                      className="px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs border border-brand-border transition cursor-pointer"
-                    >
-                      Cancel Edit
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveFullQuestionEdit}
-                      disabled={updating}
-                      className="px-6 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Save className="w-4 h-4" />
-                      <span>Save All Changes</span>
-                    </button>
+                  <div className="pt-4 border-t border-brand-border space-y-3">
+                    {/* Success Banner */}
+                    {editSaveSuccess && (
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-950/40 border border-emerald-500/40 rounded-lg text-emerald-400 text-xs font-semibold">
+                        <Check className="w-4 h-4 shrink-0" />
+                        Question saved successfully! Returning to review view.
+                      </div>
+                    )}
+                    {/* Error Banner */}
+                    {editSaveError && (
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-red-950/40 border border-red-500/40 rounded-lg text-red-400 text-xs font-semibold">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        {editSaveError}
+                      </div>
+                    )}
+                    <div className="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        onClick={() => { setIsEditMode(false); setEditSaveError(''); }}
+                        className="px-4 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 text-zinc-300 font-semibold text-xs border border-brand-border transition cursor-pointer"
+                      >
+                        Cancel Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSaveFullQuestionEdit}
+                        disabled={updating}
+                        className="px-6 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                      >
+                        {updating ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        <span>{updating ? 'Saving…' : 'Save All Changes'}</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
                 /* VIEW & REVIEW MODE */
                 <>
+                  {/* Success banner after save */}
+                  {editSaveSuccess && (
+                    <div className="flex items-center gap-2 px-4 py-2.5 bg-emerald-950/40 border border-emerald-500/40 rounded-lg text-emerald-400 text-xs font-semibold">
+                      <Check className="w-4 h-4 shrink-0" />
+                      Question saved and updated successfully!
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                     <div className="bg-zinc-900/60 p-2.5 rounded-lg border border-brand-border">
                       <p className="text-[10px] text-brand-muted uppercase font-bold">Subject</p>

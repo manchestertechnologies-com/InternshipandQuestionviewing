@@ -118,6 +118,10 @@ export async function PATCH(
     const updated = await prisma.question.update({
       where: { id },
       data: updateData,
+      include: {
+        images: true,
+        intern: true,
+      },
     });
 
     return NextResponse.json(updated);
